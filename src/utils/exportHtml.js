@@ -1,0 +1,335 @@
+import { calculateDriverSummary, sortMovementsByDateAndTime } from "./calculations";
+import { formatLongDate } from "./time";
+
+const EMPTY = "-";
+
+const viewNames = {
+  executive: "Executive Programme",
+  operational: "Operational Schedule",
+  driver: "Driver Schedule",
+  workingTime: "Working Time Summary",
+};
+
+const orientations = {
+  executive: "portrait",
+  operational: "landscape",
+  driver: "landscape",
+  workingTime: "landscape",
+};
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function lookup(items) {
+  return new Map(items.map((item) => [item.id, item]));
+}
+
+function dateLabel(schedule) {
+  const dates = schedule.scheduleDays.map((day) => day.date).filter(Boolean).sort();
+  if (dates.length === 0) return "No schedule date";
+  if (dates[0] === dates[dates.length - 1]) return formatLongDate(dates[0]);
+  return `${formatLongDate(dates[0])} - ${formatLongDate(dates[dates.length - 1])}`;
+}
+
+function movementsWithDays(schedule) {
+  const daysById = lookup(schedule.scheduleDays);
+  return schedule.movements.map((movement) => ({
+    ...movement,
+    day: daysById.get(movement.scheduleDayId),
+  }));
+}
+
+function timeRange(...times) {
+  const values = times.filter(Boolean);
+  if (values.length === 0) return EMPTY;
+  if (values.length === 1) return values[0];
+  return `${values[0]}-${values[values.length - 1]}`;
+}
+
+function movementLabel(value) {
+  const text = value || "";
+  if (text.toLowerCase().includes("transfer")) return "Transfer";
+  if (text.toLowerCase().includes("meeting")) return "Meeting";
+  if (text.toLowerCase().includes("driver start")) return "Standby";
+  if (text.toLowerCase().includes("end of duty")) return "End of Duty";
+  return text || EMPTY;
+}
+
+function table(headers, rows, className = "") {
+  if (rows.length === 0) {
+    return `<p class="empty">No records available for this view.</p>`;
+  }
+
+  const headerHtml = headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("");
+  const rowsHtml = rows
+    .map((row) => `<tr>${row.map((cell) => `<td class="${cell.className || ""}">${escapeHtml(cell.value || EMPTY)}</td>`).join("")}</tr>`)
+    .join("");
+
+  return `<table class="${className}"><thead><tr>${headerHtml}</tr></thead><tbody>${rowsHtml}</tbody></table>`;
+}
+
+function cell(value, className = "") {
+  return { value, className };
+}
+
+function executiveTable(schedule) {
+  const rows = sortMovementsByDateAndTime(movementsWithDays(schedule).filter((movement) => movement.isExecutiveVisible !== false)).map((movement) => [
+    cell(timeRange(movement.departureTime || movement.arrivalTime, movement.arrivalTime || movement.endTime), "time-cell"),
+    cell(movementLabel(movement.engagementDetails), "movement-cell"),
+    cell(movement.engagementDetails, "details-cell"),
+    cell(movement.venue, "venue-cell"),
+    cell(movement.address, "address-cell"),
+  ]);
+
+  return table(["Time", "Movement", "Details", "Venue", "Address"], rows, "executive-table");
+}
+
+function operationalRows(schedule, driverId) {
+  const driversById = lookup(schedule.drivers);
+  const vehiclesById = lookup(schedule.vehicles);
+  return sortMovementsByDateAndTime(
+    movementsWithDays(schedule).filter((movement) => movement.isOperationalVisible !== false && (!driverId || movement.driverId === driverId)),
+  ).map((movement) => [
+    cell(movement.driverStart, "time-cell"),
+    cell(movement.departureTime, "time-cell"),
+    cell(movement.arrivalTime, "time-cell"),
+    cell(movement.endTime, "time-cell"),
+    cell(movement.engagementDetails, "details-cell"),
+    cell(movement.venue, "venue-cell"),
+    cell(movement.address, "address-cell small-cell"),
+    cell(movement.locationNotes, "wrap-cell"),
+    cell(movement.parking, "wrap-cell"),
+    cell(movement.participants, "wrap-cell"),
+    cell(driversById.get(movement.driverId)?.name),
+    cell(vehiclesById.get(movement.vehicleId)?.name),
+  ]);
+}
+
+function operationalTable(schedule) {
+  return table(
+    ["Driver Start", "Departure", "Arrival", "End", "Engagement", "Venue", "Address", "Location Notes", "Parking", "Participants", "Driver", "Vehicle"],
+    operationalRows(schedule),
+    "operational-table compact-table",
+  );
+}
+
+function driverInfo(schedule, selectedDriverId) {
+  const driver = schedule.drivers.find((item) => item.id === selectedDriverId) || schedule.drivers[0];
+  const vehicle = schedule.vehicles.find((item) => item.id === driver?.defaultVehicle);
+  return { driver, vehicle };
+}
+
+function driverTable(schedule, selectedDriverId) {
+  const { driver } = driverInfo(schedule, selectedDriverId);
+  return table(
+    ["Driver Start", "Departure", "Arrival", "End", "Engagement", "Venue", "Address", "Location Notes", "Parking", "Participants", "Driver", "Vehicle"],
+    operationalRows(schedule, driver?.id),
+    "operational-table compact-table",
+  );
+}
+
+function workingTimeTable(schedule) {
+  const rows = calculateDriverSummary(schedule.movements, schedule.drivers, schedule.vehicles, schedule.scheduleDays).map((summary) => [
+    cell(summary.driverName),
+    cell(summary.vehicleName),
+    cell(summary.startTime, "time-cell"),
+    cell(summary.endTime, "time-cell"),
+    cell(summary.totalDuration, "total-cell"),
+    cell(summary.overtimeDuration, "total-cell"),
+  ]);
+
+  return table(["Driver", "Vehicle", "Start", "End", "Total Duty Time", "Overtime"], rows, "summary-table");
+}
+
+function bodyForView(schedule, view, selectedDriverId) {
+  if (view === "executive") return executiveTable(schedule);
+  if (view === "operational") return operationalTable(schedule);
+  if (view === "driver") return driverTable(schedule, selectedDriverId);
+  return workingTimeTable(schedule);
+}
+
+function headerTitle(schedule, view, selectedDriverId) {
+  if (view !== "driver") return schedule.profile.documentTitle;
+  const { driver, vehicle } = driverInfo(schedule, selectedDriverId);
+  return `${schedule.profile.documentTitle}${driver ? ` - ${driver.name}` : ""}${vehicle ? ` / ${vehicle.name}` : ""}`;
+}
+
+function driverHeading(schedule, view, selectedDriverId) {
+  if (view !== "driver") return "";
+  const { driver, vehicle } = driverInfo(schedule, selectedDriverId);
+  return `
+    <div class="driver-heading">
+      <strong>Driver:</strong> ${escapeHtml(driver?.name || EMPTY)}
+      <span><strong>Vehicle:</strong> ${escapeHtml(vehicle?.name || EMPTY)}</span>
+    </div>
+  `;
+}
+
+function stylesFor(view) {
+  const isExecutive = view === "executive";
+  const fontSize = isExecutive ? "11.5px" : "8.5px";
+  const padding = isExecutive ? "9px 10px" : "5px 6px";
+
+  return `
+    * { box-sizing: border-box; }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      color: #171717;
+      margin: 0;
+      background: #ffffff;
+      line-height: 1.35;
+    }
+    .page {
+      width: 100%;
+      max-width: ${isExecutive ? "190mm" : "277mm"};
+      margin: 0 auto;
+      padding: 10mm 8mm;
+    }
+    button, input, select, textarea, nav, .no-print { display: none !important; }
+    header {
+      border-bottom: 2px solid #171717;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+    }
+    h1 {
+      font-size: ${isExecutive ? "22px" : "18px"};
+      margin: 0;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      font-weight: 800;
+    }
+    h2 {
+      font-size: ${isExecutive ? "15px" : "13px"};
+      margin: 5px 0 8px;
+      color: #404040;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 16px;
+      font-size: 10px;
+      color: #525252;
+    }
+    .subtitle {
+      font-weight: 700;
+      color: #171717;
+    }
+    .driver-heading {
+      margin: 0 0 12px;
+      padding: 8px 10px;
+      border: 1px solid #d4d4d4;
+      background: #fafafa;
+      font-size: 11px;
+    }
+    .driver-heading span { margin-left: 18px; }
+    table {
+      width: 100%;
+      max-width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: ${fontSize};
+      page-break-inside: auto;
+    }
+    th, td {
+      border: 1px solid #d4d4d4;
+      padding: ${padding};
+      text-align: left;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+      word-break: normal;
+      white-space: pre-line;
+    }
+    th {
+      background: #eeeeee;
+      font-size: ${isExecutive ? "9px" : "7.5px"};
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      font-weight: 800;
+      color: #262626;
+    }
+    tr { break-inside: avoid; page-break-inside: avoid; }
+    tbody tr:nth-child(even) td { background: #fafafa; }
+    .time-cell {
+      text-align: center;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+    }
+    .movement-cell { font-weight: 700; }
+    .venue-cell { font-weight: 800; }
+    .address-cell, .small-cell { font-size: ${isExecutive ? "10px" : "7.8px"}; color: #525252; }
+    .wrap-cell { white-space: normal; }
+    .total-cell { font-weight: 800; }
+    .executive-table th:nth-child(1), .executive-table td:nth-child(1) { width: 15%; }
+    .executive-table th:nth-child(2), .executive-table td:nth-child(2) { width: 18%; }
+    .executive-table th:nth-child(3), .executive-table td:nth-child(3) { width: 27%; }
+    .executive-table th:nth-child(4), .executive-table td:nth-child(4) { width: 20%; }
+    .executive-table th:nth-child(5), .executive-table td:nth-child(5) { width: 20%; }
+    .compact-table th:nth-child(-n+4), .compact-table td:nth-child(-n+4) { width: 6.5%; }
+    .compact-table th:nth-child(5), .compact-table td:nth-child(5) { width: 14%; }
+    .compact-table th:nth-child(6), .compact-table td:nth-child(6) { width: 10%; }
+    .compact-table th:nth-child(7), .compact-table td:nth-child(7) { width: 13%; }
+    .compact-table th:nth-child(8), .compact-table td:nth-child(8) { width: 13%; }
+    .compact-table th:nth-child(9), .compact-table td:nth-child(9) { width: 8%; }
+    .compact-table th:nth-child(10), .compact-table td:nth-child(10) { width: 10%; }
+    .compact-table th:nth-child(11), .compact-table td:nth-child(11) { width: 6%; }
+    .compact-table th:nth-child(12), .compact-table td:nth-child(12) { width: 6%; }
+    .summary-table th, .summary-table td { font-size: 11px; padding: 8px 10px; }
+    .empty {
+      border: 1px dashed #d4d4d4;
+      padding: 24px;
+      color: #737373;
+      text-align: center;
+      font-size: 12px;
+    }
+    footer {
+      margin-top: 14px;
+      font-size: 9px;
+      color: #737373;
+      text-align: right;
+    }
+    @page { size: A4 ${orientations[view]}; margin: 12mm; }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .page { padding: 0; }
+    }
+  `;
+}
+
+export function getExportDocument(schedule, view, options = {}) {
+  const generatedAt = new Date().toLocaleString();
+  const title = viewNames[view];
+  const headingHtml = `
+    <div class="page">
+      <header>
+        <h1>${escapeHtml(schedule.profile.missionName)}</h1>
+        <h2>${escapeHtml(headerTitle(schedule, view, options.selectedDriverId))}</h2>
+        <div class="meta">
+          <span>${escapeHtml(dateLabel(schedule))}</span>
+          <span class="subtitle">${escapeHtml(title)}</span>
+          <span>Generated ${escapeHtml(generatedAt)}</span>
+        </div>
+      </header>
+      ${driverHeading(schedule, view, options.selectedDriverId)}
+  `;
+  const styles = stylesFor(view);
+  const tableHtml = bodyForView(schedule, view, options.selectedDriverId);
+  const bodyHtml = `${headingHtml}${tableHtml}<footer>Generated by ScheduleIt</footer></div>`;
+  const fullHtml = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>${styles}</style></head><body>${bodyHtml}</body></html>`;
+
+  return {
+    bodyHtml,
+    fullHtml,
+    orientation: orientations[view],
+    styles,
+    title,
+  };
+}

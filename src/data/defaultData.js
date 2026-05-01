@@ -1,0 +1,180 @@
+export const STORAGE_KEY = "toolstack.scheduleit.v1";
+
+export const defaultDrivers = [
+  {
+    id: "driver-greg",
+    name: "Greg",
+    defaultVehicle: "vehicle-vito",
+  },
+  {
+    id: "driver-rory",
+    name: "Rory",
+    defaultVehicle: "vehicle-bmw",
+  },
+];
+
+export const defaultVehicles = [
+  {
+    id: "vehicle-vito",
+    name: "Vito",
+  },
+  {
+    id: "vehicle-bmw",
+    name: "BMW",
+  },
+];
+
+export const defaultProfile = {
+  missionName: "South African Consulate-General Munich",
+  documentTitle: "Programme",
+};
+
+export const defaultScheduleState = {
+  version: 1,
+  profile: defaultProfile,
+  drivers: defaultDrivers,
+  vehicles: defaultVehicles,
+  scheduleDays: [],
+  movements: [],
+};
+
+export function createMondayDemoState() {
+  const scheduleDayId = "demo-monday";
+  const gregId = "driver-greg";
+  const vitoId = "vehicle-vito";
+
+  return {
+    ...defaultScheduleState,
+    drivers: defaultDrivers,
+    vehicles: defaultVehicles,
+    scheduleDays: [
+      {
+        id: scheduleDayId,
+        date: "2026-05-04",
+        title: "Monday Delegation Schedule",
+      },
+    ],
+    movements: [
+      {
+        id: "demo-greg-driver-start",
+        scheduleDayId,
+        sortOrder: 10,
+        driverId: gregId,
+        vehicleId: vitoId,
+        driverStart: "10:00",
+        departureTime: "",
+        arrivalTime: "",
+        endTime: "",
+        engagementDetails: "Driver start / standby",
+        venue: "",
+        address: "",
+        locationNotes: "",
+        parking: "",
+        participants: "",
+        internalNotes: "",
+        isExecutiveVisible: false,
+        isOperationalVisible: true,
+      },
+      {
+        id: "demo-greg-transfer-staatskanzlei",
+        scheduleDayId,
+        sortOrder: 20,
+        driverId: gregId,
+        vehicleId: vitoId,
+        driverStart: "",
+        departureTime: "11:05",
+        arrivalTime: "11:30",
+        endTime: "",
+        engagementDetails: "Transfer to Bayerische Staatskanzlei",
+        venue: "Bayerische Staatskanzlei",
+        address: "Franz-Josef-Strauß-Ring 1, 80539 München",
+        locationNotes: "",
+        parking: "",
+        participants: "",
+        internalNotes: "",
+        isExecutiveVisible: true,
+        isOperationalVisible: true,
+      },
+      {
+        id: "demo-greg-official-meeting",
+        scheduleDayId,
+        sortOrder: 30,
+        driverId: gregId,
+        vehicleId: vitoId,
+        driverStart: "",
+        departureTime: "",
+        arrivalTime: "12:00",
+        endTime: "13:00",
+        engagementDetails: "Official meeting",
+        venue: "Bayerische Staatskanzlei",
+        address: "Franz-Josef-Strauß-Ring 1, 80539 München",
+        locationNotes: "",
+        parking: "",
+        participants: "",
+        internalNotes: "",
+        isExecutiveVisible: true,
+        isOperationalVisible: true,
+      },
+      {
+        id: "demo-greg-transfer-bbw",
+        scheduleDayId,
+        sortOrder: 40,
+        driverId: gregId,
+        vehicleId: vitoId,
+        driverStart: "",
+        departureTime: "14:25",
+        arrivalTime: "15:00",
+        endTime: "",
+        engagementDetails: "Transfer to BBW Group",
+        venue: "BBW Group",
+        address: "",
+        locationNotes: "Parking to be checked by driver",
+        parking: "",
+        participants: "",
+        internalNotes: "",
+        isExecutiveVisible: true,
+        isOperationalVisible: true,
+      },
+      {
+        id: "demo-greg-bbw-meeting",
+        scheduleDayId,
+        sortOrder: 50,
+        driverId: gregId,
+        vehicleId: vitoId,
+        driverStart: "",
+        departureTime: "",
+        arrivalTime: "15:00",
+        endTime: "16:30",
+        engagementDetails: "Meeting",
+        venue: "BBW Group",
+        address: "",
+        locationNotes: "Parking to be checked by driver",
+        parking: "",
+        participants: "",
+        internalNotes: "",
+        isExecutiveVisible: true,
+        isOperationalVisible: true,
+      },
+      {
+        id: "demo-greg-end-duty",
+        scheduleDayId,
+        sortOrder: 60,
+        driverId: gregId,
+        vehicleId: vitoId,
+        driverStart: "",
+        departureTime: "",
+        arrivalTime: "",
+        endTime: "17:00",
+        engagementDetails: "End of duty",
+        venue: "",
+        address: "",
+        locationNotes: "",
+        parking: "",
+        participants: "",
+        internalNotes: "",
+        isExecutiveVisible: false,
+        isOperationalVisible: true,
+      },
+    ],
+  };
+}
