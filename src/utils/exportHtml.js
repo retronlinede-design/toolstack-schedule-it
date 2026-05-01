@@ -82,16 +82,52 @@ function operationalHeaders() {
   return ["Driver Start", "Departure", "Arrival", "End", "Engagement", "Venue", "Address", "Location Notes", "Parking", "Participants", "Driver", "Vehicle"];
 }
 
-function executiveTable(schedule) {
-  const rows = sortMovementsByDateAndTime(movementsWithDays(schedule).filter((movement) => movement.isExecutiveVisible !== false)).map((movement) => [
+function executiveRows(movements) {
+  return movements.map((movement) => [
     cell(timeRange(movement.departureTime || movement.arrivalTime, movement.arrivalTime || movement.endTime), "time-cell"),
     cell(movementLabel(movement.engagementDetails), "movement-cell"),
     cell(movement.engagementDetails, "details-cell"),
     cell(movement.venue, "venue-cell"),
     cell(movement.address, "address-cell"),
   ]);
+}
 
-  return table(["Time", "Movement", "Details", "Venue", "Address"], rows, "executive-table");
+function executiveTable(schedule) {
+  const movements = sortMovementsByDateAndTime(movementsWithDays(schedule).filter((movement) => movement.isExecutiveVisible !== false));
+
+  if (movements.length === 0) return `<p class="empty">No records available for this view.</p>`;
+
+  const dayGroups = [];
+  const dayGroupsByKey = new Map();
+
+  movements.forEach((movement) => {
+    const dayKey = movement.day?.id || movement.day?.date || "unscheduled";
+    if (!dayGroupsByKey.has(dayKey)) {
+      const group = {
+        key: dayKey,
+        day: movement.day,
+        movements: [],
+      };
+      dayGroupsByKey.set(dayKey, group);
+      dayGroups.push(group);
+    }
+    dayGroupsByKey.get(dayKey).movements.push(movement);
+  });
+
+  return dayGroups
+    .map((dayGroup) => {
+      const dayTitle = dayGroup.day?.title ? `<div class="executive-day-title">${escapeHtml(dayGroup.day.title)}</div>` : "";
+      return `
+        <section class="executive-day-section">
+          <div class="executive-day-heading">
+            <div class="executive-day-date">${escapeHtml(formatLongDate(dayGroup.day?.date) || "Unscheduled")}</div>
+            ${dayTitle}
+          </div>
+          ${table(["Time", "Movement", "Details", "Venue", "Address"], executiveRows(dayGroup.movements), "executive-table")}
+        </section>
+      `;
+    })
+    .join("");
 }
 
 function operationalMovementRows(movements, driversById, vehiclesById) {
@@ -284,6 +320,10 @@ function stylesFor(view) {
       font-size: 10px;
       color: #525252;
     }
+    .meta-label {
+      font-weight: 800;
+      color: #171717;
+    }
     .subtitle {
       font-weight: 700;
       color: #171717;
@@ -378,6 +418,53 @@ function stylesFor(view) {
     .address-cell, .small-cell { font-size: ${isExecutive ? "10px" : "7.8px"}; color: #525252; }
     .wrap-cell { white-space: normal; }
     .total-cell { font-weight: 800; }
+    .executive-page header {
+      border-bottom: 1.5px solid #171717;
+      margin-bottom: 18px;
+      padding-bottom: 12px;
+    }
+    .executive-page h1 {
+      font-size: 21px;
+      line-height: 1.15;
+      letter-spacing: .035em;
+    }
+    .executive-page h2 {
+      margin: 4px 0 9px;
+      color: #171717;
+      font-size: 16px;
+      letter-spacing: .04em;
+    }
+    .executive-page .meta {
+      gap: 8px 14px;
+      font-size: 10.5px;
+      color: #404040;
+    }
+    .executive-day-section {
+      margin: 0 0 18px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .executive-day-heading {
+      margin: 0 0 7px;
+      padding: 7px 9px;
+      border-left: 3px solid #171717;
+      background: #f7f7f7;
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+    .executive-day-date {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: #171717;
+    }
+    .executive-day-title {
+      margin-top: 2px;
+      font-size: 10px;
+      font-weight: 700;
+      color: #525252;
+    }
     .executive-table th:nth-child(1), .executive-table td:nth-child(1) { width: 15%; }
     .executive-table th:nth-child(2), .executive-table td:nth-child(2) { width: 18%; }
     .executive-table th:nth-child(3), .executive-table td:nth-child(3) { width: 27%; }
@@ -417,22 +504,32 @@ function stylesFor(view) {
 export function getExportDocument(schedule, view, options = {}) {
   const generatedAt = new Date().toLocaleString();
   const title = viewNames[view];
-  const headingHtml = `
-    <div class="page">
-      <header>
-        <h1>${escapeHtml(schedule.profile.missionName)}</h1>
-        <h2>${escapeHtml(headerTitle(schedule, view, options.selectedDriverId))}</h2>
-        <div class="meta">
+  const isExecutive = view === "executive";
+  const metaHtml = isExecutive
+    ? `
+          <span><span class="meta-label">Document:</span> ${escapeHtml(headerTitle(schedule, view, options.selectedDriverId))}</span>
+          <span><span class="meta-label">Date:</span> ${escapeHtml(dateLabel(schedule))}</span>
+        `
+    : `
           <span>${escapeHtml(dateLabel(schedule))}</span>
           <span class="subtitle">${escapeHtml(title)}</span>
           <span>Generated ${escapeHtml(generatedAt)}</span>
+        `;
+  const headingHtml = `
+    <div class="page${isExecutive ? " executive-page" : ""}">
+      <header>
+        <h1>${escapeHtml(schedule.profile.missionName)}</h1>
+        <h2>${escapeHtml(isExecutive ? title : headerTitle(schedule, view, options.selectedDriverId))}</h2>
+        <div class="meta">
+          ${metaHtml}
         </div>
       </header>
       ${driverHeading(schedule, view, options.selectedDriverId)}
   `;
   const styles = stylesFor(view);
   const tableHtml = bodyForView(schedule, view, options.selectedDriverId);
-  const bodyHtml = `${headingHtml}${tableHtml}<footer>Generated by ScheduleIt</footer></div>`;
+  const footerHtml = isExecutive ? `Generated by ScheduleIt · Generated ${escapeHtml(generatedAt)}` : "Generated by ScheduleIt";
+  const bodyHtml = `${headingHtml}${tableHtml}<footer>${footerHtml}</footer></div>`;
   const fullHtml = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>${styles}</style></head><body>${bodyHtml}</body></html>`;
 
   return {
