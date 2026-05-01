@@ -45,6 +45,7 @@ export default function DriverView({ entriesByMonth, drivers, vehicles, selected
         entriesByMonth={filteredEntriesByMonth}
         drivers={drivers}
         vehicles={vehicles}
+        groupByDriver={false}
         onEdit={onEdit}
         onDelete={onDelete}
       />

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Download, Play, Printer, X } from "lucide-react";
 import ExportPanel from "./components/ExportPanel";
-import ExecutiveView from "./components/ExecutiveView";
 import PreviewTabs from "./components/PreviewTabs";
 import ScheduleBuilder from "./components/ScheduleBuilder";
 import { createMondayDemoState, defaultProfile } from "./data/defaultData";
@@ -45,6 +44,13 @@ function nameKey(value) {
   return (value || "").trim().toLowerCase();
 }
 
+const documentPreviewTabs = [
+  { id: "executive", label: "Executive" },
+  { id: "operational", label: "Operational" },
+  { id: "driver", label: "Driver" },
+  { id: "workingTime", label: "Working Time" },
+];
+
 export default function ScheduleItApp() {
   const [schedule, setSchedule] = useState(() => loadScheduleState());
   const [draft, setDraft] = useState(() => createInitialDraft(loadScheduleState().profile));
@@ -52,6 +58,7 @@ export default function ScheduleItApp() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [printView, setPrintView] = useState(null);
+  const [previewView, setPreviewView] = useState("executive");
   const [selectedDriverId, setSelectedDriverId] = useState(() => loadScheduleState().drivers[0]?.id || "");
 
   useEffect(() => {
@@ -72,6 +79,14 @@ export default function ScheduleItApp() {
     [schedule.scheduleDays, schedule.movements],
   );
   const selectedDriver = schedule.drivers.find((driver) => driver.id === selectedDriverId) || schedule.drivers[0];
+  const previewDocument = useMemo(
+    () => getExportDocument(schedule, previewView, { selectedDriverId: selectedDriver?.id }),
+    [schedule, previewView, selectedDriver?.id],
+  );
+  const printDocument = useMemo(
+    () => (printView ? getExportDocument(schedule, printView, { selectedDriverId: selectedDriver?.id }) : null),
+    [schedule, printView, selectedDriver?.id],
+  );
 
   function updateDraft(nextDraft) {
     setDraft((current) => {
@@ -462,7 +477,7 @@ export default function ScheduleItApp() {
 
   function printPreview() {
     setIsPreviewOpen(false);
-    handlePrintView("executive");
+    handlePrintView(previewView);
   }
 
   return (
@@ -552,19 +567,37 @@ export default function ScheduleItApp() {
                   </button>
                 </div>
               </div>
-              <ExecutiveView entriesByMonth={entriesByMonth} profile={schedule.profile} onEdit={handleEdit} onDelete={handleDelete} printMode />
+              <div className="mb-5 flex flex-wrap gap-2">
+                {documentPreviewTabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setPreviewView(tab.id)}
+                    className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                      previewView === tab.id
+                        ? "bg-neutral-900 text-white"
+                        : "border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              <div
+                className="overflow-x-auto rounded-2xl border border-neutral-100 bg-white"
+                dangerouslySetInnerHTML={{
+                  __html: `<style>${previewDocument.styles}</style>${previewDocument.bodyHtml}`,
+                }}
+              />
             </div>
           </div>
         ) : null}
 
-        {printView ? (
+        {printDocument ? (
           <div
             id="print-sheet"
             className="pointer-events-none fixed left-0 top-0 -z-10 bg-white p-6 text-neutral-900 print:static print:z-auto print:p-0"
             dangerouslySetInnerHTML={{
-              __html: `<style>${getExportDocument(schedule, printView, { selectedDriverId: selectedDriver?.id }).styles}</style>${
-                getExportDocument(schedule, printView, { selectedDriverId: selectedDriver?.id }).bodyHtml
-              }`,
+              __html: `<style>${printDocument.styles}</style>${printDocument.bodyHtml}`,
             }}
           />
         ) : null}

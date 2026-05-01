@@ -78,6 +78,10 @@ function cell(value, className = "") {
   return { value, className };
 }
 
+function operationalHeaders() {
+  return ["Driver Start", "Departure", "Arrival", "End", "Engagement", "Venue", "Address", "Location Notes", "Parking", "Participants", "Driver", "Vehicle"];
+}
+
 function executiveTable(schedule) {
   const rows = sortMovementsByDateAndTime(movementsWithDays(schedule).filter((movement) => movement.isExecutiveVisible !== false)).map((movement) => [
     cell(timeRange(movement.departureTime || movement.arrivalTime, movement.arrivalTime || movement.endTime), "time-cell"),
@@ -90,12 +94,8 @@ function executiveTable(schedule) {
   return table(["Time", "Movement", "Details", "Venue", "Address"], rows, "executive-table");
 }
 
-function operationalRows(schedule, driverId) {
-  const driversById = lookup(schedule.drivers);
-  const vehiclesById = lookup(schedule.vehicles);
-  return sortMovementsByDateAndTime(
-    movementsWithDays(schedule).filter((movement) => movement.isOperationalVisible !== false && (!driverId || movement.driverId === driverId)),
-  ).map((movement) => [
+function operationalMovementRows(movements, driversById, vehiclesById) {
+  return movements.map((movement) => [
     cell(movement.driverStart, "time-cell"),
     cell(movement.departureTime, "time-cell"),
     cell(movement.arrivalTime, "time-cell"),
@@ -111,12 +111,82 @@ function operationalRows(schedule, driverId) {
   ]);
 }
 
-function operationalTable(schedule) {
-  return table(
-    ["Driver Start", "Departure", "Arrival", "End", "Engagement", "Venue", "Address", "Location Notes", "Parking", "Participants", "Driver", "Vehicle"],
-    operationalRows(schedule),
-    "operational-table compact-table",
+function groupOperationalMovements(movements, driversById, vehiclesById, groupByDriver) {
+  const dayGroups = [];
+  const dayGroupsByKey = new Map();
+
+  movements.forEach((movement) => {
+    const dayKey = movement.day?.id || movement.day?.date || "unscheduled";
+    if (!dayGroupsByKey.has(dayKey)) {
+      const group = {
+        key: dayKey,
+        day: movement.day,
+        driverGroups: [],
+        driverGroupsByKey: new Map(),
+      };
+      dayGroupsByKey.set(dayKey, group);
+      dayGroups.push(group);
+    }
+
+    const dayGroup = dayGroupsByKey.get(dayKey);
+    const driverKey = groupByDriver ? movement.driverId || "unassigned" : "all";
+    if (!dayGroup.driverGroupsByKey.has(driverKey)) {
+      const driver = driversById.get(movement.driverId);
+      const vehicle = vehiclesById.get(movement.vehicleId);
+      const group = {
+        key: driverKey,
+        label: `${driver?.name || EMPTY} / ${vehicle?.name || EMPTY}`,
+        movements: [],
+      };
+      dayGroup.driverGroupsByKey.set(driverKey, group);
+      dayGroup.driverGroups.push(group);
+    }
+
+    dayGroup.driverGroupsByKey.get(driverKey).movements.push(movement);
+  });
+
+  return dayGroups;
+}
+
+function operationalSections(schedule, driverId, groupByDriver) {
+  const driversById = lookup(schedule.drivers);
+  const vehiclesById = lookup(schedule.vehicles);
+  const movements = sortMovementsByDateAndTime(
+    movementsWithDays(schedule).filter((movement) => movement.isOperationalVisible !== false && (!driverId || movement.driverId === driverId)),
   );
+
+  if (movements.length === 0) return `<p class="empty">No records available for this view.</p>`;
+
+  return groupOperationalMovements(movements, driversById, vehiclesById, groupByDriver)
+    .map((dayGroup) => {
+      const dayTitle = dayGroup.day?.title ? `<div class="day-title">${escapeHtml(dayGroup.day.title)}</div>` : "";
+      const driverSections = dayGroup.driverGroups
+        .map((driverGroup) => {
+          const driverHeading = groupByDriver ? `<div class="driver-section-heading">${escapeHtml(driverGroup.label)}</div>` : "";
+          return `
+            <section class="driver-section">
+              ${driverHeading}
+              ${table(operationalHeaders(), operationalMovementRows(driverGroup.movements, driversById, vehiclesById), "operational-table compact-table")}
+            </section>
+          `;
+        })
+        .join("");
+
+      return `
+        <section class="day-section">
+          <div class="day-heading">
+            <div class="day-date">${escapeHtml(formatLongDate(dayGroup.day?.date) || "Unscheduled")}</div>
+            ${dayTitle}
+          </div>
+          ${driverSections}
+        </section>
+      `;
+    })
+    .join("");
+}
+
+function operationalTable(schedule) {
+  return operationalSections(schedule, null, true);
 }
 
 function driverInfo(schedule, selectedDriverId) {
@@ -127,11 +197,7 @@ function driverInfo(schedule, selectedDriverId) {
 
 function driverTable(schedule, selectedDriverId) {
   const { driver } = driverInfo(schedule, selectedDriverId);
-  return table(
-    ["Driver Start", "Departure", "Arrival", "End", "Engagement", "Venue", "Address", "Location Notes", "Parking", "Participants", "Driver", "Vehicle"],
-    operationalRows(schedule, driver?.id),
-    "operational-table compact-table",
-  );
+  return operationalSections(schedule, driver?.id, false);
 }
 
 function workingTimeTable(schedule) {
@@ -230,6 +296,50 @@ function stylesFor(view) {
       font-size: 11px;
     }
     .driver-heading span { margin-left: 18px; }
+    .day-section {
+      margin: 0 0 16px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .day-heading {
+      margin: 0 0 8px;
+      padding: 7px 9px;
+      border: 1px solid #bdbdbd;
+      background: #f3f3f3;
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+    .day-date {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: #171717;
+    }
+    .day-title {
+      margin-top: 2px;
+      font-size: 9px;
+      font-weight: 700;
+      color: #525252;
+    }
+    .driver-section {
+      margin: 0 0 10px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .driver-section-heading {
+      margin: 0 0 4px;
+      padding: 5px 7px;
+      background: #fafafa;
+      border: 1px solid #d4d4d4;
+      font-size: 8.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: #262626;
+      break-after: avoid;
+      page-break-after: avoid;
+    }
     table {
       width: 100%;
       max-width: 100%;
