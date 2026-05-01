@@ -1,4 +1,4 @@
-import { calculateDriverSummary, sortMovementsByDateAndTime } from "./calculations";
+import { calculateWorkingTimeSummary, sortMovementsByDateAndTime } from "./calculations";
 import { formatLongDate } from "./time";
 
 const EMPTY = "-";
@@ -237,16 +237,54 @@ function driverTable(schedule, selectedDriverId) {
 }
 
 function workingTimeTable(schedule) {
-  const rows = calculateDriverSummary(schedule.movements, schedule.drivers, schedule.vehicles, schedule.scheduleDays).map((summary) => [
+  const { driverDaySummaries, dailyTotals, overallDriverTotals } = calculateWorkingTimeSummary(
+    schedule.movements,
+    schedule.drivers,
+    schedule.vehicles,
+    schedule.scheduleDays,
+  );
+
+  if (driverDaySummaries.length === 0) return `<p class="empty">No records available for this view.</p>`;
+
+  const dailyRows = dailyTotals.map((summary) => [
+    cell(formatLongDate(summary.date)),
+    cell(summary.driverCount),
+    cell(summary.totalDuration, "total-cell"),
+    cell(summary.overtimeDuration, "total-cell"),
+    cell(summary.status),
+  ]);
+  const driverDayRows = driverDaySummaries.map((summary) => [
+    cell(formatLongDate(summary.date)),
     cell(summary.driverName),
     cell(summary.vehicleName),
     cell(summary.startTime, "time-cell"),
     cell(summary.endTime, "time-cell"),
     cell(summary.totalDuration, "total-cell"),
     cell(summary.overtimeDuration, "total-cell"),
+    cell(summary.status),
+  ]);
+  const overallRows = overallDriverTotals.map((summary) => [
+    cell(summary.driverName),
+    cell(summary.dayCount),
+    cell(summary.totalDuration, "total-cell"),
+    cell(summary.overtimeDuration, "total-cell"),
+    cell(summary.status),
   ]);
 
-  return table(["Driver", "Vehicle", "Start", "End", "Total Duty Time", "Overtime"], rows, "summary-table");
+  return `
+    <section class="summary-section">
+      <h3>Daily Totals</h3>
+      ${table(["Date", "Drivers", "Total Duty Time", "Overtime", "Status"], dailyRows, "summary-table")}
+    </section>
+    <section class="summary-section">
+      <h3>Driver Totals Per Day</h3>
+      ${table(["Date", "Driver", "Vehicle", "Start", "End", "Total Duty Time", "Overtime", "Status"], driverDayRows, "summary-table")}
+    </section>
+    <section class="summary-section">
+      <h3>Overall Driver Totals</h3>
+      ${table(["Driver", "Days", "Total Duty Time", "Overtime", "Status"], overallRows, "summary-table")}
+    </section>
+  `;
 }
 
 function bodyForView(schedule, view, selectedDriverId) {
@@ -479,6 +517,19 @@ function stylesFor(view) {
     .compact-table th:nth-child(10), .compact-table td:nth-child(10) { width: 10%; }
     .compact-table th:nth-child(11), .compact-table td:nth-child(11) { width: 6%; }
     .compact-table th:nth-child(12), .compact-table td:nth-child(12) { width: 6%; }
+    .summary-section {
+      margin: 0 0 14px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .summary-section h3 {
+      margin: 0 0 6px;
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: #262626;
+    }
     .summary-table th, .summary-table td { font-size: 11px; padding: 8px 10px; }
     .empty {
       border: 1px dashed #d4d4d4;

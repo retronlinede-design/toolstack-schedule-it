@@ -7,6 +7,18 @@ function durationBetween(start, end) {
   return end >= start ? end - start : end + 24 * 60 - start;
 }
 
+function formatMinutesAsTime(value) {
+  if (value === null || !Number.isFinite(value)) return "-";
+  const normalized = value % (24 * 60);
+  return `${String(Math.floor(normalized / 60)).padStart(2, "0")}:${String(normalized % 60).padStart(2, "0")}`;
+}
+
+function addMinutes(current, value, mode) {
+  if (value === null) return current;
+  if (current === null) return value;
+  return mode === "min" ? Math.min(current, value) : Math.max(current, value);
+}
+
 export function sortMovementsByDateAndTime(movements) {
   return [...movements].sort((a, b) => {
     const dateCompare = (a.day?.date || "").localeCompare(b.day?.date || "");
@@ -24,16 +36,18 @@ export function sortMovementsByDateAndTime(movements) {
   });
 }
 
-export function calculateDriverSummary(movements, drivers, vehicles = [], scheduleDays = []) {
+export function calculateWorkingTimeSummary(movements, drivers, vehicles = [], scheduleDays = []) {
   const daysById = new Map(scheduleDays.map((day) => [day.id, day]));
   const vehiclesById = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]));
   const driversById = new Map(drivers.map((driver) => [driver.id, driver]));
   const groups = new Map();
 
   movements.forEach((movement) => {
-    const start = parseTimeToMinutes(movement.driverStart);
-    const end = parseTimeToMinutes(movement.endTime);
-    if (start === null && end === null) return;
+    const driverStart = parseTimeToMinutes(movement.driverStart);
+    const departure = parseTimeToMinutes(movement.departureTime);
+    const arrival = parseTimeToMinutes(movement.arrivalTime);
+    const endTime = parseTimeToMinutes(movement.endTime);
+    if (driverStart === null && departure === null && arrival === null && endTime === null) return;
 
     const day = daysById.get(movement.scheduleDayId) || movement.day;
     const date = day?.date;
@@ -46,36 +60,111 @@ export function calculateDriverSummary(movements, drivers, vehicles = [], schedu
       vehicleId: movement.vehicleId,
       vehicleName: vehiclesById.get(movement.vehicleId)?.name || "-",
       date,
-      start,
-      end,
+      dayTitle: day?.title || "",
+      primaryStart: null,
+      fallbackStart: null,
+      primaryEnd: null,
+      fallbackEnd: null,
     };
 
     groups.set(key, {
       ...current,
       vehicleId: current.vehicleId || movement.vehicleId,
       vehicleName: current.vehicleName !== "-" ? current.vehicleName : vehiclesById.get(movement.vehicleId)?.name || "-",
-      start: current.start === null || start === null ? current.start ?? start : Math.min(current.start, start),
-      end: current.end === null || end === null ? current.end ?? end : Math.max(current.end, end),
+      primaryStart: addMinutes(current.primaryStart, driverStart, "min"),
+      fallbackStart: addMinutes(addMinutes(current.fallbackStart, departure, "min"), arrival, "min"),
+      primaryEnd: addMinutes(current.primaryEnd, endTime, "max"),
+      fallbackEnd: addMinutes(current.fallbackEnd, arrival, "max"),
     });
   });
 
-  return [...groups.values()]
-    .filter((summary) => summary.start !== null && summary.end !== null)
-    .sort((a, b) => a.date.localeCompare(b.date) || a.driverName.localeCompare(b.driverName))
+  const driverDaySummaries = [...groups.values()]
     .map((summary) => {
-      const totalMinutes = durationBetween(summary.start, summary.end) || 0;
+      const start = summary.primaryStart ?? summary.fallbackStart;
+      const end = summary.primaryEnd ?? summary.fallbackEnd;
+      const usedFallback = (summary.primaryStart === null && summary.fallbackStart !== null) || (summary.primaryEnd === null && summary.fallbackEnd !== null);
+      const isComplete = start !== null && end !== null;
+      const totalMinutes = durationBetween(start, end) || 0;
       const overtimeMinutes = Math.max(totalMinutes - DUTY_DAY_MINUTES, 0);
 
       return {
-        ...summary,
-        startTime: `${String(Math.floor(summary.start / 60)).padStart(2, "0")}:${String(summary.start % 60).padStart(2, "0")}`,
-        endTime: `${String(Math.floor(summary.end / 60)).padStart(2, "0")}:${String(summary.end % 60).padStart(2, "0")}`,
+        driverId: summary.driverId,
+        driverName: summary.driverName,
+        vehicleId: summary.vehicleId,
+        vehicleName: summary.vehicleName,
+        date: summary.date,
+        dayTitle: summary.dayTitle,
+        start,
+        end,
+        startTime: formatMinutesAsTime(start),
+        endTime: formatMinutesAsTime(end),
         totalMinutes,
         totalDuration: minutesToDuration(totalMinutes),
         overtimeMinutes,
         overtimeDuration: minutesToDuration(overtimeMinutes),
+        status: isComplete ? (usedFallback ? "Estimated" : "Complete") : "Incomplete",
       };
-    });
+    })
+    .sort((a, b) => a.date.localeCompare(b.date) || a.driverName.localeCompare(b.driverName));
+
+  const dailyTotals = [...driverDaySummaries.reduce((acc, summary) => {
+    const current = acc.get(summary.date) || {
+      date: summary.date,
+      driverCount: 0,
+      totalMinutes: 0,
+      overtimeMinutes: 0,
+      incompleteCount: 0,
+    };
+
+    current.driverCount += 1;
+    current.totalMinutes += summary.totalMinutes;
+    current.overtimeMinutes += summary.overtimeMinutes;
+    if (summary.status === "Incomplete") current.incompleteCount += 1;
+    acc.set(summary.date, current);
+    return acc;
+  }, new Map()).values()]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((summary) => ({
+      ...summary,
+      totalDuration: minutesToDuration(summary.totalMinutes),
+      overtimeDuration: minutesToDuration(summary.overtimeMinutes),
+      status: summary.incompleteCount > 0 ? `${summary.incompleteCount} incomplete` : "Complete",
+    }));
+
+  const overallDriverTotals = [...driverDaySummaries.reduce((acc, summary) => {
+    const current = acc.get(summary.driverId) || {
+      driverId: summary.driverId,
+      driverName: summary.driverName,
+      dayCount: 0,
+      totalMinutes: 0,
+      overtimeMinutes: 0,
+      incompleteCount: 0,
+    };
+
+    current.dayCount += 1;
+    current.totalMinutes += summary.totalMinutes;
+    current.overtimeMinutes += summary.overtimeMinutes;
+    if (summary.status === "Incomplete") current.incompleteCount += 1;
+    acc.set(summary.driverId, current);
+    return acc;
+  }, new Map()).values()]
+    .sort((a, b) => a.driverName.localeCompare(b.driverName))
+    .map((summary) => ({
+      ...summary,
+      totalDuration: minutesToDuration(summary.totalMinutes),
+      overtimeDuration: minutesToDuration(summary.overtimeMinutes),
+      status: summary.incompleteCount > 0 ? `${summary.incompleteCount} incomplete` : "Complete",
+    }));
+
+  return {
+    driverDaySummaries,
+    dailyTotals,
+    overallDriverTotals,
+  };
+}
+
+export function calculateDriverSummary(movements, drivers, vehicles = [], scheduleDays = []) {
+  return calculateWorkingTimeSummary(movements, drivers, vehicles, scheduleDays).driverDaySummaries.filter((summary) => summary.status !== "Incomplete");
 }
 
 export function calculateLegacyDriverTotals(movements, drivers) {
