@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, Play, Printer, X } from "lucide-react";
 import ExportPanel from "./components/ExportPanel";
 import PreviewTabs from "./components/PreviewTabs";
@@ -52,27 +52,18 @@ const documentPreviewTabs = [
 ];
 
 export default function ScheduleItApp() {
+  const previewFrameRef = useRef(null);
   const [schedule, setSchedule] = useState(() => loadScheduleState());
   const [draft, setDraft] = useState(() => createInitialDraft(loadScheduleState().profile));
   const [validationErrors, setValidationErrors] = useState({});
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
-  const [printView, setPrintView] = useState(null);
   const [previewView, setPreviewView] = useState("executive");
   const [selectedDriverId, setSelectedDriverId] = useState(() => loadScheduleState().drivers[0]?.id || "");
 
   useEffect(() => {
     saveScheduleState(schedule);
   }, [schedule]);
-
-  useEffect(() => {
-    function clearPrintView() {
-      setPrintView(null);
-    }
-
-    window.addEventListener("afterprint", clearPrintView);
-    return () => window.removeEventListener("afterprint", clearPrintView);
-  }, []);
 
   const entriesByMonth = useMemo(
     () => getEntriesByMonth(schedule.scheduleDays, schedule.movements),
@@ -83,9 +74,9 @@ export default function ScheduleItApp() {
     () => getExportDocument(schedule, previewView, { selectedDriverId: selectedDriver?.id }),
     [schedule, previewView, selectedDriver?.id],
   );
-  const printDocument = useMemo(
-    () => (printView ? getExportDocument(schedule, printView, { selectedDriverId: selectedDriver?.id }) : null),
-    [schedule, printView, selectedDriver?.id],
+  const previewSrcDoc = useMemo(
+    () => `<!doctype html><html><head><meta charset="utf-8"><title>${previewDocument.title}</title><style>${previewDocument.styles}</style></head><body>${previewDocument.bodyHtml}</body></html>`,
+    [previewDocument],
   );
 
   function updateDraft(nextDraft) {
@@ -363,12 +354,25 @@ export default function ScheduleItApp() {
     downloadJson("mission-schedule-backup.json", schedule);
   }
 
+  function printHtmlDocument(html) {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return false;
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.setTimeout(() => {
+      printWindow.print();
+    }, 100);
+    return true;
+  }
+
   function handlePrintView(view) {
-    setPrintView(view);
+    const { fullHtml } = getExportDocument(schedule, view, { selectedDriverId: selectedDriver?.id });
+    const didOpen = printHtmlDocument(fullHtml);
     setIsExportOpen(false);
-    window.setTimeout(() => {
-      window.print();
-    }, 50);
+    if (!didOpen) window.alert("Could not open print window. Check your browser popup settings.");
   }
 
   async function handleCopyHtml(view) {
@@ -476,23 +480,19 @@ export default function ScheduleItApp() {
   }
 
   function printPreview() {
-    setIsPreviewOpen(false);
-    handlePrintView(previewView);
+    const frameWindow = previewFrameRef.current?.contentWindow;
+    if (frameWindow) {
+      frameWindow.focus();
+      frameWindow.print();
+      return;
+    }
+
+    const didOpen = printHtmlDocument(previewSrcDoc);
+    if (!didOpen) window.alert("Could not open print window. Check your browser popup settings.");
   }
 
   return (
     <div className="min-h-screen bg-neutral-100 text-neutral-900">
-      <style>{`
-        @media print {
-          @page { size: A4 ${printView === "executive" ? "portrait" : "landscape"}; margin: 12mm; }
-          body * { visibility: hidden; }
-          #print-sheet, #print-sheet * { visibility: visible; }
-          #print-sheet { position: absolute; left: 0; top: 0; width: 100%; }
-          .no-print { display: none !important; }
-          body { background: white; }
-        }
-      `}</style>
-
       <div className="mx-auto max-w-7xl p-4 md:p-6">
         <div className="no-print mb-6 rounded-3xl bg-white p-5 shadow-lg">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -582,24 +582,14 @@ export default function ScheduleItApp() {
                   </button>
                 ))}
               </div>
-              <div
-                className="overflow-x-auto rounded-2xl border border-neutral-100 bg-white"
-                dangerouslySetInnerHTML={{
-                  __html: `<style>${previewDocument.styles}</style>${previewDocument.bodyHtml}`,
-                }}
+              <iframe
+                ref={previewFrameRef}
+                title={`${previewDocument.title} Preview`}
+                srcDoc={previewSrcDoc}
+                className="h-[70vh] w-full rounded-2xl border border-neutral-100 bg-white"
               />
             </div>
           </div>
-        ) : null}
-
-        {printDocument ? (
-          <div
-            id="print-sheet"
-            className="pointer-events-none fixed left-0 top-0 -z-10 bg-white p-6 text-neutral-900 print:static print:z-auto print:p-0"
-            dangerouslySetInnerHTML={{
-              __html: `<style>${printDocument.styles}</style>${printDocument.bodyHtml}`,
-            }}
-          />
         ) : null}
 
         <div className="grid gap-6 xl:grid-cols-1">
