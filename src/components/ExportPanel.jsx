@@ -1,5 +1,6 @@
-import { Clipboard, FileJson, FileUp, Printer, X } from "lucide-react";
+import { Clipboard, Code, FileJson, FileUp, Printer, X } from "lucide-react";
 import { useRef, useState } from "react";
+import HtmlImportPanel from "./HtmlImportPanel";
 
 const printActions = [
   ["executive", "Print Executive View"],
@@ -33,9 +34,10 @@ function PanelButton({ icon, label, description, onClick, disabled = false }) {
   );
 }
 
-export default function ExportPanel({ selectedDriverName, hasDrivers, onClose, onPrintView, onCopyHtml, onExportJson, onImportJson }) {
+export default function ExportPanel({ selectedDriverName, hasDrivers, onClose, onPrintView, onCopyHtml, onExportJson, onImportJson, onApplyHtmlImport }) {
   const inputRef = useRef(null);
   const [message, setMessage] = useState("");
+  const [isHtmlImportOpen, setIsHtmlImportOpen] = useState(false);
 
   async function handleCopy(view) {
     const result = await onCopyHtml(view);
@@ -54,6 +56,10 @@ export default function ExportPanel({ selectedDriverName, hasDrivers, onClose, o
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 no-print">
       <div className="max-h-full w-full max-w-3xl overflow-y-auto rounded-3xl bg-white shadow-2xl p-6">
+        {isHtmlImportOpen ? (
+          <HtmlImportPanel onBack={() => setIsHtmlImportOpen(false)} onApply={onApplyHtmlImport} />
+        ) : (
+          <>
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-xl font-semibold text-neutral-900">Export Schedule</h2>
           <button onClick={onClose} className="text-neutral-400 hover:text-neutral-600 transition">
@@ -100,9 +106,12 @@ export default function ExportPanel({ selectedDriverName, hasDrivers, onClose, o
         <div className="mt-5 grid gap-3 lg:grid-cols-2">
           <PanelButton icon={FileJson} label="Export Full JSON" description="Download the complete ScheduleIt state." onClick={onExportJson} />
           <PanelButton icon={FileUp} label="Import Full JSON" description="Restore a previously exported ScheduleIt file." onClick={() => inputRef.current?.click()} />
+          <PanelButton icon={Code} label="Import from HTML" description="Paste schedule HTML and preview parsed rows." onClick={() => setIsHtmlImportOpen(true)} />
         </div>
 
         <input ref={inputRef} type="file" accept="application/json,.json" onChange={handleImport} className="hidden" />
+          </>
+        )}
       </div>
     </div>
   );

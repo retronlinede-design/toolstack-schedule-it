@@ -41,6 +41,10 @@ function nextSortOrder(movements, scheduleDayId) {
   return dayOrders.length === 0 ? 10 : Math.max(...dayOrders) + 10;
 }
 
+function nameKey(value) {
+  return (value || "").trim().toLowerCase();
+}
+
 export default function ScheduleItApp() {
   const [schedule, setSchedule] = useState(() => loadScheduleState());
   const [draft, setDraft] = useState(() => createInitialDraft(loadScheduleState().profile));
@@ -384,6 +388,78 @@ export default function ScheduleItApp() {
     return "Import complete. Current schedule data was replaced.";
   }
 
+  function handleApplyHtmlImport(result, mode) {
+    if (!result || result.errors?.length) return "Resolve parser errors before applying import.";
+    if (mode === "replace" && !window.confirm("Replace the current schedule with imported HTML data?")) {
+      return "HTML import cancelled.";
+    }
+
+    const targetDay = {
+      id: createId("day"),
+      date: result.scheduleDayDraft.date || "",
+      title: result.scheduleDayDraft.title || "Imported HTML Schedule",
+    };
+    let nextSelectedDriverId = selectedDriver?.id || "";
+
+    setSchedule((current) => {
+      const vehicles = [...current.vehicles];
+      const drivers = [...current.drivers];
+      const vehicleByName = new Map(vehicles.map((vehicle) => [nameKey(vehicle.name), vehicle]));
+      const driverByName = new Map(drivers.map((driver) => [nameKey(driver.name), driver]));
+
+      result.vehiclesToAdd.forEach((vehicleName) => {
+        if (!vehicleByName.has(nameKey(vehicleName))) {
+          const vehicle = { id: createId("vehicle"), name: vehicleName };
+          vehicles.push(vehicle);
+          vehicleByName.set(nameKey(vehicleName), vehicle);
+        }
+      });
+
+      result.driversToAdd.forEach((driverName) => {
+        if (!driverByName.has(nameKey(driverName))) {
+          const firstVehicleName = result.movements.find((movement) => nameKey(movement.driverName) === nameKey(driverName))?.vehicleName;
+          const defaultVehicle = vehicleByName.get(nameKey(firstVehicleName))?.id || vehicles[0]?.id || "";
+          const driver = { id: createId("driver"), name: driverName, defaultVehicle };
+          drivers.push(driver);
+          driverByName.set(nameKey(driverName), driver);
+        }
+      });
+
+      const importedMovements = result.movements.map((movement, index) => {
+        const driver = driverByName.get(nameKey(movement.driverName)) || drivers[0];
+        const vehicle =
+          vehicleByName.get(nameKey(movement.vehicleName)) ||
+          vehicles.find((item) => item.id === driver?.defaultVehicle) ||
+          vehicles[0];
+        const movementFields = { ...movement };
+        delete movementFields.driverName;
+        delete movementFields.vehicleName;
+        if (!nextSelectedDriverId && driver?.id) nextSelectedDriverId = driver.id;
+
+        return {
+          ...movementFields,
+          id: createId("movement"),
+          scheduleDayId: targetDay.id,
+          sortOrder: (index + 1) * 10,
+          driverId: driver?.id || "",
+          vehicleId: vehicle?.id || "",
+        };
+      });
+
+      return {
+        ...current,
+        drivers,
+        vehicles,
+        scheduleDays: mode === "replace" ? [targetDay] : [...current.scheduleDays, targetDay],
+        movements: mode === "replace" ? importedMovements : [...current.movements, ...importedMovements],
+      };
+    });
+
+    setSelectedDriverId(nextSelectedDriverId);
+    resetDraft(schedule.profile, targetDay);
+    return mode === "replace" ? "HTML import applied. Current schedule was replaced." : "HTML import applied to a new schedule day.";
+  }
+
   function printPreview() {
     setIsPreviewOpen(false);
     handlePrintView("executive");
@@ -449,6 +525,7 @@ export default function ScheduleItApp() {
             onCopyHtml={handleCopyHtml}
             onExportJson={handleExportJson}
             onImportJson={handleImportJson}
+            onApplyHtmlImport={handleApplyHtmlImport}
           />
         ) : null}
 
