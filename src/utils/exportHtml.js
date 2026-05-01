@@ -82,6 +82,10 @@ function operationalHeaders() {
   return ["Driver Start", "Departure", "Arrival", "End", "Engagement", "Venue", "Address", "Location Notes", "Parking", "Participants", "Driver", "Vehicle"];
 }
 
+function routeHeaders() {
+  return ["From", "To", "Distance", "Estimated Travel Time", "Notes"];
+}
+
 function executiveRows(movements) {
   return movements.map((movement) => [
     cell(timeRange(movement.departureTime || movement.arrivalTime, movement.arrivalTime || movement.endTime), "time-cell"),
@@ -172,6 +176,7 @@ function groupOperationalMovements(movements, driversById, vehiclesById, groupBy
       const group = {
         key: driverKey,
         label: `${driver?.name || EMPTY} / ${vehicle?.name || EMPTY}`,
+        driverId: movement.driverId,
         movements: [],
       };
       dayGroup.driverGroupsByKey.set(driverKey, group);
@@ -182,6 +187,31 @@ function groupOperationalMovements(movements, driversById, vehiclesById, groupBy
   });
 
   return dayGroups;
+}
+
+function routeRowsFor(schedule, scheduleDayId, driverId) {
+  return [...(schedule.routeNotes || [])]
+    .filter((route) => route.scheduleDayId === scheduleDayId && route.driverId === driverId)
+    .sort((a, b) => (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER))
+    .map((route) => [
+      cell(route.from),
+      cell(route.to),
+      cell(route.distance),
+      cell(route.estimatedTravelTime),
+      cell(route.notes, "wrap-cell"),
+    ]);
+}
+
+function routeTable(schedule, scheduleDayId, driverId) {
+  const rows = routeRowsFor(schedule, scheduleDayId, driverId);
+  if (rows.length === 0) return "";
+
+  return `
+    <div class="route-section">
+      <div class="route-heading">Common Routes</div>
+      ${table(routeHeaders(), rows, "route-table")}
+    </div>
+  `;
 }
 
 function operationalSections(schedule, driverId, groupByDriver) {
@@ -203,6 +233,7 @@ function operationalSections(schedule, driverId, groupByDriver) {
             <section class="driver-section">
               ${driverHeading}
               ${table(operationalHeaders(), operationalMovementRows(driverGroup.movements, driversById, vehiclesById), "operational-table compact-table")}
+              ${routeTable(schedule, dayGroup.day?.id, driverGroup.driverId)}
             </section>
           `;
         })
@@ -418,6 +449,19 @@ function stylesFor(view) {
       break-after: avoid;
       page-break-after: avoid;
     }
+    .route-section {
+      margin: 6px 0 0;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .route-heading {
+      margin: 0 0 4px;
+      font-size: 8px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: #525252;
+    }
     table {
       width: 100%;
       max-width: 100%;
@@ -531,6 +575,12 @@ function stylesFor(view) {
       color: #262626;
     }
     .summary-table th, .summary-table td { font-size: 11px; padding: 8px 10px; }
+    .route-table th, .route-table td { font-size: 8px; padding: 5px 6px; }
+    .route-table th:nth-child(1), .route-table td:nth-child(1) { width: 18%; }
+    .route-table th:nth-child(2), .route-table td:nth-child(2) { width: 18%; }
+    .route-table th:nth-child(3), .route-table td:nth-child(3) { width: 12%; }
+    .route-table th:nth-child(4), .route-table td:nth-child(4) { width: 18%; }
+    .route-table th:nth-child(5), .route-table td:nth-child(5) { width: 34%; }
     .empty {
       border: 1px dashed #d4d4d4;
       padding: 24px;

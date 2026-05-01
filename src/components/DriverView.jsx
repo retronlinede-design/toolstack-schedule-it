@@ -1,6 +1,6 @@
 import OperationalView from "./OperationalView";
 
-export default function DriverView({ entriesByMonth, drivers, vehicles, selectedDriverId, onSelectedDriverChange, onEdit, onDelete }) {
+export default function DriverView({ entriesByMonth, routeNotes = [], drivers, vehicles, selectedDriverId, onSelectedDriverChange, onEdit, onDelete }) {
   const selectedDriver = drivers.find((driver) => driver.id === selectedDriverId) || drivers[0];
   const selectedVehicle = vehicles.find((vehicle) => vehicle.id === selectedDriver?.defaultVehicle);
   const filteredEntriesByMonth = Object.entries(entriesByMonth).reduce((acc, [month, entries]) => {
@@ -43,6 +43,7 @@ export default function DriverView({ entriesByMonth, drivers, vehicles, selected
 
       <OperationalView
         entriesByMonth={filteredEntriesByMonth}
+        routeNotes={routeNotes}
         drivers={drivers}
         vehicles={vehicles}
         groupByDriver={false}

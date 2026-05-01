@@ -63,6 +63,7 @@ export function normalizeState(state) {
     vehicles: state?.vehicles?.length ? state.vehicles : defaultScheduleState.vehicles,
     scheduleDays,
     movements,
+    routeNotes: Array.isArray(state?.routeNotes) ? state.routeNotes : [],
   };
 }
 

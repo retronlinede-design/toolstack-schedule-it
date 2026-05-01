@@ -27,6 +27,7 @@ export default function PreviewTabs({
   entriesByMonth,
   profile,
   movements,
+  routeNotes,
   drivers,
   vehicles,
   scheduleDays,
@@ -58,11 +59,12 @@ export default function PreviewTabs({
           <ExecutiveView entriesByMonth={entriesByMonth} profile={profile} onEdit={onEdit} onDelete={onDelete} />
         ) : null}
         {activeTab === "operational" ? (
-          <OperationalView entriesByMonth={entriesByMonth} drivers={drivers} vehicles={vehicles} onEdit={onEdit} onDelete={onDelete} />
+          <OperationalView entriesByMonth={entriesByMonth} routeNotes={routeNotes} drivers={drivers} vehicles={vehicles} onEdit={onEdit} onDelete={onDelete} />
         ) : null}
         {activeTab === "driver" ? (
           <DriverView
             entriesByMonth={entriesByMonth}
+            routeNotes={routeNotes}
             drivers={drivers}
             vehicles={vehicles}
             selectedDriverId={selectedDriverId}
