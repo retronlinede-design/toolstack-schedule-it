@@ -5,6 +5,8 @@ const EMPTY = "-";
 
 const viewNames = {
   executive: "Executive Programme",
+  executiveCg: "CG Programme",
+  executiveMarida: "Marida Programme",
   operational: "Operational Schedule",
   driver: "Driver Schedule",
   workingTime: "Working Time Summary",
@@ -13,6 +15,8 @@ const viewNames = {
 
 const orientations = {
   executive: "portrait",
+  executiveCg: "portrait",
+  executiveMarida: "portrait",
   operational: "landscape",
   driver: "landscape",
   workingTime: "landscape",
@@ -84,20 +88,91 @@ function operationalHeaders() {
   return ["Driver Start", "Departure", "Arrival", "End", "Engagement", "Venue", "Address", "Location Notes", "Parking", "Participants", "Driver", "Vehicle"];
 }
 
-function executiveRows(movements) {
-  return movements.map((movement) => [
-    cell(timeRange(movement.departureTime || movement.arrivalTime, movement.arrivalTime || movement.endTime), "time-cell"),
-    cell(movementLabel(movement.engagementDetails), "movement-cell"),
-    cell(movement.engagementDetails, "details-cell"),
-    cell(movement.venue, "venue-cell"),
-    cell(movement.address, "address-cell"),
-  ]);
+function isExecutiveView(view) {
+  return view === "executive" || view === "executiveCg" || view === "executiveMarida";
 }
 
-function executiveTable(schedule) {
-  const movements = sortMovementsByDateAndTime(movementsWithDays(schedule).filter((movement) => movement.isExecutiveVisible !== false));
+function personMatches(movement, view) {
+  if (view === "executive") return true;
 
-  if (movements.length === 0) return `<p class="empty">No records available for this view.</p>`;
+  const participants = (movement.participants || "").toLowerCase();
+  if (view === "executiveCg") {
+    return participants.includes("cg") || participants.includes("consul-general") || participants.includes("consul general");
+  }
+  if (view === "executiveMarida") return participants.includes("marida");
+  return true;
+}
+
+function isTransfer(movement) {
+  const text = `${movement.engagementDetails || ""} ${movementLabel(movement.engagementDetails)}`.toLowerCase();
+  return text.includes("transfer");
+}
+
+function meaningfulEventTimes(movement) {
+  const eventStart = movement.eventStartTime || "";
+  const eventEnd = movement.eventEndTime || "";
+  const hasExplicitEventStart = eventStart && eventStart !== movement.departureTime;
+  const hasExplicitEventEnd = eventEnd && eventEnd !== movement.endTime;
+  const hasOnlyEventTimes = (eventStart || eventEnd) && !movement.departureTime && !movement.arrivalTime && !movement.endTime;
+
+  return hasExplicitEventStart || hasExplicitEventEnd || hasOnlyEventTimes ? [eventStart, eventEnd].filter(Boolean) : [];
+}
+
+function executiveTimeDisplay(movement) {
+  const eventTimes = meaningfulEventTimes(movement);
+  if (eventTimes.length > 0) {
+    return {
+      display: timeRange(...eventTimes),
+      needsConfirmation: eventTimes.length < 2,
+    };
+  }
+
+  const preferredTimes = isTransfer(movement)
+    ? [movement.departureTime, movement.arrivalTime].filter(Boolean)
+    : [movement.arrivalTime, movement.endTime].filter(Boolean);
+  const fallbackTimes = [movement.departureTime, movement.arrivalTime, movement.endTime].filter(Boolean);
+  const times = preferredTimes.length > 0 ? preferredTimes : fallbackTimes;
+
+  return {
+    display: timeRange(...times),
+    needsConfirmation: times.length < 2,
+  };
+}
+
+function executiveNotes(movement, needsConfirmation) {
+  return [movement.locationNotes, needsConfirmation ? "Timing to confirm" : ""].filter(Boolean).join("\n");
+}
+
+function executiveRows(movements, driversById, vehiclesById) {
+  return movements.map((movement) => {
+    const time = executiveTimeDisplay(movement);
+
+    return [
+      cell(time.display, "time-cell"),
+      cell(movement.engagementDetails, "details-cell"),
+      cell(movement.venue, "venue-cell"),
+      cell(movement.address, "address-cell"),
+      cell(driversById.get(movement.driverId)?.name),
+      cell(vehiclesById.get(movement.vehicleId)?.name),
+      cell(executiveNotes(movement, time.needsConfirmation), "wrap-cell"),
+    ];
+  });
+}
+
+function executiveEmptyMessage(view, hasExecutiveRows) {
+  if ((view === "executiveCg" || view === "executiveMarida") && hasExecutiveRows) {
+    return "No programme items matched this person. Add the person name to Participants.";
+  }
+  return "No records available for this view.";
+}
+
+function executiveTable(schedule, view = "executive") {
+  const driversById = lookup(schedule.drivers);
+  const vehiclesById = lookup(schedule.vehicles);
+  const executiveMovements = movementsWithDays(schedule).filter((movement) => movement.isExecutiveVisible !== false);
+  const movements = sortMovementsByDateAndTime(executiveMovements.filter((movement) => personMatches(movement, view)));
+
+  if (movements.length === 0) return `<p class="empty">${escapeHtml(executiveEmptyMessage(view, executiveMovements.length > 0))}</p>`;
 
   const dayGroups = [];
   const dayGroupsByKey = new Map();
@@ -125,7 +200,7 @@ function executiveTable(schedule) {
             <div class="executive-day-date">${escapeHtml(formatLongDate(dayGroup.day?.date) || "Unscheduled")}</div>
             ${dayTitle}
           </div>
-          ${table(["Time", "Movement", "Details", "Venue", "Address"], executiveRows(dayGroup.movements), "executive-table")}
+          ${table(["Time", "Engagement / Movement", "Venue", "Address", "Driver", "Vehicle", "Notes"], executiveRows(dayGroup.movements, driversById, vehiclesById), "executive-table")}
         </section>
       `;
     })
@@ -347,7 +422,7 @@ function importantInfoSections(schedule) {
 }
 
 function bodyForView(schedule, view, selectedDriverId) {
-  if (view === "executive") return executiveTable(schedule);
+  if (isExecutiveView(view)) return executiveTable(schedule, view);
   if (view === "operational") return operationalTable(schedule);
   if (view === "driver") return driverTable(schedule, selectedDriverId);
   if (view === "importantInfo") return importantInfoSections(schedule);
@@ -372,7 +447,7 @@ function driverHeading(schedule, view, selectedDriverId) {
 }
 
 function stylesFor(view) {
-  const isExecutive = view === "executive";
+  const isExecutive = isExecutiveView(view);
   const isPortrait = view === "executive" || view === "importantInfo";
   const fontSize = isExecutive ? "11.5px" : "8.5px";
   const padding = isExecutive ? "9px 10px" : "5px 6px";
@@ -639,11 +714,13 @@ function stylesFor(view) {
       font-size: 8px;
       text-align: center;
     }
-    .executive-table th:nth-child(1), .executive-table td:nth-child(1) { width: 14%; }
-    .executive-table th:nth-child(2), .executive-table td:nth-child(2) { width: 14%; }
-    .executive-table th:nth-child(3), .executive-table td:nth-child(3) { width: 34%; }
-    .executive-table th:nth-child(4), .executive-table td:nth-child(4) { width: 20%; }
-    .executive-table th:nth-child(5), .executive-table td:nth-child(5) { width: 18%; }
+    .executive-table th:nth-child(1), .executive-table td:nth-child(1) { width: 13%; }
+    .executive-table th:nth-child(2), .executive-table td:nth-child(2) { width: 25%; }
+    .executive-table th:nth-child(3), .executive-table td:nth-child(3) { width: 17%; }
+    .executive-table th:nth-child(4), .executive-table td:nth-child(4) { width: 16%; }
+    .executive-table th:nth-child(5), .executive-table td:nth-child(5) { width: 9%; }
+    .executive-table th:nth-child(6), .executive-table td:nth-child(6) { width: 9%; }
+    .executive-table th:nth-child(7), .executive-table td:nth-child(7) { width: 11%; }
     .compact-table th:nth-child(-n+4), .compact-table td:nth-child(-n+4) { width: 6.5%; }
     .compact-table th:nth-child(5), .compact-table td:nth-child(5) { width: 14%; }
     .compact-table th:nth-child(6), .compact-table td:nth-child(6) { width: 10%; }
@@ -806,7 +883,7 @@ function stylesFor(view) {
 export function getExportDocument(schedule, view, options = {}) {
   const generatedAt = new Date().toLocaleString();
   const title = viewNames[view];
-  const isExecutive = view === "executive";
+  const isExecutive = isExecutiveView(view);
   const metaHtml = isExecutive
     ? `
           <span><span class="meta-label">Document:</span> ${escapeHtml(headerTitle(schedule, view, options.selectedDriverId))}</span>

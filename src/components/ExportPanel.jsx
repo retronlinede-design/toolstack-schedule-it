@@ -3,14 +3,18 @@ import { useRef, useState } from "react";
 import HtmlImportPanel from "./HtmlImportPanel";
 
 const printActions = [
-  ["executive", "Print Executive View"],
+  ["executive", "Print Full Executive Programme"],
+  ["executiveCg", "Print CG Programme"],
+  ["executiveMarida", "Print Marida Programme"],
   ["operational", "Print Operational View"],
   ["workingTime", "Print Working Time Summary"],
   ["importantInfo", "Print Important Info"],
 ];
 
 const copyActions = [
-  ["executive", "Copy Executive HTML"],
+  ["executive", "Copy Full Executive HTML"],
+  ["executiveCg", "Copy CG Programme HTML"],
+  ["executiveMarida", "Copy Marida Programme HTML"],
   ["operational", "Copy Operational HTML"],
   ["workingTime", "Copy Working Time HTML"],
   ["importantInfo", "Copy Important Info HTML"],

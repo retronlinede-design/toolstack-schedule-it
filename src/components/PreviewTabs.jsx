@@ -59,7 +59,7 @@ export default function PreviewTabs({
         </div>
 
         {activeTab === "executive" ? (
-          <ExecutiveView entriesByMonth={entriesByMonth} profile={profile} onEdit={onEdit} onDelete={onDelete} />
+          <ExecutiveView entriesByMonth={entriesByMonth} profile={profile} drivers={drivers} vehicles={vehicles} onEdit={onEdit} onDelete={onDelete} />
         ) : null}
         {activeTab === "operational" ? (
           <OperationalView

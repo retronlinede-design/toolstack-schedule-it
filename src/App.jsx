@@ -53,7 +53,9 @@ function nameKey(value) {
 }
 
 const documentPreviewTabs = [
-  { id: "executive", label: "Executive" },
+  { id: "executive", label: "Full Executive Programme" },
+  { id: "executiveCg", label: "CG Programme" },
+  { id: "executiveMarida", label: "Marida Programme" },
   { id: "operational", label: "Operational" },
   { id: "driver", label: "Driver" },
   { id: "workingTime", label: "Working Time" },

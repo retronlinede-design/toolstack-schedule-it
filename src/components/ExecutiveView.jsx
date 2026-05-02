@@ -1,88 +1,195 @@
 import { Pencil, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { sortMovementsByDateAndTime } from "../utils/calculations";
 import { formatLongDate } from "../utils/time";
 
 const EMPTY = "-";
 
-function getVisibleEntries(entriesByMonth) {
-  return Object.entries(entriesByMonth)
-    .map(([month, entries]) => [month, entries.filter((entry) => entry.isExecutiveVisible !== false)])
-    .filter(([, entries]) => entries.length > 0);
+const variants = [
+  { id: "executive", label: "Full Executive Programme" },
+  { id: "executiveCg", label: "CG Programme" },
+  { id: "executiveMarida", label: "Marida Programme" },
+];
+
+function buildLookup(items) {
+  return new Map(items.map((item) => [item.id, item]));
 }
 
-export default function ExecutiveView({ entriesByMonth, profile, onEdit, onDelete, printMode = false }) {
-  const monthEntries = getVisibleEntries(entriesByMonth);
+function timeRange(...times) {
+  const values = times.filter(Boolean);
+  if (values.length === 0) return EMPTY;
+  if (values.length === 1) return values[0];
+  return `${values[0]}-${values[values.length - 1]}`;
+}
+
+function movementLabel(value) {
+  const text = value || "";
+  if (text.toLowerCase().includes("transfer")) return "Transfer";
+  if (text.toLowerCase().includes("meeting")) return "Meeting";
+  if (text.toLowerCase().includes("driver start")) return "Standby";
+  if (text.toLowerCase().includes("end of duty")) return "End of Duty";
+  return text || EMPTY;
+}
+
+function personMatches(entry, variant) {
+  if (variant === "executive") return true;
+
+  const participants = (entry.participants || "").toLowerCase();
+  if (variant === "executiveCg") {
+    return participants.includes("cg") || participants.includes("consul-general") || participants.includes("consul general");
+  }
+  if (variant === "executiveMarida") return participants.includes("marida");
+  return true;
+}
+
+function isTransfer(entry) {
+  const text = `${entry.engagementDetails || ""} ${movementLabel(entry.engagementDetails)}`.toLowerCase();
+  return text.includes("transfer");
+}
+
+function meaningfulEventTimes(entry) {
+  const eventStart = entry.eventStartTime || "";
+  const eventEnd = entry.eventEndTime || "";
+  const hasExplicitEventStart = eventStart && eventStart !== entry.departureTime;
+  const hasExplicitEventEnd = eventEnd && eventEnd !== entry.endTime;
+  const hasOnlyEventTimes = (eventStart || eventEnd) && !entry.departureTime && !entry.arrivalTime && !entry.endTime;
+
+  return hasExplicitEventStart || hasExplicitEventEnd || hasOnlyEventTimes ? [eventStart, eventEnd].filter(Boolean) : [];
+}
+
+function executiveTimeDisplay(entry) {
+  const eventTimes = meaningfulEventTimes(entry);
+  if (eventTimes.length > 0) {
+    return {
+      display: timeRange(...eventTimes),
+      needsConfirmation: eventTimes.length < 2,
+    };
+  }
+
+  const preferredTimes = isTransfer(entry)
+    ? [entry.departureTime, entry.arrivalTime].filter(Boolean)
+    : [entry.arrivalTime, entry.endTime].filter(Boolean);
+  const fallbackTimes = [entry.departureTime, entry.arrivalTime, entry.endTime].filter(Boolean);
+  const times = preferredTimes.length > 0 ? preferredTimes : fallbackTimes;
+
+  return {
+    display: timeRange(...times),
+    needsConfirmation: times.length < 2,
+  };
+}
+
+function executiveNotes(entry, needsConfirmation) {
+  return [entry.locationNotes, needsConfirmation ? "Timing to confirm" : ""].filter(Boolean).join("\n");
+}
+
+function groupByDay(entries) {
+  const groups = [];
+  const groupsByKey = new Map();
+
+  entries.forEach((entry) => {
+    const key = entry.day?.id || entry.day?.date || "unscheduled";
+    if (!groupsByKey.has(key)) {
+      const group = { key, day: entry.day, entries: [] };
+      groupsByKey.set(key, group);
+      groups.push(group);
+    }
+    groupsByKey.get(key).entries.push(entry);
+  });
+
+  return groups;
+}
+
+export default function ExecutiveView({ entriesByMonth, profile, drivers = [], vehicles = [], onEdit, onDelete }) {
+  const [variant, setVariant] = useState("executive");
+  const driversById = buildLookup(drivers);
+  const vehiclesById = buildLookup(vehicles);
+  const executiveEntries = Object.values(entriesByMonth)
+    .flat()
+    .filter((entry) => entry.isExecutiveVisible !== false);
+  const entries = sortMovementsByDateAndTime(executiveEntries.filter((entry) => personMatches(entry, variant)));
+  const dayGroups = groupByDay(entries);
+  const personFilteredEmpty = entries.length === 0 && executiveEntries.length > 0 && variant !== "executive";
 
   return (
-    <div id={printMode ? "print-sheet" : undefined} className="bg-white">
-      <div className="mb-6 text-center border-b border-neutral-100 pb-4">
-        <h3 className="text-2xl font-black uppercase text-neutral-900 tracking-widest">{profile.missionName || "Mission Name"}</h3>
-        <p className="text-md font-bold uppercase text-neutral-500 underline">{profile.documentTitle || "Programme"}</p>
+    <div className="bg-white">
+      <div className="mb-6 border-b border-neutral-100 pb-4 text-center">
+        <h3 className="text-2xl font-black uppercase tracking-widest text-neutral-900">{profile.missionName || "Mission Name"}</h3>
+        <p className="text-md font-bold uppercase text-neutral-500 underline">{variants.find((item) => item.id === variant)?.label || "Executive Programme"}</p>
       </div>
 
-      {monthEntries.length === 0 ? (
-        <div className="py-12 text-center text-neutral-400 border-2 border-dashed rounded-3xl italic">
-          No executive-visible movements yet.
+      <div className="mb-5 flex flex-wrap justify-center gap-2">
+        {variants.map((item) => (
+          <button
+            key={item.id}
+            onClick={() => setVariant(item.id)}
+            className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
+              variant === item.id ? "bg-neutral-900 text-white" : "border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      {entries.length === 0 ? (
+        <div className="rounded-3xl border-2 border-dashed py-12 text-center italic text-neutral-400">
+          {personFilteredEmpty ? "No programme items matched this person. Add the person name to Participants." : "No executive-visible movements yet."}
         </div>
       ) : (
-        monthEntries.map(([month, entries]) => (
-          <div key={month} className={printMode ? "mb-12 last:mb-0" : "mb-10"}>
-            <h4
-              className={`${printMode ? "text-xl text-neutral-900" : "text-xs text-blue-600 border-b pb-2"} font-black uppercase mb-6 tracking-widest text-center`}
-            >
-              {month}
-            </h4>
-            {entries.map((entry, index) => {
-              const showDate = index === 0 || entry.day?.date !== entries[index - 1].day?.date;
-              return (
-                <div key={entry.id} className="mb-6 last:mb-0">
-                  {showDate ? (
-                    <div className={`${printMode ? "border-b" : "border-b-2"} mb-3 border-neutral-900 pb-1`}>
-                      <h3 className="text-sm font-black uppercase underline">{formatLongDate(entry.day?.date)}</h3>
-                    </div>
-                  ) : null}
-                  <table className="w-full table-fixed border-collapse border border-neutral-200 bg-white text-sm shadow-sm">
-                    <colgroup>
-                      <col style={{ width: "15%" }} />
-                      <col style={{ width: "18%" }} />
-                      <col style={{ width: "27%" }} />
-                      <col style={{ width: "20%" }} />
-                      <col style={{ width: "20%" }} />
-                    </colgroup>
-                    <thead>
-                      <tr className="bg-neutral-50 text-[10px] uppercase font-black tracking-tighter text-neutral-500">
-                        <th className="break-words border border-neutral-200 p-3 text-left">Time</th>
-                        <th className="break-words border border-neutral-200 p-3 text-left">Movement</th>
-                        <th className="break-words border border-neutral-200 p-3 text-left">Details</th>
-                        <th className="break-words border border-neutral-200 p-3 text-left">Venue</th>
-                        <th className="break-words border border-neutral-200 p-3 text-left">Address</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr className="group align-top transition-colors hover:bg-neutral-50/50">
-                        <td className="break-words border border-neutral-200 p-3 font-bold text-neutral-900">{entry.eventStartTime || entry.departureTime || EMPTY}</td>
-                        <td className="break-words border border-neutral-200 p-3 font-semibold text-neutral-900">{entry.engagementDetails || EMPTY}</td>
-                        <td className="break-words border border-neutral-200 p-3 text-neutral-700">
-                          <div>{entry.participants || EMPTY}</div>
-                          {entry.dressCode ? <div className="mt-1 text-xs text-neutral-500">Attire: {entry.dressCode}</div> : null}
-                        </td>
-                        <td className="break-words border border-neutral-200 p-3 font-bold text-neutral-900">{entry.venue || EMPTY}</td>
-                        <td className="break-words border border-neutral-200 p-3 text-xs text-neutral-700">{entry.address || EMPTY}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                  <div className="no-print mt-2 flex justify-end gap-1">
-                    <button onClick={() => onEdit(entry)} className="p-2 bg-blue-50 text-blue-600 rounded-lg" title="Edit">
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button onClick={() => onDelete(entry.id)} className="p-2 bg-red-50 text-red-600 rounded-lg" title="Delete">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ))
+        <div className="space-y-8">
+          {dayGroups.map((dayGroup) => (
+            <section key={dayGroup.key}>
+              <div className="mb-3 border-b-2 border-neutral-900 pb-1">
+                <h3 className="text-sm font-black uppercase underline">{formatLongDate(dayGroup.day?.date) || "Unscheduled"}</h3>
+                {dayGroup.day?.title ? <p className="mt-1 text-xs font-semibold text-neutral-500">{dayGroup.day.title}</p> : null}
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-[980px] w-full table-fixed border-collapse border border-neutral-200 bg-white text-sm shadow-sm">
+                  <thead>
+                    <tr className="bg-neutral-50 text-[10px] font-black uppercase tracking-tighter text-neutral-500">
+                      <th className="border border-neutral-200 p-3 text-left">Time</th>
+                      <th className="border border-neutral-200 p-3 text-left">Engagement / Movement</th>
+                      <th className="border border-neutral-200 p-3 text-left">Venue</th>
+                      <th className="border border-neutral-200 p-3 text-left">Address</th>
+                      <th className="border border-neutral-200 p-3 text-left">Driver</th>
+                      <th className="border border-neutral-200 p-3 text-left">Vehicle</th>
+                      <th className="border border-neutral-200 p-3 text-left">Notes</th>
+                      <th className="no-print border border-neutral-200 p-3 text-right">Manage</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dayGroup.entries.map((entry) => {
+                      const time = executiveTimeDisplay(entry);
+                      return (
+                        <tr key={entry.id} className="group align-top transition-colors hover:bg-neutral-50/50">
+                          <td className="border border-neutral-200 p-3 font-bold text-neutral-900">{time.display}</td>
+                          <td className="border border-neutral-200 p-3 font-semibold text-neutral-900">{entry.engagementDetails || EMPTY}</td>
+                          <td className="border border-neutral-200 p-3 font-bold text-neutral-900">{entry.venue || EMPTY}</td>
+                          <td className="border border-neutral-200 p-3 text-xs text-neutral-700">{entry.address || EMPTY}</td>
+                          <td className="border border-neutral-200 p-3 text-neutral-700">{driversById.get(entry.driverId)?.name || EMPTY}</td>
+                          <td className="border border-neutral-200 p-3 text-neutral-700">{vehiclesById.get(entry.vehicleId)?.name || EMPTY}</td>
+                          <td className="whitespace-pre-line border border-neutral-200 p-3 text-neutral-700">
+                            {executiveNotes(entry, time.needsConfirmation) || EMPTY}
+                          </td>
+                          <td className="no-print border border-neutral-200 p-3 text-right">
+                            <div className="flex justify-end gap-1 opacity-0 transition-all group-hover:opacity-100">
+                              <button onClick={() => onEdit(entry)} className="rounded-lg bg-blue-50 p-2 text-blue-600" title="Edit">
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                              <button onClick={() => onDelete(entry.id)} className="rounded-lg bg-red-50 p-2 text-red-600" title="Delete">
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ))}
+        </div>
       )}
     </div>
   );
