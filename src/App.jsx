@@ -52,6 +52,18 @@ function nameKey(value) {
   return (value || "").trim().toLowerCase();
 }
 
+function preserveClearedTimeFields(updatedMovement, previousMovement) {
+  return {
+    ...updatedMovement,
+    eventStartTime:
+      updatedMovement.departureTime === "" && updatedMovement.eventStartTime === previousMovement.departureTime
+        ? ""
+        : updatedMovement.eventStartTime || "",
+    eventEndTime:
+      updatedMovement.endTime === "" && updatedMovement.eventEndTime === previousMovement.endTime ? "" : updatedMovement.eventEndTime || "",
+  };
+}
+
 const documentPreviewTabs = [
   { id: "executive", label: "Full Executive Programme" },
   { id: "executiveCg", label: "CG Programme" },
@@ -290,7 +302,9 @@ export default function ScheduleItApp() {
   function handleUpdateMovement(updatedMovement) {
     setSchedule((current) => ({
       ...current,
-      movements: current.movements.map((movement) => (movement.id === updatedMovement.id ? updatedMovement : movement)),
+      movements: current.movements.map((movement) =>
+        movement.id === updatedMovement.id ? preserveClearedTimeFields(updatedMovement, movement) : movement,
+      ),
     }));
   }
 

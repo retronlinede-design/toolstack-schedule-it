@@ -324,6 +324,25 @@ function workingTimeTable(schedule) {
 
   if (driverDaySummaries.length === 0) return `<p class="empty">No records available for this view.</p>`;
 
+  const totalsByDriver = new Map(overallDriverTotals.map((summary) => [summary.driverId, summary]));
+  const driverGroups = [
+    ...driverDaySummaries
+      .reduce((groups, summary) => {
+        if (!groups.has(summary.driverId)) {
+          groups.set(summary.driverId, {
+            driverId: summary.driverId,
+            driverName: summary.driverName,
+            vehicleName: summary.vehicleName,
+            total: totalsByDriver.get(summary.driverId),
+            days: [],
+          });
+        }
+        groups.get(summary.driverId).days.push(summary);
+        return groups;
+      }, new Map())
+      .values(),
+  ];
+
   const dailyRows = dailyTotals.map((summary) => [
     cell(formatLongDate(summary.date)),
     cell(summary.driverCount),
@@ -331,38 +350,44 @@ function workingTimeTable(schedule) {
     cell(summary.overtimeDuration, "total-cell"),
     cell(summary.shortRestCount),
   ]);
-  const driverDayRows = driverDaySummaries.map((summary) => [
-    cell(formatLongDate(summary.date)),
-    cell(summary.driverName),
-    cell(summary.vehicleName),
-    cell(summary.startTime, "time-cell"),
-    cell(summary.endTime, "time-cell"),
-    cell(summary.totalDuration, "total-cell"),
-    cell(summary.overtimeDuration, "total-cell"),
-    cell(summary.restDuration),
-    cell(summary.notes?.join(", ") || "-"),
-  ]);
-  const overallRows = overallDriverTotals.map((summary) => [
-    cell(summary.driverName),
-    cell(summary.dayCount),
-    cell(summary.totalDuration, "total-cell"),
-    cell(summary.overtimeDuration, "total-cell"),
-    cell(summary.shortRestCount),
-    cell(summary.minimumRestDuration),
-  ]);
+  const driverSections = driverGroups
+    .map((group) => {
+      const dayRows = group.days.map((summary) => [
+        cell(formatLongDate(summary.date)),
+        cell(summary.startTime, "time-cell"),
+        cell(summary.endTime, "time-cell"),
+        cell(summary.totalDuration, "total-cell"),
+        cell(summary.overtimeDuration, "total-cell"),
+        cell(summary.restDuration, summary.shortRest ? "short-rest-cell" : ""),
+        cell(summary.notes?.join(", ") || "-"),
+      ]);
+
+      return `
+        <section class="working-driver-section">
+          <div class="working-driver-heading">
+            <div>
+              <span>Driver</span>
+              <h3>${escapeHtml(group.driverName)}</h3>
+            </div>
+            <strong>Vehicle: ${escapeHtml(group.vehicleName || EMPTY)}</strong>
+          </div>
+          <div class="working-driver-summary">
+            <div><span>Total Duty Time</span><strong>${escapeHtml(group.total?.totalDuration || EMPTY)}</strong></div>
+            <div><span>Overtime After 16:30</span><strong>${escapeHtml(group.total?.overtimeDuration || EMPTY)}</strong></div>
+            <div class="${Number(group.total?.shortRestCount) > 0 ? "metric-alert" : ""}"><span>Short Rest Count</span><strong>${escapeHtml(group.total?.shortRestCount ?? EMPTY)}</strong></div>
+            <div class="${Number(group.total?.shortRestCount) > 0 ? "metric-alert" : ""}"><span>Minimum Rest Period</span><strong>${escapeHtml(group.total?.minimumRestDuration || EMPTY)}</strong></div>
+          </div>
+          ${table(["Date", "Start", "End", "Duty Time", "Overtime After 16:30", "Rest Since Previous Duty", "Notes"], dayRows, "summary-table working-driver-breakdown")}
+        </section>
+      `;
+    })
+    .join("");
 
   return `
-    <section class="summary-section">
+    ${driverSections}
+    <section class="summary-section daily-total-section">
       <h3>Daily Totals</h3>
       ${table(["Date", "Drivers", "Total Duty Time", "Overtime After 16:30", "Short Rest Count"], dailyRows, "summary-table")}
-    </section>
-    <section class="summary-section">
-      <h3>Driver Totals Per Day</h3>
-      ${table(["Date", "Driver", "Vehicle", "Start", "End", "Total Duty Time", "Overtime After 16:30", "Rest Since Previous Duty", "Notes"], driverDayRows, "summary-table")}
-    </section>
-    <section class="summary-section">
-      <h3>Overall Driver Totals</h3>
-      ${table(["Driver", "Days", "Total Duty Time", "Overtime After 16:30", "Short Rest Count", "Minimum Rest Period"], overallRows, "summary-table")}
     </section>
   `;
 }
@@ -744,6 +769,81 @@ function stylesFor(view) {
       color: #262626;
     }
     .summary-table th, .summary-table td { font-size: 11px; padding: 8px 10px; }
+    .working-driver-section {
+      margin: 0 0 16px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .working-driver-heading {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 0 0 8px;
+      padding: 8px 10px;
+      border: 1px solid #d4d4d4;
+      background: #fafafa;
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+    .working-driver-heading span {
+      display: block;
+      color: #737373;
+      font-size: 8px;
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .working-driver-heading h3 {
+      margin: 2px 0 0;
+      color: #171717;
+      font-size: 14px;
+      line-height: 1.2;
+    }
+    .working-driver-heading strong {
+      align-self: end;
+      color: #525252;
+      font-size: 10px;
+    }
+    .working-driver-summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+      margin: 0 0 8px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .working-driver-summary div {
+      border: 1px solid #d4d4d4;
+      background: #ffffff;
+      padding: 7px 8px;
+    }
+    .working-driver-summary span {
+      display: block;
+      color: #737373;
+      font-size: 7px;
+      font-weight: 900;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+    .working-driver-summary strong {
+      display: block;
+      margin-top: 2px;
+      color: #171717;
+      font-size: 12px;
+    }
+    .working-driver-summary .metric-alert {
+      border-color: #fecaca;
+      background: #fef2f2;
+    }
+    .short-rest-cell {
+      color: #b91c1c;
+      font-weight: 800;
+    }
+    .daily-total-section {
+      margin-top: 18px;
+      padding-top: 10px;
+      border-top: 1px solid #d4d4d4;
+    }
     .important-info-section {
       margin: 0 0 18px;
       break-inside: avoid;
@@ -865,6 +965,8 @@ function stylesFor(view) {
         page-break-after: avoid;
       }
       .driver-section,
+      .working-driver-section,
+      .working-driver-summary,
       .important-info-section,
       .important-info-card,
       .summary-section {

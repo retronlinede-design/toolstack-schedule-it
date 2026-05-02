@@ -235,7 +235,7 @@ export function calculateLegacyDriverTotals(movements, drivers) {
   return drivers.map((driver) => {
     const driverMovements = movements.filter((movement) => movement.driverId === driver.id);
     const totalMinutes = driverMovements.reduce((total, movement) => {
-      const duration = durationBetween(parseTimeToMinutes(movement.driverStart || movement.departureTime), parseTimeToMinutes(movement.endTime || movement.eventEndTime));
+      const duration = durationBetween(parseTimeToMinutes(movement.driverStart || movement.departureTime), parseTimeToMinutes(movement.endTime));
       return duration === null ? total : total + duration;
     }, 0);
 
