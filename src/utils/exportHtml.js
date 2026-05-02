@@ -393,6 +393,7 @@ function workingTimeTable(schedule) {
   if (driverDaySummaries.length === 0) return `<p class="empty">No records available for this view.</p>`;
 
   const totalsByDriver = new Map(overallDriverTotals.map((summary) => [summary.driverId, summary]));
+  const totalsByDate = new Map(dailyTotals.map((summary) => [summary.date, summary]));
   const driverGroups = [
     ...driverDaySummaries
       .reduce((groups, summary) => {
@@ -410,14 +411,23 @@ function workingTimeTable(schedule) {
       }, new Map())
       .values(),
   ];
-
-  const dailyRows = dailyTotals.map((summary) => [
-    cell(formatLongDate(summary.date)),
-    cell(summary.driverCount),
-    cell(summary.totalDuration, "total-cell"),
-    cell(summary.overtimeDuration, "total-cell"),
-    cell(summary.shortRestCount),
-  ]);
+  const dailyGroups = [
+    ...driverDaySummaries
+      .reduce((groups, summary) => {
+        const key = summary.date || summary.dayTitle || "missing-date";
+        if (!groups.has(key)) {
+          groups.set(key, {
+            key,
+            date: summary.date,
+            total: totalsByDate.get(summary.date),
+            drivers: [],
+          });
+        }
+        groups.get(key).drivers.push(summary);
+        return groups;
+      }, new Map())
+      .values(),
+  ];
   const driverSections = driverGroups
     .map((group) => {
       const dayRows = group.days.map((summary) => [
@@ -450,12 +460,39 @@ function workingTimeTable(schedule) {
       `;
     })
     .join("");
+  const dailySections = dailyGroups
+    .map((group) => {
+      const rows = group.drivers.map((summary) => [
+        cell(summary.driverName),
+        cell(summary.vehicleName || EMPTY),
+        cell(summary.totalDuration, "total-cell"),
+        cell(summary.overtimeDuration, "total-cell"),
+        cell(summary.restDuration, summary.shortRest ? "short-rest-cell" : ""),
+        cell(summary.notes?.join(", ") || "-"),
+      ]);
+
+      return `
+        <section class="summary-section daily-total-section">
+          <div class="daily-total-heading">
+            <h3>${escapeHtml(formatLongDate(group.date) || "Missing date")}</h3>
+            <span>${escapeHtml(group.drivers.length)} ${group.drivers.length === 1 ? "driver" : "drivers"}</span>
+          </div>
+          ${table(["Driver", "Vehicle", "Duty Time", "Overtime After 16:30", "Rest Since Previous Duty", "Notes"], rows, "summary-table daily-driver-table")}
+          <div class="daily-total-summary">
+            <div><span>Combined Duty Time</span><strong>${escapeHtml(group.total?.totalDuration || EMPTY)}</strong></div>
+            <div><span>Combined Overtime</span><strong>${escapeHtml(group.total?.overtimeDuration || EMPTY)}</strong></div>
+            <div class="${Number(group.total?.shortRestCount) > 0 ? "metric-alert" : ""}"><span>Short Rest Count</span><strong>${escapeHtml(group.total?.shortRestCount ?? EMPTY)}</strong></div>
+          </div>
+        </section>
+      `;
+    })
+    .join("");
 
   return `
     ${driverSections}
-    <section class="summary-section daily-total-section">
+    <section class="summary-section daily-totals-wrapper">
       <h3>Daily Totals</h3>
-      ${table(["Date", "Drivers", "Total Duty Time", "Overtime After 16:30", "Short Rest Count"], dailyRows, "summary-table")}
+      ${dailySections}
     </section>
   `;
 }
@@ -899,7 +936,8 @@ function stylesFor(view) {
       color: #171717;
       font-size: 12px;
     }
-    .working-driver-summary .metric-alert {
+    .working-driver-summary .metric-alert,
+    .daily-total-summary .metric-alert {
       border-color: #fecaca;
       background: #fef2f2;
     }
@@ -939,6 +977,76 @@ function stylesFor(view) {
       margin-top: 18px;
       padding-top: 10px;
       border-top: 1px solid #d4d4d4;
+    }
+    .daily-totals-wrapper {
+      margin-top: 18px;
+      padding-top: 10px;
+      border-top: 1px solid #d4d4d4;
+    }
+    .daily-totals-wrapper > h3 {
+      margin-bottom: 10px;
+    }
+    .daily-total-section {
+      margin: 0 0 14px;
+      padding: 9px 0 0;
+      border-top: 1px solid #e5e5e5;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .daily-total-heading {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 0 0 7px;
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+    .daily-total-heading h3 {
+      margin: 0;
+      color: #171717;
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+    .daily-total-heading span {
+      color: #737373;
+      font-size: 8px;
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .daily-driver-table th,
+    .daily-driver-table td {
+      font-size: 10px;
+      padding: 7px 8px;
+    }
+    .daily-total-summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+      margin: 8px 0 0;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .daily-total-summary div {
+      border: 1px solid #d4d4d4;
+      background: #ffffff;
+      padding: 7px 8px;
+    }
+    .daily-total-summary span {
+      display: block;
+      color: #737373;
+      font-size: 7px;
+      font-weight: 900;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+    .daily-total-summary strong {
+      display: block;
+      margin-top: 2px;
+      color: #171717;
+      font-size: 12px;
     }
     .important-info-section {
       margin: 0 0 18px;

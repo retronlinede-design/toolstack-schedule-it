@@ -52,6 +52,28 @@ function groupDriverSummaries(driverDaySummaries, overallDriverTotals) {
     .values();
 }
 
+function groupDailySummaries(driverDaySummaries, dailyTotals) {
+  const totalsByDate = new Map(dailyTotals.map((summary) => [summary.date, summary]));
+
+  return [
+    ...driverDaySummaries
+      .reduce((groups, summary) => {
+        const key = summary.date || summary.dayTitle || "missing-date";
+        if (!groups.has(key)) {
+          groups.set(key, {
+            key,
+            date: summary.date,
+            total: totalsByDate.get(summary.date),
+            drivers: [],
+          });
+        }
+        groups.get(key).drivers.push(summary);
+        return groups;
+      }, new Map())
+      .values(),
+  ];
+}
+
 function MetricCard({ label, value, alert = false }) {
   return (
     <div className={`rounded-2xl border p-4 ${alert ? "border-red-100 bg-red-50/60" : "border-neutral-200 bg-neutral-50"}`}>
@@ -64,6 +86,7 @@ function MetricCard({ label, value, alert = false }) {
 export default function WorkingTimeSummary({ movements, drivers, vehicles, scheduleDays }) {
   const { driverDaySummaries, dailyTotals, overallDriverTotals } = calculateWorkingTimeSummary(movements, drivers, vehicles, scheduleDays);
   const driverGroups = [...groupDriverSummaries(driverDaySummaries, overallDriverTotals)];
+  const dailyGroups = groupDailySummaries(driverDaySummaries, dailyTotals);
 
   if (driverDaySummaries.length === 0) return <EmptyState />;
 
@@ -118,28 +141,51 @@ export default function WorkingTimeSummary({ movements, drivers, vehicles, sched
       ))}
 
       <Section title="Daily Totals" secondary>
-        <table className="min-w-[620px] w-full border-collapse border border-neutral-200 bg-white text-sm shadow-sm">
-          <thead className="bg-neutral-50 text-[10px] uppercase tracking-tighter text-neutral-500">
-            <tr>
-              <th className="border border-neutral-200 p-3 text-left">Date</th>
-              <th className="border border-neutral-200 p-3 text-left">Drivers</th>
-              <th className="border border-neutral-200 p-3 text-left">Total Duty Time</th>
-              <th className="border border-neutral-200 p-3 text-left">Overtime After 16:30</th>
-              <th className="border border-neutral-200 p-3 text-left">Short Rest Count</th>
-            </tr>
-          </thead>
-          <tbody>
-            {dailyTotals.map((summary) => (
-              <tr key={summary.date}>
-                <td className="border border-neutral-200 p-3 font-semibold text-neutral-900">{formatLongDate(summary.date)}</td>
-                <td className="border border-neutral-200 p-3 text-neutral-600">{summary.driverCount}</td>
-                <td className="border border-neutral-200 p-3 font-bold text-neutral-900">{summary.totalDuration}</td>
-                <td className="border border-neutral-200 p-3 text-neutral-600">{summary.overtimeDuration}</td>
-                <td className="border border-neutral-200 p-3 text-neutral-600">{summary.shortRestCount}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="space-y-5">
+          {dailyGroups.map((group) => (
+            <section key={group.key} className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+              <div className="mb-3 flex flex-col gap-1 border-b border-neutral-100 pb-3 sm:flex-row sm:items-end sm:justify-between">
+                <h4 className="text-lg font-black text-neutral-900">{formatLongDate(group.date) || "Missing date"}</h4>
+                <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
+                  {group.drivers.length} {group.drivers.length === 1 ? "driver" : "drivers"}
+                </p>
+              </div>
+              <table className="min-w-[760px] w-full border-collapse border border-neutral-200 bg-white text-sm shadow-sm">
+                <thead className="bg-neutral-50 text-[10px] uppercase tracking-tighter text-neutral-500">
+                  <tr>
+                    <th className="border border-neutral-200 p-3 text-left">Driver</th>
+                    <th className="border border-neutral-200 p-3 text-left">Vehicle</th>
+                    <th className="border border-neutral-200 p-3 text-left">Duty Time</th>
+                    <th className="border border-neutral-200 p-3 text-left">Overtime After 16:30</th>
+                    <th className="border border-neutral-200 p-3 text-left">Rest Since Previous Duty</th>
+                    <th className="border border-neutral-200 p-3 text-left">Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {group.drivers.map((summary) => (
+                    <tr key={`${summary.driverId}-${summary.date || group.key}`} className={summary.shortRest ? "bg-red-50/40" : ""}>
+                      <td className="border border-neutral-200 p-3 font-semibold text-neutral-900">{summary.driverName}</td>
+                      <td className="border border-neutral-200 p-3 text-neutral-600">{summary.vehicleName || "-"}</td>
+                      <td className="border border-neutral-200 p-3 font-bold text-neutral-900">{summary.totalDuration}</td>
+                      <td className="border border-neutral-200 p-3 text-neutral-600">{summary.overtimeDuration}</td>
+                      <td className="border border-neutral-200 p-3">
+                        <span className={summary.shortRest ? "font-bold text-red-700" : "text-neutral-600"}>{summary.restDuration}</span>
+                      </td>
+                      <td className="border border-neutral-200 p-3">
+                        <Notes notes={summary.notes} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                <MetricCard label="Combined Duty Time" value={group.total?.totalDuration} />
+                <MetricCard label="Combined Overtime" value={group.total?.overtimeDuration} />
+                <MetricCard label="Short Rest Count" value={group.total?.shortRestCount} alert={Number(group.total?.shortRestCount) > 0} />
+              </div>
+            </section>
+          ))}
+        </div>
       </Section>
     </div>
   );
