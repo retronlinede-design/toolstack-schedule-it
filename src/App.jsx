@@ -336,6 +336,56 @@ export default function ScheduleItApp() {
     });
   }
 
+  function handleReorderOperationalMovements({ draggedId, targetId, scheduleDayId, driverId }) {
+    if (!draggedId || !targetId || draggedId === targetId) return;
+
+    setSchedule((current) => {
+      const dragged = current.movements.find((item) => item.id === draggedId);
+      const target = current.movements.find((item) => item.id === targetId);
+      if (!dragged || !target) return current;
+      if (dragged.scheduleDayId !== scheduleDayId || target.scheduleDayId !== scheduleDayId) return current;
+      if (dragged.driverId !== driverId || target.driverId !== driverId) return current;
+
+      const day = current.scheduleDays.find((item) => item.id === scheduleDayId);
+      const orderedDayMovements = sortMovementsByDateAndTime(
+        current.movements
+          .filter((item) => item.scheduleDayId === scheduleDayId)
+          .map((item) => ({ ...item, day })),
+      );
+      const dayMovementIds = orderedDayMovements.map((movement) => movement.id);
+      const orderedDriverIds = orderedDayMovements.filter((movement) => movement.driverId === driverId).map((movement) => movement.id);
+      const draggedIndex = orderedDriverIds.indexOf(draggedId);
+      const targetIndex = orderedDriverIds.indexOf(targetId);
+      if (draggedIndex < 0 || targetIndex < 0) return current;
+
+      const reorderedDriverIds = [...orderedDriverIds];
+      const [moved] = reorderedDriverIds.splice(draggedIndex, 1);
+      reorderedDriverIds.splice(targetIndex, 0, moved);
+
+      let driverCursor = 0;
+      const nextDayMovementIds = dayMovementIds.map((id) => {
+        const movement = current.movements.find((item) => item.id === id);
+        if (movement?.driverId !== driverId) return id;
+        const nextId = reorderedDriverIds[driverCursor];
+        driverCursor += 1;
+        return nextId;
+      });
+      const sortOrdersById = new Map(nextDayMovementIds.map((id, index) => [id, (index + 1) * 10]));
+
+      return {
+        ...current,
+        movements: current.movements.map((movement) =>
+          movement.scheduleDayId === scheduleDayId
+            ? {
+                ...movement,
+                sortOrder: sortOrdersById.get(movement.id),
+              }
+            : movement,
+        ),
+      };
+    });
+  }
+
   function handleDelete(id) {
     if (!window.confirm("Are you sure you want to delete this event?")) return;
 
@@ -729,6 +779,7 @@ export default function ScheduleItApp() {
             onSelectedDriverChange={setSelectedDriverId}
             onEdit={handleEdit}
             onDelete={handleDelete}
+            onReorderMovements={handleReorderOperationalMovements}
           />
         </div>
       </div>

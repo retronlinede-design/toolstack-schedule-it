@@ -35,6 +35,7 @@ export default function PreviewTabs({
   onSelectedDriverChange,
   onEdit,
   onDelete,
+  onReorderMovements,
 }) {
   const [activeTab, setActiveTab] = useState("executive");
 
@@ -59,7 +60,15 @@ export default function PreviewTabs({
           <ExecutiveView entriesByMonth={entriesByMonth} profile={profile} onEdit={onEdit} onDelete={onDelete} />
         ) : null}
         {activeTab === "operational" ? (
-          <OperationalView entriesByMonth={entriesByMonth} routeNotes={routeNotes} drivers={drivers} vehicles={vehicles} onEdit={onEdit} onDelete={onDelete} />
+          <OperationalView
+            entriesByMonth={entriesByMonth}
+            routeNotes={routeNotes}
+            drivers={drivers}
+            vehicles={vehicles}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onReorderMovements={onReorderMovements}
+          />
         ) : null}
         {activeTab === "driver" ? (
           <DriverView

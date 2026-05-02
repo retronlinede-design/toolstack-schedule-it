@@ -1,4 +1,5 @@
-import { Pencil, Trash2 } from "lucide-react";
+import { GripVertical, Pencil, Trash2 } from "lucide-react";
+import { useState } from "react";
 import { sortMovementsByDateAndTime } from "../utils/calculations";
 import { formatLongDate } from "../utils/time";
 
@@ -46,9 +47,74 @@ function groupEntries(entries, driversById, vehiclesById, groupByDriver) {
   return dayGroups;
 }
 
-function OperationalRows({ entries, driversById, vehiclesById, onEdit, onDelete }) {
+function OperationalRows({ entries, driversById, vehiclesById, onEdit, onDelete, onReorderMovements }) {
+  const [draggedEntry, setDraggedEntry] = useState(null);
+  const [dragOverId, setDragOverId] = useState(null);
+
+  function canDropOn(entry) {
+    return Boolean(
+      draggedEntry &&
+        draggedEntry.id !== entry.id &&
+        draggedEntry.scheduleDayId === entry.scheduleDayId &&
+        draggedEntry.driverId === entry.driverId,
+    );
+  }
+
+  function handleDragStart(event, entry) {
+    setDraggedEntry(entry);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", entry.id);
+  }
+
+  function handleDragOver(event, entry) {
+    if (!canDropOn(entry)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setDragOverId(entry.id);
+  }
+
+  function clearDragState() {
+    setDraggedEntry(null);
+    setDragOverId(null);
+  }
+
+  function handleDrop(event, entry) {
+    event.preventDefault();
+    if (canDropOn(entry)) {
+      onReorderMovements?.({
+        draggedId: draggedEntry.id,
+        targetId: entry.id,
+        scheduleDayId: entry.scheduleDayId,
+        driverId: entry.driverId,
+      });
+    }
+    clearDragState();
+  }
+
   return entries.map((entry) => (
-    <tr key={entry.id} className="group align-top transition-colors hover:bg-neutral-50/50">
+    <tr
+      key={entry.id}
+      onDragOver={(event) => handleDragOver(event, entry)}
+      onDragLeave={() => {
+        if (dragOverId === entry.id) setDragOverId(null);
+      }}
+      onDrop={(event) => handleDrop(event, entry)}
+      className={`group align-top transition-colors ${
+        dragOverId === entry.id ? "bg-blue-50 ring-2 ring-inset ring-blue-200" : "hover:bg-neutral-50/50"
+      } ${draggedEntry?.id === entry.id ? "opacity-50" : ""}`}
+    >
+      <td className="no-print border border-neutral-200 p-3 text-center">
+        <button
+          draggable={Boolean(onReorderMovements)}
+          onDragStart={(event) => handleDragStart(event, entry)}
+          onDragEnd={clearDragState}
+          disabled={!onReorderMovements}
+          className="inline-flex cursor-grab rounded-lg bg-neutral-50 p-2 text-neutral-500 active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-40"
+          title="Drag to reorder within this driver group"
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+      </td>
       <td className="border border-neutral-200 p-3 font-bold text-neutral-900">{entry.driverStart || EMPTY}</td>
       <td className="border border-neutral-200 p-3">{entry.departureTime || EMPTY}</td>
       <td className="border border-neutral-200 p-3">{entry.arrivalTime || EMPTY}</td>
@@ -75,12 +141,13 @@ function OperationalRows({ entries, driversById, vehiclesById, onEdit, onDelete 
   ));
 }
 
-function OperationalTable({ entries, driversById, vehiclesById, onEdit, onDelete }) {
+function OperationalTable({ entries, driversById, vehiclesById, onEdit, onDelete, onReorderMovements }) {
   return (
     <div className="overflow-x-auto">
-      <table className="min-w-[1080px] w-full border-collapse border border-neutral-200 bg-white text-xs shadow-sm">
+      <table className="min-w-[1120px] w-full border-collapse border border-neutral-200 bg-white text-xs shadow-sm">
         <thead>
           <tr className="bg-neutral-50 text-[10px] uppercase font-black tracking-tighter text-neutral-500">
+            <th className="no-print border border-neutral-200 p-3 text-center">Order</th>
             <th className="border border-neutral-200 p-3 text-left">Driver Start</th>
             <th className="border border-neutral-200 p-3 text-left">Departure Time</th>
             <th className="border border-neutral-200 p-3 text-left">Arrival Time</th>
@@ -97,7 +164,14 @@ function OperationalTable({ entries, driversById, vehiclesById, onEdit, onDelete
           </tr>
         </thead>
         <tbody>
-          <OperationalRows entries={entries} driversById={driversById} vehiclesById={vehiclesById} onEdit={onEdit} onDelete={onDelete} />
+          <OperationalRows
+            entries={entries}
+            driversById={driversById}
+            vehiclesById={vehiclesById}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onReorderMovements={onReorderMovements}
+          />
         </tbody>
       </table>
     </div>
@@ -142,7 +216,7 @@ function RouteTable({ routes }) {
   );
 }
 
-export default function OperationalView({ entriesByMonth, routeNotes = [], drivers, vehicles, onEdit, onDelete, groupByDriver = true }) {
+export default function OperationalView({ entriesByMonth, routeNotes = [], drivers, vehicles, onEdit, onDelete, onReorderMovements, groupByDriver = true }) {
   const driversById = buildLookup(drivers);
   const vehiclesById = buildLookup(vehicles);
   const entries = sortMovementsByDateAndTime(
@@ -178,7 +252,14 @@ export default function OperationalView({ entriesByMonth, routeNotes = [], drive
                     {driverGroup.label}
                   </div>
                 ) : null}
-                <OperationalTable entries={driverGroup.entries} driversById={driversById} vehiclesById={vehiclesById} onEdit={onEdit} onDelete={onDelete} />
+                <OperationalTable
+                  entries={driverGroup.entries}
+                  driversById={driversById}
+                  vehiclesById={vehiclesById}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                  onReorderMovements={onReorderMovements}
+                />
                 <RouteTable routes={routeRowsFor(routeNotes, dayGroup.day?.id, driverGroup.driverId)} />
               </div>
             ))}
