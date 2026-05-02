@@ -292,37 +292,65 @@ function workingTimeTable(schedule) {
   `;
 }
 
-function importantInfoRows(schedule) {
-  return [...(schedule.importantInfoItems || [])]
-    .sort((a, b) => (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER))
-    .map((item) => [
-      cell(item.type, "type-cell"),
-      cell(item.title, "details-cell"),
-      cell(item.from),
-      cell(item.to),
-      cell(item.distance),
-      cell(item.estimatedTravelTime),
-      cell(item.name),
-      cell(item.phone),
-      cell(item.email),
-      cell(item.address, "small-cell"),
-      cell(item.notes, "wrap-cell"),
-    ]);
+function importantInfoDetail(label, value) {
+  if (!value) return "";
+  return `
+    <div class="important-info-detail">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+    </div>
+  `;
 }
 
-function importantInfoTable(schedule) {
-  return table(
-    ["Type", "Title", "From", "To", "Distance", "Estimated Travel Time", "Name", "Phone", "Email", "Address", "Notes"],
-    importantInfoRows(schedule),
-    "important-info-table",
+function importantInfoCard(item) {
+  return `
+    <article class="important-info-card">
+      <div class="important-info-card-header">
+        <span class="important-info-type">${escapeHtml(item.type || "Note")}</span>
+        <h3>${escapeHtml(item.title || item.name || item.from || item.address || "Important Information")}</h3>
+      </div>
+      <div class="important-info-details">
+        ${importantInfoDetail("From", item.from)}
+        ${importantInfoDetail("To", item.to)}
+        ${importantInfoDetail("Distance", item.distance)}
+        ${importantInfoDetail("Estimated Travel Time", item.estimatedTravelTime)}
+      </div>
+      ${item.address ? `<div class="important-info-address">${escapeHtml(item.address)}</div>` : ""}
+      ${item.notes ? `<div class="important-info-notes">${escapeHtml(item.notes)}</div>` : ""}
+    </article>
+  `;
+}
+
+function importantInfoSections(schedule) {
+  const typeOrder = ["Route", "Contact", "Address", "Note"];
+  const items = [...(schedule.importantInfoItems || [])].sort(
+    (a, b) => (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER),
   );
+
+  if (items.length === 0) return `<p class="empty">No records available for this view.</p>`;
+
+  return typeOrder
+    .map((type) => {
+      const typeItems = items.filter((item) => (item.type || "Note") === type);
+      if (typeItems.length === 0) return "";
+
+      return `
+        <section class="important-info-section">
+          <h3 class="important-info-section-heading">${escapeHtml(type)}</h3>
+          <div class="important-info-card-list">
+            ${typeItems.map(importantInfoCard).join("")}
+          </div>
+        </section>
+      `;
+    })
+    .join("");
 }
 
 function bodyForView(schedule, view, selectedDriverId) {
   if (view === "executive") return executiveTable(schedule);
   if (view === "operational") return operationalTable(schedule);
   if (view === "driver") return driverTable(schedule, selectedDriverId);
-  if (view === "importantInfo") return importantInfoTable(schedule);
+  if (view === "importantInfo") return importantInfoSections(schedule);
   return workingTimeTable(schedule);
 }
 
@@ -639,28 +667,96 @@ function stylesFor(view) {
       color: #262626;
     }
     .summary-table th, .summary-table td { font-size: 11px; padding: 8px 10px; }
-    .important-info-table th,
-    .important-info-table td {
-      font-size: 9px;
-      padding: 7px 8px;
+    .important-info-section {
+      margin: 0 0 18px;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
-    .important-info-table .type-cell {
-      font-weight: 800;
+    .important-info-section-heading {
+      margin: 0 0 8px;
+      padding: 0 0 5px;
+      border-bottom: 1px solid #bdbdbd;
+      color: #171717;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: .08em;
       text-transform: uppercase;
-      letter-spacing: .04em;
-      color: #404040;
+      break-after: avoid;
+      page-break-after: avoid;
     }
-    .important-info-table th:nth-child(1), .important-info-table td:nth-child(1) { width: 8%; }
-    .important-info-table th:nth-child(2), .important-info-table td:nth-child(2) { width: 12%; }
-    .important-info-table th:nth-child(3), .important-info-table td:nth-child(3) { width: 9%; }
-    .important-info-table th:nth-child(4), .important-info-table td:nth-child(4) { width: 9%; }
-    .important-info-table th:nth-child(5), .important-info-table td:nth-child(5) { width: 8%; }
-    .important-info-table th:nth-child(6), .important-info-table td:nth-child(6) { width: 10%; }
-    .important-info-table th:nth-child(7), .important-info-table td:nth-child(7) { width: 9%; }
-    .important-info-table th:nth-child(8), .important-info-table td:nth-child(8) { width: 9%; }
-    .important-info-table th:nth-child(9), .important-info-table td:nth-child(9) { width: 10%; }
-    .important-info-table th:nth-child(10), .important-info-table td:nth-child(10) { width: 9%; }
-    .important-info-table th:nth-child(11), .important-info-table td:nth-child(11) { width: 7%; }
+    .important-info-card-list {
+      display: grid;
+      gap: 9px;
+    }
+    .important-info-card {
+      border: 1px solid #d4d4d4;
+      border-radius: 4px;
+      padding: 10px 11px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .important-info-card-header {
+      margin: 0 0 7px;
+    }
+    .important-info-type {
+      display: inline-block;
+      margin: 0 0 4px;
+      color: #737373;
+      font-size: 7.5px;
+      font-weight: 900;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+    .important-info-card h3 {
+      margin: 0;
+      color: #171717;
+      font-size: 13px;
+      line-height: 1.25;
+      font-weight: 900;
+    }
+    .important-info-details {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 5px 12px;
+      margin: 0;
+    }
+    .important-info-detail {
+      border-top: 1px solid #eeeeee;
+      padding-top: 5px;
+    }
+    .important-info-detail span {
+      display: block;
+      color: #737373;
+      font-size: 7.5px;
+      font-weight: 800;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .important-info-detail strong {
+      display: block;
+      margin-top: 2px;
+      color: #262626;
+      font-size: 10px;
+      line-height: 1.3;
+    }
+    .important-info-address {
+      margin-top: 8px;
+      border-top: 1px solid #eeeeee;
+      padding-top: 7px;
+      color: #525252;
+      font-size: 9.5px;
+      line-height: 1.4;
+    }
+    .important-info-notes {
+      margin-top: 8px;
+      border-top: 1px solid #eeeeee;
+      padding-top: 7px;
+      color: #171717;
+      font-size: 10.5px;
+      line-height: 1.45;
+      font-weight: 700;
+      white-space: pre-line;
+    }
     .empty {
       border: 1px dashed #d4d4d4;
       padding: 24px;
@@ -686,11 +782,14 @@ function stylesFor(view) {
       .day-heading,
       .executive-day-heading,
       .driver-section-heading,
+      .important-info-section-heading,
       .summary-section h3 {
         break-after: avoid;
         page-break-after: avoid;
       }
       .driver-section,
+      .important-info-section,
+      .important-info-card,
       .summary-section {
         break-inside: avoid;
         page-break-inside: avoid;
