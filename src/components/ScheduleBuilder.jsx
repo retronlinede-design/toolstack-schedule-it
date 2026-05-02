@@ -89,6 +89,12 @@ function getName(items, id) {
   return items.find((item) => item.id === id)?.name || "-";
 }
 
+function openInMaps(venue, address) {
+  const query = encodeURIComponent(`${venue || ""} ${address || ""}`.trim());
+  if (!query) return;
+  window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, "_blank");
+}
+
 export default function ScheduleBuilder({
   draft,
   drivers,
@@ -421,7 +427,18 @@ export default function ScheduleBuilder({
             <Input value={draft.engagementDetails} onChange={(event) => updateField("engagementDetails", event.target.value)} />
           </Field>
           <Field label="Venue" icon={MapPin}>
-            <Input value={draft.venue} onChange={(event) => updateField("venue", event.target.value)} />
+            <div className="flex gap-2">
+              <Input value={draft.venue} onChange={(event) => updateField("venue", event.target.value)} />
+              <button
+                type="button"
+                onClick={() => openInMaps(draft.venue, draft.address)}
+                disabled={!draft.venue && !draft.address}
+                className="inline-flex shrink-0 items-center justify-center rounded-2xl border border-neutral-300 bg-white px-3 text-neutral-700 shadow-sm transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
+                title="Open in Maps"
+              >
+                <MapPin className="h-4 w-4" />
+              </button>
+            </div>
           </Field>
           <Field label="Address" icon={MapPin}>
             <Input value={draft.address} onChange={(event) => updateField("address", event.target.value)} />
