@@ -432,6 +432,7 @@ export default function ScheduleItApp() {
         vehicleId: noteDraft.vehicleId,
         fromDriverId: noteDraft.fromDriverId || "",
         toDriverId: noteDraft.toDriverId || "",
+        visibleToDriverIds: Array.isArray(noteDraft.visibleToDriverIds) ? noteDraft.visibleToDriverIds : [],
         location: noteDraft.location || "",
         instruction: noteDraft.instruction || "",
         keyLocation: noteDraft.keyLocation || "",

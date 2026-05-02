@@ -135,6 +135,7 @@ export default function ScheduleBuilder({
     vehicleId: "",
     fromDriverId: "",
     toDriverId: "",
+    visibleToDriverIds: [],
     location: "",
     instruction: "",
     keyLocation: "",
@@ -269,6 +270,7 @@ export default function ScheduleBuilder({
       vehicleId: draft.vehicleId || vehicles[0]?.id || "",
       fromDriverId: "",
       toDriverId: "",
+      visibleToDriverIds: [],
       location: "",
       instruction: "",
       keyLocation: "",
@@ -280,8 +282,22 @@ export default function ScheduleBuilder({
   }
 
   function editHandover(note) {
-    setHandoverDraft({ ...note });
+    setHandoverDraft({ ...note, visibleToDriverIds: Array.isArray(note.visibleToDriverIds) ? note.visibleToDriverIds : [] });
     setHandoverErrors({});
+  }
+
+  function updateHandoverVisibility(value) {
+    let visibleToDriverIds = [];
+    if (value === "all") visibleToDriverIds = drivers.map((driver) => driver.id);
+    if (value && value !== "none" && value !== "all") visibleToDriverIds = [value];
+    updateHandoverField("visibleToDriverIds", visibleToDriverIds);
+  }
+
+  function handoverVisibilityValue(note = handoverDraft) {
+    const visibleIds = Array.isArray(note.visibleToDriverIds) ? note.visibleToDriverIds : [];
+    if (visibleIds.length === 0) return "none";
+    if (drivers.length > 0 && drivers.every((driver) => visibleIds.includes(driver.id))) return "all";
+    return visibleIds[0] || "none";
   }
 
   function saveHandover() {
@@ -761,6 +777,17 @@ export default function ScheduleBuilder({
           <Field label="Time">
             <Input type="time" value={handoverDraft.time} onChange={(event) => updateHandoverField("time", event.target.value)} />
           </Field>
+          <Field label="Show on driver sheet">
+            <Select value={handoverVisibilityValue()} onChange={(event) => updateHandoverVisibility(event.target.value)}>
+              <option value="none">Operational only</option>
+              {drivers.map((driver) => (
+                <option key={driver.id} value={driver.id}>
+                  {driver.name}
+                </option>
+              ))}
+              <option value="all">Both drivers</option>
+            </Select>
+          </Field>
         </div>
         <div className="grid gap-3 md:grid-cols-3">
           <Field label="Location" error={handoverErrors.note}>
@@ -799,6 +826,7 @@ export default function ScheduleBuilder({
                   <th className="border border-neutral-200 p-3 text-left">Vehicle</th>
                   <th className="border border-neutral-200 p-3 text-left">From Driver</th>
                   <th className="border border-neutral-200 p-3 text-left">To Driver</th>
+                  <th className="border border-neutral-200 p-3 text-left">Driver Sheet</th>
                   <th className="border border-neutral-200 p-3 text-left">Location</th>
                   <th className="border border-neutral-200 p-3 text-left">Instruction</th>
                   <th className="border border-neutral-200 p-3 text-left">Key Location</th>
@@ -815,6 +843,11 @@ export default function ScheduleBuilder({
                       <td className="border border-neutral-200 p-3 font-semibold text-neutral-900">{getName(vehicles, note.vehicleId)}</td>
                       <td className="border border-neutral-200 p-3">{note.fromDriverId ? getName(drivers, note.fromDriverId) : "-"}</td>
                       <td className="border border-neutral-200 p-3">{note.toDriverId ? getName(drivers, note.toDriverId) : "-"}</td>
+                      <td className="border border-neutral-200 p-3">
+                        {Array.isArray(note.visibleToDriverIds) && note.visibleToDriverIds.length > 0
+                          ? note.visibleToDriverIds.map((id) => getName(drivers, id)).join(", ")
+                          : "Operational only"}
+                      </td>
                       <td className="border border-neutral-200 p-3">{note.location || "-"}</td>
                       <td className="border border-neutral-200 p-3">{note.instruction || "-"}</td>
                       <td className="border border-neutral-200 p-3">{note.keyLocation || "-"}</td>

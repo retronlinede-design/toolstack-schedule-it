@@ -268,7 +268,7 @@ function handoverRowsFor(schedule, scheduleDayId, driverId) {
 
   return [...(schedule.vehicleHandoverNotes || [])]
     .filter((note) => note.scheduleDayId === scheduleDayId)
-    .filter((note) => !driverId || note.fromDriverId === driverId || note.toDriverId === driverId)
+    .filter((note) => !driverId || handoverVisibleToDriver(note, driverId))
     .sort((a, b) => (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER))
     .map((note) => [
       cell(note.time, "time-cell"),
@@ -280,6 +280,14 @@ function handoverRowsFor(schedule, scheduleDayId, driverId) {
       cell(note.keyLocation),
       cell(note.notes, "wrap-cell"),
     ]);
+}
+
+function handoverVisibleToDriver(note, driverId) {
+  return (
+    (Array.isArray(note.visibleToDriverIds) && note.visibleToDriverIds.includes(driverId)) ||
+    note.fromDriverId === driverId ||
+    note.toDriverId === driverId
+  );
 }
 
 function handoverTable(schedule, scheduleDayId, driverId) {
@@ -298,7 +306,7 @@ function ensureOperationalHandoverDayGroups(dayGroups, schedule, driverId) {
   const groupsByKey = new Map(dayGroups.map((group) => [group.key, group]));
 
   (schedule.vehicleHandoverNotes || [])
-    .filter((note) => !driverId || note.fromDriverId === driverId || note.toDriverId === driverId)
+    .filter((note) => !driverId || handoverVisibleToDriver(note, driverId))
     .forEach((note) => {
       const day = schedule.scheduleDays.find((item) => item.id === note.scheduleDayId);
       const dayKey = note.scheduleDayId || day?.date || "unscheduled";
@@ -325,7 +333,7 @@ function operationalSections(schedule, driverId, groupByDriver) {
   );
 
   const visibleHandovers = (schedule.vehicleHandoverNotes || []).filter(
-    (note) => !driverId || note.fromDriverId === driverId || note.toDriverId === driverId,
+    (note) => !driverId || handoverVisibleToDriver(note, driverId),
   );
 
   if (movements.length === 0 && visibleHandovers.length === 0) return `<p class="empty">No records available for this view.</p>`;

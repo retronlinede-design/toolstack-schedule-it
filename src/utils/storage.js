@@ -78,6 +78,15 @@ function migrateRouteNotesToImportantInfo(routeNotes, scheduleDays, drivers) {
   });
 }
 
+function normalizeVehicleHandoverNotes(notes) {
+  return notes.map((note) => ({
+    ...note,
+    visibleToDriverIds: Array.isArray(note.visibleToDriverIds)
+      ? note.visibleToDriverIds
+      : [note.fromDriverId, note.toDriverId].filter(Boolean),
+  }));
+}
+
 export function normalizeState(state) {
   const scheduleDays = state?.scheduleDays || [];
   const movements = withSortOrders(scheduleDays, state?.movements || []);
@@ -86,7 +95,7 @@ export function normalizeState(state) {
   const importantInfoItems = Array.isArray(state?.importantInfoItems)
     ? state.importantInfoItems
     : migrateRouteNotesToImportantInfo(routeNotes, scheduleDays, drivers);
-  const vehicleHandoverNotes = Array.isArray(state?.vehicleHandoverNotes) ? state.vehicleHandoverNotes : [];
+  const vehicleHandoverNotes = normalizeVehicleHandoverNotes(Array.isArray(state?.vehicleHandoverNotes) ? state.vehicleHandoverNotes : []);
 
   return {
     ...defaultScheduleState,

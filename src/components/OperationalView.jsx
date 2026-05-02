@@ -51,7 +51,7 @@ function ensureHandoverDayGroups(dayGroups, vehicleHandoverNotes, scheduleDays, 
   const groupsByKey = new Map(dayGroups.map((group) => [group.key, group]));
 
   vehicleHandoverNotes
-    .filter((note) => !selectedDriverId || note.fromDriverId === selectedDriverId || note.toDriverId === selectedDriverId)
+    .filter((note) => !selectedDriverId || handoverVisibleToDriver(note, selectedDriverId))
     .forEach((note) => {
       const day = scheduleDays.find((item) => item.id === note.scheduleDayId);
       const key = note.scheduleDayId || day?.date || "unscheduled";
@@ -204,8 +204,16 @@ function OperationalTable({ entries, driversById, vehiclesById, onEdit, onDelete
 function handoverRowsFor(vehicleHandoverNotes, scheduleDayId, selectedDriverId) {
   return [...(vehicleHandoverNotes || [])]
     .filter((note) => note.scheduleDayId === scheduleDayId)
-    .filter((note) => !selectedDriverId || note.fromDriverId === selectedDriverId || note.toDriverId === selectedDriverId)
+    .filter((note) => !selectedDriverId || handoverVisibleToDriver(note, selectedDriverId))
     .sort((a, b) => (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER));
+}
+
+function handoverVisibleToDriver(note, selectedDriverId) {
+  return (
+    (Array.isArray(note.visibleToDriverIds) && note.visibleToDriverIds.includes(selectedDriverId)) ||
+    note.fromDriverId === selectedDriverId ||
+    note.toDriverId === selectedDriverId
+  );
 }
 
 function HandoverTable({ notes, driversById, vehiclesById }) {
@@ -267,7 +275,7 @@ export default function OperationalView({
   );
   const dayGroups = ensureHandoverDayGroups(groupEntries(entries, driversById, vehiclesById, groupByDriver), vehicleHandoverNotes, scheduleDays, selectedDriverId);
   const visibleHandoverNotes = vehicleHandoverNotes.filter(
-    (note) => !selectedDriverId || note.fromDriverId === selectedDriverId || note.toDriverId === selectedDriverId,
+    (note) => !selectedDriverId || handoverVisibleToDriver(note, selectedDriverId),
   );
 
   if (entries.length === 0 && visibleHandoverNotes.length === 0) {
