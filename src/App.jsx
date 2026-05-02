@@ -495,6 +495,76 @@ export default function ScheduleItApp() {
     });
   }
 
+  function handleMoveVehicleHandoverInOperational({ handoverId, targetScheduleDayId, targetDriverId = "", targetHandoverId = "" }) {
+    if (!handoverId || !targetScheduleDayId) return;
+
+    setSchedule((current) => {
+      const notes = current.vehicleHandoverNotes || [];
+      const dragged = notes.find((note) => note.id === handoverId);
+      const targetNote = targetHandoverId ? notes.find((note) => note.id === targetHandoverId) : null;
+      const resolvedTargetDayId = targetNote?.scheduleDayId || targetScheduleDayId;
+
+      if (!dragged) return current;
+      if (targetHandoverId && !targetNote) return current;
+      if (!current.scheduleDays.some((day) => day.id === resolvedTargetDayId)) return current;
+
+      const sourceDayId = dragged.scheduleDayId;
+      const visibleToDriverIds = Array.isArray(dragged.visibleToDriverIds) ? [...dragged.visibleToDriverIds] : [];
+      if (targetDriverId && !visibleToDriverIds.includes(targetDriverId)) {
+        visibleToDriverIds.push(targetDriverId);
+      }
+
+      const movedNote = {
+        ...dragged,
+        scheduleDayId: resolvedTargetDayId,
+        visibleToDriverIds,
+      };
+      const notesWithoutMoved = notes.filter((note) => note.id !== handoverId);
+      const targetDayNotes = notesWithoutMoved
+        .filter((note) => note.scheduleDayId === resolvedTargetDayId)
+        .sort((a, b) => (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER));
+      const targetIndex = targetHandoverId ? targetDayNotes.findIndex((note) => note.id === targetHandoverId) : -1;
+
+      if (targetIndex >= 0) {
+        targetDayNotes.splice(targetIndex, 0, movedNote);
+      } else {
+        targetDayNotes.push(movedNote);
+      }
+
+      const sortOrdersById = new Map(targetDayNotes.map((note, index) => [note.id, (index + 1) * 10]));
+
+      if (sourceDayId !== resolvedTargetDayId) {
+        notesWithoutMoved
+          .filter((note) => note.scheduleDayId === sourceDayId)
+          .sort((a, b) => (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER))
+          .forEach((note, index) => {
+            sortOrdersById.set(note.id, (index + 1) * 10);
+          });
+      }
+
+      return {
+        ...current,
+        vehicleHandoverNotes: notes.map((note) => {
+          if (note.id === handoverId) {
+            return {
+              ...movedNote,
+              sortOrder: sortOrdersById.get(note.id) ?? movedNote.sortOrder,
+            };
+          }
+
+          if (sortOrdersById.has(note.id)) {
+            return {
+              ...note,
+              sortOrder: sortOrdersById.get(note.id),
+            };
+          }
+
+          return note;
+        }),
+      };
+    });
+  }
+
   function handleDeleteVehicleHandoverNote(id) {
     if (!window.confirm("Delete this vehicle handover note?")) return;
 
@@ -912,6 +982,7 @@ export default function ScheduleItApp() {
             onEdit={handleEdit}
             onDelete={handleDelete}
             onReorderMovements={handleReorderOperationalMovements}
+            onMoveVehicleHandoverInOperational={handleMoveVehicleHandoverInOperational}
           />
         </div>
       </div>

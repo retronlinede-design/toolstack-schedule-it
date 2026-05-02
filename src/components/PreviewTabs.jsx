@@ -39,6 +39,7 @@ export default function PreviewTabs({
   onEdit,
   onDelete,
   onReorderMovements,
+  onMoveVehicleHandoverInOperational,
 }) {
   const [activeTab, setActiveTab] = useState("executive");
 
@@ -72,6 +73,7 @@ export default function PreviewTabs({
             onEdit={onEdit}
             onDelete={onDelete}
             onReorderMovements={onReorderMovements}
+            onMoveVehicleHandoverInOperational={onMoveVehicleHandoverInOperational}
           />
         ) : null}
         {activeTab === "driver" ? (

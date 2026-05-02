@@ -4,6 +4,7 @@ import { sortMovementsByDateAndTime } from "../utils/calculations";
 import { formatLongDate } from "../utils/time";
 
 const EMPTY = "-";
+const HANDOVER_DND_TYPE = "application/x-scheduleit-handover";
 
 function buildLookup(items) {
   return new Map(items.map((item) => [item.id, item]));
@@ -216,7 +217,18 @@ function handoverVisibleToDriver(note, selectedDriverId) {
   );
 }
 
-function HandoverTable({ notes, driversById, vehiclesById }) {
+function HandoverTable({
+  notes,
+  driversById,
+  vehiclesById,
+  canDragHandovers,
+  draggedHandoverId,
+  handoverDragOverId,
+  onHandoverDragStart,
+  onHandoverDragEnd,
+  onHandoverRowDragOver,
+  onHandoverRowDrop,
+}) {
   if (notes.length === 0) return null;
 
   return (
@@ -225,6 +237,7 @@ function HandoverTable({ notes, driversById, vehiclesById }) {
       <table className="min-w-[920px] w-full border-collapse border border-neutral-200 bg-white text-xs shadow-sm">
         <thead>
           <tr className="bg-neutral-50 text-[10px] uppercase font-black tracking-tighter text-neutral-500">
+            {canDragHandovers ? <th className="no-print border border-neutral-200 p-3 text-center">Move</th> : null}
             <th className="border border-neutral-200 p-3 text-left">Time</th>
             <th className="border border-neutral-200 p-3 text-left">Vehicle</th>
             <th className="border border-neutral-200 p-3 text-left">From Driver</th>
@@ -237,7 +250,30 @@ function HandoverTable({ notes, driversById, vehiclesById }) {
         </thead>
         <tbody>
           {notes.map((note) => (
-            <tr key={note.id} className="align-top">
+            <tr
+              key={note.id}
+              onDragOver={(event) => onHandoverRowDragOver?.(event, note)}
+              onDragLeave={() => {
+                if (handoverDragOverId === `handover-${note.id}`) onHandoverDragEnd?.(false);
+              }}
+              onDrop={(event) => onHandoverRowDrop?.(event, note)}
+              className={`align-top transition-colors ${
+                handoverDragOverId === `handover-${note.id}` ? "bg-amber-50 ring-2 ring-inset ring-amber-200" : ""
+              } ${draggedHandoverId === note.id ? "opacity-50" : ""}`}
+            >
+              {canDragHandovers ? (
+                <td className="no-print border border-neutral-200 p-3 text-center">
+                  <button
+                    draggable
+                    onDragStart={(event) => onHandoverDragStart(event, note)}
+                    onDragEnd={() => onHandoverDragEnd()}
+                    className="inline-flex cursor-grab rounded-lg bg-amber-50 p-2 text-amber-700 active:cursor-grabbing"
+                    title="Drag vehicle handover to another day or driver section"
+                  >
+                    <GripVertical className="h-4 w-4" />
+                  </button>
+                </td>
+              ) : null}
               <td className="border border-neutral-200 p-3 font-semibold text-neutral-900">{note.time || EMPTY}</td>
               <td className="border border-neutral-200 p-3 font-semibold text-neutral-900">{vehiclesById.get(note.vehicleId)?.name || EMPTY}</td>
               <td className="border border-neutral-200 p-3">{driversById.get(note.fromDriverId)?.name || EMPTY}</td>
@@ -265,7 +301,10 @@ export default function OperationalView({
   onReorderMovements,
   groupByDriver = true,
   selectedDriverId = "",
+  onMoveVehicleHandoverInOperational,
 }) {
+  const [draggedHandover, setDraggedHandover] = useState(null);
+  const [handoverDragOverId, setHandoverDragOverId] = useState(null);
   const driversById = buildLookup(drivers);
   const vehiclesById = buildLookup(vehicles);
   const entries = sortMovementsByDateAndTime(
@@ -277,6 +316,50 @@ export default function OperationalView({
   const visibleHandoverNotes = vehicleHandoverNotes.filter(
     (note) => !selectedDriverId || handoverVisibleToDriver(note, selectedDriverId),
   );
+  const canDragHandovers = groupByDriver && Boolean(onMoveVehicleHandoverInOperational);
+
+  function isHandoverDrag(event) {
+    return Boolean(draggedHandover || Array.from(event.dataTransfer.types).includes(HANDOVER_DND_TYPE));
+  }
+
+  function handleHandoverDragStart(event, note) {
+    setDraggedHandover(note);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData(HANDOVER_DND_TYPE, note.id);
+  }
+
+  function clearHandoverDragState(clearDragged = true) {
+    if (clearDragged) setDraggedHandover(null);
+    setHandoverDragOverId(null);
+  }
+
+  function handleHandoverTargetDragOver(event, targetId) {
+    if (!canDragHandovers || !isHandoverDrag(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "move";
+    setHandoverDragOverId(targetId);
+  }
+
+  function handleHandoverDrop(event, { targetScheduleDayId, targetDriverId = "", targetHandoverId = "" }) {
+    if (!canDragHandovers || !isHandoverDrag(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const handoverId = draggedHandover?.id || event.dataTransfer.getData(HANDOVER_DND_TYPE);
+    onMoveVehicleHandoverInOperational?.({
+      handoverId,
+      targetScheduleDayId,
+      targetDriverId,
+      targetHandoverId,
+    });
+    clearHandoverDragState();
+  }
+
+  function handleHandoverRowDragOver(event, note) {
+    if (draggedHandover?.id === note.id) return;
+    handleHandoverTargetDragOver(event, `handover-${note.id}`);
+  }
 
   if (entries.length === 0 && visibleHandoverNotes.length === 0) {
     return (
@@ -289,7 +372,23 @@ export default function OperationalView({
   return (
     <div className="space-y-6">
       {dayGroups.map((dayGroup) => (
-        <section key={dayGroup.key} className="rounded-2xl border border-neutral-200 bg-white p-3">
+        <section
+          key={dayGroup.key}
+          onDragOver={(event) => handleHandoverTargetDragOver(event, `day-${dayGroup.day?.id || dayGroup.key}`)}
+          onDragLeave={() => {
+            if (handoverDragOverId === `day-${dayGroup.day?.id || dayGroup.key}`) clearHandoverDragState(false);
+          }}
+          onDrop={(event) =>
+            handleHandoverDrop(event, {
+              targetScheduleDayId: dayGroup.day?.id || dayGroup.key,
+            })
+          }
+          className={`rounded-2xl border bg-white p-3 transition-colors ${
+            handoverDragOverId === `day-${dayGroup.day?.id || dayGroup.key}`
+              ? "border-amber-300 bg-amber-50/40"
+              : "border-neutral-200"
+          }`}
+        >
           <div className="mb-3 border-b border-neutral-200 pb-3">
             <h3 className="text-sm font-black uppercase tracking-widest text-neutral-900">
               {formatLongDate(dayGroup.day?.date) || "Unscheduled"}
@@ -298,7 +397,26 @@ export default function OperationalView({
           </div>
           <div className="space-y-4">
             {dayGroup.driverGroups.map((driverGroup) => (
-              <div key={driverGroup.key}>
+              <div
+                key={driverGroup.key}
+                onDragOver={(event) => handleHandoverTargetDragOver(event, `driver-${dayGroup.day?.id || dayGroup.key}-${driverGroup.driverId}`)}
+                onDragLeave={() => {
+                  if (handoverDragOverId === `driver-${dayGroup.day?.id || dayGroup.key}-${driverGroup.driverId}`) {
+                    clearHandoverDragState(false);
+                  }
+                }}
+                onDrop={(event) =>
+                  handleHandoverDrop(event, {
+                    targetScheduleDayId: dayGroup.day?.id || dayGroup.key,
+                    targetDriverId: driverGroup.driverId,
+                  })
+                }
+                className={`rounded-xl transition-colors ${
+                  handoverDragOverId === `driver-${dayGroup.day?.id || dayGroup.key}-${driverGroup.driverId}`
+                    ? "bg-amber-50 ring-2 ring-inset ring-amber-200"
+                    : ""
+                }`}
+              >
                 {groupByDriver ? (
                   <div className="mb-2 rounded-xl bg-neutral-100 px-3 py-2 text-xs font-black uppercase tracking-widest text-neutral-700">
                     {driverGroup.label}
@@ -319,6 +437,18 @@ export default function OperationalView({
             notes={handoverRowsFor(vehicleHandoverNotes, dayGroup.day?.id || dayGroup.key, selectedDriverId)}
             driversById={driversById}
             vehiclesById={vehiclesById}
+            canDragHandovers={canDragHandovers}
+            draggedHandoverId={draggedHandover?.id}
+            handoverDragOverId={handoverDragOverId}
+            onHandoverDragStart={handleHandoverDragStart}
+            onHandoverDragEnd={clearHandoverDragState}
+            onHandoverRowDragOver={handleHandoverRowDragOver}
+            onHandoverRowDrop={(event, note) =>
+              handleHandoverDrop(event, {
+                targetScheduleDayId: note.scheduleDayId,
+                targetHandoverId: note.id,
+              })
+            }
           />
         </section>
       ))}
