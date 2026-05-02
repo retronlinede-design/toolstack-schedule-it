@@ -23,15 +23,29 @@ function addMinutes(current, value, mode) {
 
 function dateToDayNumber(value) {
   if (!value) return null;
-  const date = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return null;
-  return Math.floor(date.getTime() / (DAY_MINUTES * 60 * 1000));
+  const [year, month, day] = value.split("-").map(Number);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return null;
+  return Math.floor(Date.UTC(year, month - 1, day) / (DAY_MINUTES * 60 * 1000));
 }
 
 function absoluteMinutes(date, time) {
   const dayNumber = dateToDayNumber(date);
   if (dayNumber === null || time === null) return null;
   return dayNumber * DAY_MINUTES + time;
+}
+
+function addTimeCandidate(current, value) {
+  if (value === null) return current;
+  return [...current, value];
+}
+
+function latestEndForStart(candidates, start) {
+  if (candidates.length === 0) return null;
+  if (start === null) return Math.max(...candidates);
+
+  return candidates
+    .map((value) => (value < start ? value + DAY_MINUTES : value))
+    .reduce((latest, value) => Math.max(latest, value), Number.NEGATIVE_INFINITY);
 }
 
 export function sortMovementsByDateAndTime(movements) {
@@ -78,8 +92,8 @@ export function calculateWorkingTimeSummary(movements, drivers, vehicles = [], s
       dayTitle: day?.title || "",
       primaryStart: null,
       fallbackStart: null,
-      primaryEnd: null,
-      fallbackEnd: null,
+      primaryEndCandidates: [],
+      fallbackEndCandidates: [],
     };
 
     groups.set(key, {
@@ -88,22 +102,24 @@ export function calculateWorkingTimeSummary(movements, drivers, vehicles = [], s
       vehicleName: current.vehicleName !== "-" ? current.vehicleName : vehiclesById.get(movement.vehicleId)?.name || "-",
       primaryStart: addMinutes(current.primaryStart, driverStart, "min"),
       fallbackStart: addMinutes(addMinutes(current.fallbackStart, departure, "min"), arrival, "min"),
-      primaryEnd: addMinutes(current.primaryEnd, endTime, "max"),
-      fallbackEnd: addMinutes(current.fallbackEnd, arrival, "max"),
+      primaryEndCandidates: addTimeCandidate(current.primaryEndCandidates, endTime),
+      fallbackEndCandidates: addTimeCandidate(current.fallbackEndCandidates, arrival),
     });
   });
 
   const driverDaySummaries = [...groups.values()]
     .map((summary) => {
       const start = summary.primaryStart ?? summary.fallbackStart;
-      const end = summary.primaryEnd ?? summary.fallbackEnd;
+      const primaryEnd = latestEndForStart(summary.primaryEndCandidates, start);
+      const fallbackEnd = latestEndForStart(summary.fallbackEndCandidates, start);
+      const adjustedEnd = primaryEnd ?? fallbackEnd;
+      const end = adjustedEnd === null ? null : adjustedEnd % DAY_MINUTES;
       const notes = [];
       if (summary.primaryStart === null && summary.fallbackStart !== null) notes.push("Estimated start");
-      if (summary.primaryEnd === null && summary.fallbackEnd !== null) notes.push("Estimated end");
+      if (primaryEnd === null && fallbackEnd !== null) notes.push("Estimated end");
       if (start === null) notes.push("Missing start");
       if (end === null) notes.push("Missing end");
-      const totalMinutes = durationBetween(start, end) || 0;
-      const adjustedEnd = start !== null && end !== null && end < start ? end + DAY_MINUTES : end;
+      const totalMinutes = start !== null && adjustedEnd !== null ? adjustedEnd - start : 0;
       const overtimeBoundary = start !== null && start > NORMAL_DAY_END_MINUTES ? start : NORMAL_DAY_END_MINUTES;
       const overtimeMinutes = adjustedEnd !== null ? Math.max(adjustedEnd - overtimeBoundary, 0) : 0;
       const dutyStartAbsolute = absoluteMinutes(summary.date, start);
