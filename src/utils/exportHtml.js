@@ -503,57 +503,132 @@ function stylesFor(view) {
     .wrap-cell { white-space: normal; }
     .total-cell { font-weight: 800; }
     .executive-page header {
-      border-bottom: 1.5px solid #171717;
-      margin-bottom: 18px;
-      padding-bottom: 12px;
+      border-bottom: 1px solid #171717;
+      margin-bottom: 20px;
+      padding-bottom: 14px;
+      text-align: center;
     }
     .executive-page h1 {
-      font-size: 21px;
-      line-height: 1.15;
-      letter-spacing: .035em;
+      color: #404040;
+      font-size: 11px;
+      line-height: 1.25;
+      letter-spacing: .08em;
+      font-weight: 800;
     }
     .executive-page h2 {
-      margin: 4px 0 9px;
+      margin: 6px 0 8px;
       color: #171717;
-      font-size: 16px;
-      letter-spacing: .04em;
+      font-size: 25px;
+      line-height: 1.1;
+      letter-spacing: .06em;
+      font-weight: 900;
     }
     .executive-page .meta {
+      justify-content: center;
       gap: 8px 14px;
-      font-size: 10.5px;
-      color: #404040;
+      font-size: 10px;
+      color: #525252;
+    }
+    .executive-page .meta-label {
+      color: #737373;
+      font-weight: 700;
     }
     .executive-day-section {
-      margin: 0 0 18px;
+      margin: 0 0 20px;
       break-inside: avoid;
       page-break-inside: avoid;
     }
     .executive-day-heading {
-      margin: 0 0 7px;
-      padding: 7px 9px;
-      border-left: 3px solid #171717;
-      background: #f7f7f7;
+      margin: 0 0 8px;
+      padding: 9px 0 7px;
+      border-top: 1px solid #171717;
+      border-bottom: 1px solid #d4d4d4;
+      background: #ffffff;
       break-after: avoid;
       page-break-after: avoid;
     }
     .executive-day-date {
-      font-size: 10px;
+      font-size: 11px;
       font-weight: 800;
       text-transform: uppercase;
-      letter-spacing: .05em;
+      letter-spacing: .08em;
       color: #171717;
     }
     .executive-day-title {
-      margin-top: 2px;
-      font-size: 10px;
+      margin-top: 3px;
+      font-size: 10.5px;
       font-weight: 700;
       color: #525252;
     }
-    .executive-table th:nth-child(1), .executive-table td:nth-child(1) { width: 15%; }
-    .executive-table th:nth-child(2), .executive-table td:nth-child(2) { width: 18%; }
-    .executive-table th:nth-child(3), .executive-table td:nth-child(3) { width: 27%; }
+    .executive-table {
+      border-collapse: collapse;
+      border-top: 1px solid #bdbdbd;
+      border-bottom: 1px solid #bdbdbd;
+      font-size: 11.5px;
+      line-height: 1.45;
+    }
+    .executive-table th,
+    .executive-table td {
+      border-left: 0;
+      border-right: 0;
+      border-top: 0;
+      border-bottom: 1px solid #e5e5e5;
+      padding: 10px 9px;
+      background: #ffffff;
+    }
+    .executive-table th {
+      border-bottom: 1px solid #bdbdbd;
+      background: #ffffff;
+      color: #525252;
+      font-size: 8.5px;
+      letter-spacing: .08em;
+      font-weight: 800;
+    }
+    .executive-table tbody tr:nth-child(even) td {
+      background: #ffffff;
+    }
+    .executive-table tbody tr:last-child td {
+      border-bottom: 0;
+    }
+    .executive-table .time-cell {
+      color: #171717;
+      font-size: 11px;
+      font-weight: 900;
+    }
+    .executive-table .movement-cell {
+      color: #404040;
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .executive-table .details-cell {
+      color: #171717;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .executive-table .venue-cell {
+      color: #171717;
+      font-weight: 900;
+    }
+    .executive-table .address-cell {
+      color: #666666;
+      font-size: 10px;
+      line-height: 1.35;
+    }
+    .executive-page footer {
+      margin-top: 18px;
+      border-top: 1px solid #e5e5e5;
+      padding-top: 7px;
+      color: #8a8a8a;
+      font-size: 8px;
+      text-align: center;
+    }
+    .executive-table th:nth-child(1), .executive-table td:nth-child(1) { width: 14%; }
+    .executive-table th:nth-child(2), .executive-table td:nth-child(2) { width: 14%; }
+    .executive-table th:nth-child(3), .executive-table td:nth-child(3) { width: 34%; }
     .executive-table th:nth-child(4), .executive-table td:nth-child(4) { width: 20%; }
-    .executive-table th:nth-child(5), .executive-table td:nth-child(5) { width: 20%; }
+    .executive-table th:nth-child(5), .executive-table td:nth-child(5) { width: 18%; }
     .compact-table th:nth-child(-n+4), .compact-table td:nth-child(-n+4) { width: 6.5%; }
     .compact-table th:nth-child(5), .compact-table td:nth-child(5) { width: 14%; }
     .compact-table th:nth-child(6), .compact-table td:nth-child(6) { width: 10%; }
@@ -631,7 +706,7 @@ export function getExportDocument(schedule, view, options = {}) {
   `;
   const styles = stylesFor(view);
   const tableHtml = bodyForView(schedule, view, options.selectedDriverId);
-  const footerHtml = isExecutive ? `Generated by ScheduleIt · Generated ${escapeHtml(generatedAt)}` : "Generated by ScheduleIt";
+  const footerHtml = "Generated by ScheduleIt";
   const bodyHtml = `${headingHtml}${tableHtml}<footer>${footerHtml}</footer></div>`;
   const fullHtml = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>${styles}</style></head><body>${bodyHtml}</body></html>`;
 
