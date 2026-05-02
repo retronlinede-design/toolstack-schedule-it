@@ -1,4 +1,4 @@
-import { GripVertical, MapPin, Pencil, Trash2 } from "lucide-react";
+import { GripVertical, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { sortMovementsByDateAndTime } from "../utils/calculations";
 import { formatLongDate } from "../utils/time";
@@ -7,12 +7,6 @@ const EMPTY = "-";
 
 function buildLookup(items) {
   return new Map(items.map((item) => [item.id, item]));
-}
-
-function openInMaps(venue, address) {
-  const query = encodeURIComponent(`${venue || ""} ${address || ""}`.trim());
-  if (!query) return;
-  window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, "_blank");
 }
 
 function groupEntries(entries, driversById, vehiclesById, groupByDriver) {
@@ -126,20 +120,7 @@ function OperationalRows({ entries, driversById, vehiclesById, onEdit, onDelete,
       <td className="border border-neutral-200 p-3">{entry.arrivalTime || EMPTY}</td>
       <td className="border border-neutral-200 p-3">{entry.endTime || EMPTY}</td>
       <td className="border border-neutral-200 p-3 font-semibold text-neutral-900">{entry.engagementDetails || EMPTY}</td>
-      <td className="border border-neutral-200 p-3">
-        <div className="flex items-start gap-2">
-          <span className="min-w-0 flex-1">{entry.venue || EMPTY}</span>
-          <button
-            type="button"
-            onClick={() => openInMaps(entry.venue, entry.address)}
-            disabled={!entry.venue && !entry.address}
-            className="no-print inline-flex shrink-0 rounded-lg bg-neutral-50 p-1.5 text-neutral-600 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-30"
-            title="Open in Maps"
-          >
-            <MapPin className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      </td>
+      <td className="border border-neutral-200 p-3">{entry.venue || EMPTY}</td>
       <td className="border border-neutral-200 p-3">{entry.address || EMPTY}</td>
       <td className="border border-neutral-200 p-3">{entry.locationNotes || EMPTY}</td>
       <td className="border border-neutral-200 p-3">{entry.parking || EMPTY}</td>
