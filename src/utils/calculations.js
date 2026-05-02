@@ -2,6 +2,7 @@ import { minutesToDuration, parseTimeToMinutes } from "./time";
 
 const NORMAL_DAY_END_MINUTES = 16 * 60 + 30;
 const MIN_REST_MINUTES = 11 * 60;
+const LONG_REST_MINUTES = 72 * 60;
 const DAY_MINUTES = 24 * 60;
 
 function durationBetween(start, end) {
@@ -22,10 +23,16 @@ function addMinutes(current, value, mode) {
 }
 
 function dateToDayNumber(value) {
-  if (!value) return null;
+  if (!value || typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   const [year, month, day] = value.split("-").map(Number);
   if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return null;
-  return Math.floor(Date.UTC(year, month - 1, day) / (DAY_MINUTES * 60 * 1000));
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+  return Math.floor(date.getTime() / (DAY_MINUTES * 60 * 1000));
+}
+
+function isValidIsoDate(value) {
+  return dateToDayNumber(value) !== null;
 }
 
 function absoluteMinutes(date, time) {
@@ -79,16 +86,18 @@ export function calculateWorkingTimeSummary(movements, drivers, vehicles = [], s
     if (driverStart === null && departure === null && arrival === null && endTime === null) return;
 
     const day = daysById.get(movement.scheduleDayId) || movement.day;
-    const date = day?.date;
-    if (!date) return;
+    const rawDate = day?.date || "";
+    const hasValidDate = isValidIsoDate(rawDate);
+    const date = hasValidDate ? rawDate : "";
 
-    const key = `${movement.driverId}:${date}`;
+    const key = `${movement.driverId}:${hasValidDate ? date : day?.id || movement.scheduleDayId || "missing-date"}`;
     const current = groups.get(key) || {
       driverId: movement.driverId,
       driverName: driversById.get(movement.driverId)?.name || "Unassigned",
       vehicleId: movement.vehicleId,
       vehicleName: vehiclesById.get(movement.vehicleId)?.name || "-",
       date,
+      hasValidDate,
       dayTitle: day?.title || "",
       primaryStart: null,
       fallbackStart: null,
@@ -115,6 +124,7 @@ export function calculateWorkingTimeSummary(movements, drivers, vehicles = [], s
       const adjustedEnd = primaryEnd ?? fallbackEnd;
       const end = adjustedEnd === null ? null : adjustedEnd % DAY_MINUTES;
       const notes = [];
+      if (!summary.hasValidDate) notes.push("Missing date");
       if (summary.primaryStart === null && summary.fallbackStart !== null) notes.push("Estimated start");
       if (primaryEnd === null && fallbackEnd !== null) notes.push("Estimated end");
       if (start === null) notes.push("Missing start");
@@ -132,6 +142,7 @@ export function calculateWorkingTimeSummary(movements, drivers, vehicles = [], s
         vehicleId: summary.vehicleId,
         vehicleName: summary.vehicleName,
         date: summary.date,
+        hasValidDate: summary.hasValidDate,
         dayTitle: summary.dayTitle,
         start,
         end,
@@ -149,23 +160,48 @@ export function calculateWorkingTimeSummary(movements, drivers, vehicles = [], s
         notes,
       };
     })
-    .sort((a, b) => a.date.localeCompare(b.date) || a.driverName.localeCompare(b.driverName));
+    .sort(
+      (a, b) =>
+        (a.dutyStartAbsolute ?? Number.MAX_SAFE_INTEGER) - (b.dutyStartAbsolute ?? Number.MAX_SAFE_INTEGER) ||
+        a.driverName.localeCompare(b.driverName) ||
+        a.date.localeCompare(b.date),
+    );
 
-  [...driverDaySummaries]
-    .sort((a, b) => a.driverName.localeCompare(b.driverName) || (a.dutyStartAbsolute ?? Number.MAX_SAFE_INTEGER) - (b.dutyStartAbsolute ?? Number.MAX_SAFE_INTEGER))
-    .forEach((summary, index, sortedSummaries) => {
-      const previous = sortedSummaries
-        .slice(0, index)
-        .reverse()
-        .find((item) => item.driverId === summary.driverId && item.dutyEndAbsolute !== null);
+  const summariesByDriver = driverDaySummaries.reduce((acc, summary) => {
+    if (!acc.has(summary.driverId)) acc.set(summary.driverId, []);
+    acc.get(summary.driverId).push(summary);
+    return acc;
+  }, new Map());
 
-      if (!previous || summary.dutyStartAbsolute === null) return;
+  summariesByDriver.forEach((summaries) => {
+    let previousValidSummary = null;
+    summaries
+      .sort((a, b) => (a.dutyStartAbsolute ?? Number.MAX_SAFE_INTEGER) - (b.dutyStartAbsolute ?? Number.MAX_SAFE_INTEGER))
+      .forEach((summary) => {
+        if (!summary.hasValidDate || summary.dutyStartAbsolute === null) {
+          previousValidSummary = null;
+          return;
+        }
 
-      const restMinutes = Math.max(summary.dutyStartAbsolute - previous.dutyEndAbsolute, 0);
-      summary.restMinutes = restMinutes;
-      summary.restDuration = minutesToDuration(restMinutes);
-      summary.shortRest = restMinutes < MIN_REST_MINUTES;
-      if (summary.shortRest) summary.notes.push("Short rest");
+        if (!previousValidSummary || previousValidSummary.dutyEndAbsolute === null) {
+          if (summary.dutyEndAbsolute !== null) previousValidSummary = summary;
+          return;
+        }
+
+        const restMinutes = summary.dutyStartAbsolute - previousValidSummary.dutyEndAbsolute;
+        if (restMinutes < 0) {
+          summary.notes.push("Check dates");
+          if (summary.dutyEndAbsolute !== null) previousValidSummary = summary;
+          return;
+        }
+
+        summary.restMinutes = restMinutes;
+        summary.restDuration = minutesToDuration(restMinutes);
+        summary.shortRest = restMinutes < MIN_REST_MINUTES;
+        if (summary.shortRest) summary.notes.push("Short rest");
+        if (restMinutes > LONG_REST_MINUTES) summary.notes.push("Long gap / check dates");
+        if (summary.dutyEndAbsolute !== null) previousValidSummary = summary;
+      });
     });
 
   const dailyTotals = [...driverDaySummaries.reduce((acc, summary) => {
