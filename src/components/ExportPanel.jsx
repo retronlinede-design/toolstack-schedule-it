@@ -6,12 +6,14 @@ const printActions = [
   ["executive", "Print Executive View"],
   ["operational", "Print Operational View"],
   ["workingTime", "Print Working Time Summary"],
+  ["importantInfo", "Print Important Info"],
 ];
 
 const copyActions = [
   ["executive", "Copy Executive HTML"],
   ["operational", "Copy Operational HTML"],
   ["workingTime", "Copy Working Time HTML"],
+  ["importantInfo", "Copy Important Info HTML"],
 ];
 
 function PanelButton({ icon, label, description, onClick, disabled = false }) {

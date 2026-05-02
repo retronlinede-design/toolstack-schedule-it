@@ -40,13 +40,12 @@ function nextSortOrder(movements, scheduleDayId) {
   return dayOrders.length === 0 ? 10 : Math.max(...dayOrders) + 10;
 }
 
-function nextRouteSortOrder(routeNotes, scheduleDayId, driverId) {
-  const routeOrders = routeNotes
-    .filter((route) => route.scheduleDayId === scheduleDayId && route.driverId === driverId)
-    .map((route) => route.sortOrder)
+function nextImportantInfoSortOrder(importantInfoItems) {
+  const orders = importantInfoItems
+    .map((item) => item.sortOrder)
     .filter(Number.isFinite);
 
-  return routeOrders.length === 0 ? 10 : Math.max(...routeOrders) + 10;
+  return orders.length === 0 ? 10 : Math.max(...orders) + 10;
 }
 
 function nameKey(value) {
@@ -58,6 +57,7 @@ const documentPreviewTabs = [
   { id: "operational", label: "Operational" },
   { id: "driver", label: "Driver" },
   { id: "workingTime", label: "Working Time" },
+  { id: "importantInfo", label: "Important Info" },
 ];
 
 export default function ScheduleItApp() {
@@ -247,19 +247,11 @@ export default function ScheduleItApp() {
         id: createId("movement"),
         scheduleDayId: nextDay.id,
       }));
-    const copiedRouteNotes = (schedule.routeNotes || [])
-      .filter((route) => route.scheduleDayId === sourceDay.id)
-      .map((route) => ({
-        ...route,
-        id: createId("route"),
-        scheduleDayId: nextDay.id,
-      }));
 
     setSchedule((current) => ({
       ...current,
       scheduleDays: [...current.scheduleDays, nextDay],
       movements: [...current.movements, ...copiedMovements],
-      routeNotes: [...(current.routeNotes || []), ...copiedRouteNotes],
     }));
     updateDraft((current) => ({
       ...current,
@@ -395,66 +387,79 @@ export default function ScheduleItApp() {
     }));
   }
 
-  function handleSaveRouteNote(routeDraft) {
-    if (!routeDraft.scheduleDayId || !routeDraft.driverId || (!routeDraft.from && !routeDraft.to)) return;
+  function handleSaveImportantInfoItem(infoDraft) {
+    if (
+      !infoDraft.type ||
+      (!infoDraft.title &&
+        !infoDraft.from &&
+        !infoDraft.to &&
+        !infoDraft.name &&
+        !infoDraft.phone &&
+        !infoDraft.email &&
+        !infoDraft.address &&
+        !infoDraft.notes)
+    ) {
+      return;
+    }
 
     setSchedule((current) => {
-      const route = {
-        id: routeDraft.id || createId("route"),
-        scheduleDayId: routeDraft.scheduleDayId,
-        driverId: routeDraft.driverId,
-        from: routeDraft.from || "",
-        to: routeDraft.to || "",
-        distance: routeDraft.distance || "",
-        estimatedTravelTime: routeDraft.estimatedTravelTime || "",
-        notes: routeDraft.notes || "",
-        sortOrder: Number.isFinite(routeDraft.sortOrder)
-          ? routeDraft.sortOrder
-          : nextRouteSortOrder(current.routeNotes || [], routeDraft.scheduleDayId, routeDraft.driverId),
+      const item = {
+        id: infoDraft.id || createId("info"),
+        type: infoDraft.type || "Note",
+        title: infoDraft.title || "",
+        from: infoDraft.from || "",
+        to: infoDraft.to || "",
+        distance: infoDraft.distance || "",
+        estimatedTravelTime: infoDraft.estimatedTravelTime || "",
+        name: infoDraft.name || "",
+        phone: infoDraft.phone || "",
+        email: infoDraft.email || "",
+        address: infoDraft.address || "",
+        notes: infoDraft.notes || "",
+        sortOrder: Number.isFinite(infoDraft.sortOrder)
+          ? infoDraft.sortOrder
+          : nextImportantInfoSortOrder(current.importantInfoItems || []),
       };
 
       return {
         ...current,
-        routeNotes: [...(current.routeNotes || []).filter((item) => item.id !== route.id), route],
+        importantInfoItems: [...(current.importantInfoItems || []).filter((currentItem) => currentItem.id !== item.id), item],
       };
     });
   }
 
-  function handleDuplicateRouteNote(route) {
+  function handleDuplicateImportantInfoItem(item) {
     setSchedule((current) => ({
       ...current,
-      routeNotes: [
-        ...(current.routeNotes || []),
+      importantInfoItems: [
+        ...(current.importantInfoItems || []),
         {
-          ...route,
-          id: createId("route"),
-          sortOrder: nextRouteSortOrder(current.routeNotes || [], route.scheduleDayId, route.driverId),
+          ...item,
+          id: createId("info"),
+          sortOrder: nextImportantInfoSortOrder(current.importantInfoItems || []),
         },
       ],
     }));
   }
 
-  function handleMoveRouteNote(id, direction) {
+  function handleMoveImportantInfoItem(id, direction) {
     setSchedule((current) => {
-      const route = (current.routeNotes || []).find((item) => item.id === id);
-      if (!route) return current;
-
-      const orderedRoutes = [...(current.routeNotes || [])]
-        .filter((item) => item.scheduleDayId === route.scheduleDayId && item.driverId === route.driverId)
-        .sort((a, b) => (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER));
-      const currentIndex = orderedRoutes.findIndex((item) => item.id === id);
+      const orderedItems = [...(current.importantInfoItems || [])].sort(
+        (a, b) => (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER),
+      );
+      const currentIndex = orderedItems.findIndex((item) => item.id === id);
       const nextIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
-      if (currentIndex < 0 || nextIndex < 0 || nextIndex >= orderedRoutes.length) return current;
+      if (currentIndex < 0 || nextIndex < 0 || nextIndex >= orderedItems.length) return current;
 
-      const reordered = [...orderedRoutes];
+      const reordered = [...orderedItems];
       const [moved] = reordered.splice(currentIndex, 1);
       reordered.splice(nextIndex, 0, moved);
       const sortOrdersById = new Map(reordered.map((item, index) => [item.id, (index + 1) * 10]));
 
       return {
         ...current,
-        routeNotes: (current.routeNotes || []).map((item) =>
-          item.scheduleDayId === route.scheduleDayId && item.driverId === route.driverId
+        importantInfoItems: (current.importantInfoItems || []).map((item) =>
+          sortOrdersById.has(item.id)
             ? {
                 ...item,
                 sortOrder: sortOrdersById.get(item.id),
@@ -465,12 +470,12 @@ export default function ScheduleItApp() {
     });
   }
 
-  function handleDeleteRouteNote(id) {
-    if (!window.confirm("Delete this route note?")) return;
+  function handleDeleteImportantInfoItem(id) {
+    if (!window.confirm("Delete this important info item?")) return;
 
     setSchedule((current) => ({
       ...current,
-      routeNotes: (current.routeNotes || []).filter((route) => route.id !== id),
+      importantInfoItems: (current.importantInfoItems || []).filter((item) => item.id !== id),
     }));
   }
 
@@ -482,6 +487,7 @@ export default function ScheduleItApp() {
       profile: defaultProfile,
       scheduleDays: [],
       movements: [],
+      importantInfoItems: [],
       routeNotes: [],
     };
     setSchedule(nextSchedule);
@@ -618,7 +624,8 @@ export default function ScheduleItApp() {
         vehicles,
         scheduleDays: mode === "replace" ? [targetDay] : [...current.scheduleDays, targetDay],
         movements: mode === "replace" ? importedMovements : [...current.movements, ...importedMovements],
-        routeNotes: mode === "replace" ? [] : current.routeNotes || [],
+        importantInfoItems: current.importantInfoItems || [],
+        routeNotes: current.routeNotes || [],
       };
     });
 
@@ -747,7 +754,7 @@ export default function ScheduleItApp() {
             vehicles={schedule.vehicles}
             scheduleDays={schedule.scheduleDays}
             movements={schedule.movements}
-            routeNotes={schedule.routeNotes || []}
+            importantInfoItems={schedule.importantInfoItems || []}
             errors={validationErrors}
             onChange={updateDraft}
             onSubmit={handleSubmit}
@@ -762,16 +769,16 @@ export default function ScheduleItApp() {
             onDuplicateMovement={handleDuplicateMovement}
             onMoveMovement={handleMoveMovement}
             onDeleteMovement={handleDelete}
-            onSaveRouteNote={handleSaveRouteNote}
-            onDuplicateRouteNote={handleDuplicateRouteNote}
-            onMoveRouteNote={handleMoveRouteNote}
-            onDeleteRouteNote={handleDeleteRouteNote}
+            onSaveImportantInfoItem={handleSaveImportantInfoItem}
+            onDuplicateImportantInfoItem={handleDuplicateImportantInfoItem}
+            onMoveImportantInfoItem={handleMoveImportantInfoItem}
+            onDeleteImportantInfoItem={handleDeleteImportantInfoItem}
           />
           <PreviewTabs
             entriesByMonth={entriesByMonth}
             profile={schedule.profile}
             movements={schedule.movements}
-            routeNotes={schedule.routeNotes || []}
+            importantInfoItems={schedule.importantInfoItems || []}
             drivers={schedule.drivers}
             vehicles={schedule.vehicles}
             scheduleDays={schedule.scheduleDays}

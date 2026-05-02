@@ -48,9 +48,44 @@ function withSortOrders(scheduleDays, movements) {
   );
 }
 
+function contextNoteForRoute(route, scheduleDays, drivers) {
+  const day = scheduleDays.find((item) => item.id === route.scheduleDayId);
+  const driver = drivers.find((item) => item.id === route.driverId);
+  const context = [day?.title || day?.date, driver?.name].filter(Boolean).join(" / ");
+  return context ? `Imported from legacy route note: ${context}` : "Imported from legacy route note.";
+}
+
+function migrateRouteNotesToImportantInfo(routeNotes, scheduleDays, drivers) {
+  return routeNotes.map((route, index) => {
+    const contextNote = contextNoteForRoute(route, scheduleDays, drivers);
+    const existingNotes = route.notes || "";
+
+    return {
+      id: route.id ? `info-${route.id}` : `info-route-${index + 1}`,
+      type: "Route",
+      title: route.from && route.to ? `${route.from} to ${route.to}` : route.from || route.to || "Route",
+      from: route.from || "",
+      to: route.to || "",
+      distance: route.distance || "",
+      estimatedTravelTime: route.estimatedTravelTime || "",
+      name: "",
+      phone: "",
+      email: "",
+      address: "",
+      notes: [contextNote, existingNotes].filter(Boolean).join("\n"),
+      sortOrder: Number.isFinite(route.sortOrder) ? route.sortOrder : (index + 1) * 10,
+    };
+  });
+}
+
 export function normalizeState(state) {
   const scheduleDays = state?.scheduleDays || [];
   const movements = withSortOrders(scheduleDays, state?.movements || []);
+  const routeNotes = Array.isArray(state?.routeNotes) ? state.routeNotes : [];
+  const drivers = state?.drivers?.length ? state.drivers : defaultScheduleState.drivers;
+  const importantInfoItems = Array.isArray(state?.importantInfoItems)
+    ? state.importantInfoItems
+    : migrateRouteNotesToImportantInfo(routeNotes, scheduleDays, drivers);
 
   return {
     ...defaultScheduleState,
@@ -59,11 +94,12 @@ export function normalizeState(state) {
       ...defaultScheduleState.profile,
       ...state?.profile,
     },
-    drivers: state?.drivers?.length ? state.drivers : defaultScheduleState.drivers,
+    drivers,
     vehicles: state?.vehicles?.length ? state.vehicles : defaultScheduleState.vehicles,
     scheduleDays,
     movements,
-    routeNotes: Array.isArray(state?.routeNotes) ? state.routeNotes : [],
+    importantInfoItems,
+    routeNotes,
   };
 }
 

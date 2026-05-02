@@ -8,6 +8,7 @@ const viewNames = {
   operational: "Operational Schedule",
   driver: "Driver Schedule",
   workingTime: "Working Time Summary",
+  importantInfo: "Important Information",
 };
 
 const orientations = {
@@ -15,6 +16,7 @@ const orientations = {
   operational: "landscape",
   driver: "landscape",
   workingTime: "landscape",
+  importantInfo: "portrait",
 };
 
 function escapeHtml(value) {
@@ -80,10 +82,6 @@ function cell(value, className = "") {
 
 function operationalHeaders() {
   return ["Driver Start", "Departure", "Arrival", "End", "Engagement", "Venue", "Address", "Location Notes", "Parking", "Participants", "Driver", "Vehicle"];
-}
-
-function routeHeaders() {
-  return ["From", "To", "Distance", "Estimated Travel Time", "Notes"];
 }
 
 function executiveRows(movements) {
@@ -189,31 +187,6 @@ function groupOperationalMovements(movements, driversById, vehiclesById, groupBy
   return dayGroups;
 }
 
-function routeRowsFor(schedule, scheduleDayId, driverId) {
-  return [...(schedule.routeNotes || [])]
-    .filter((route) => route.scheduleDayId === scheduleDayId && route.driverId === driverId)
-    .sort((a, b) => (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER))
-    .map((route) => [
-      cell(route.from),
-      cell(route.to),
-      cell(route.distance),
-      cell(route.estimatedTravelTime),
-      cell(route.notes, "wrap-cell"),
-    ]);
-}
-
-function routeTable(schedule, scheduleDayId, driverId) {
-  const rows = routeRowsFor(schedule, scheduleDayId, driverId);
-  if (rows.length === 0) return "";
-
-  return `
-    <div class="route-section">
-      <div class="route-heading">Common Routes</div>
-      ${table(routeHeaders(), rows, "route-table")}
-    </div>
-  `;
-}
-
 function operationalSections(schedule, driverId, groupByDriver) {
   const driversById = lookup(schedule.drivers);
   const vehiclesById = lookup(schedule.vehicles);
@@ -233,7 +206,6 @@ function operationalSections(schedule, driverId, groupByDriver) {
             <section class="driver-section">
               ${driverHeading}
               ${table(operationalHeaders(), operationalMovementRows(driverGroup.movements, driversById, vehiclesById), "operational-table compact-table")}
-              ${routeTable(schedule, dayGroup.day?.id, driverGroup.driverId)}
             </section>
           `;
         })
@@ -320,10 +292,37 @@ function workingTimeTable(schedule) {
   `;
 }
 
+function importantInfoRows(schedule) {
+  return [...(schedule.importantInfoItems || [])]
+    .sort((a, b) => (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER))
+    .map((item) => [
+      cell(item.type, "type-cell"),
+      cell(item.title, "details-cell"),
+      cell(item.from),
+      cell(item.to),
+      cell(item.distance),
+      cell(item.estimatedTravelTime),
+      cell(item.name),
+      cell(item.phone),
+      cell(item.email),
+      cell(item.address, "small-cell"),
+      cell(item.notes, "wrap-cell"),
+    ]);
+}
+
+function importantInfoTable(schedule) {
+  return table(
+    ["Type", "Title", "From", "To", "Distance", "Estimated Travel Time", "Name", "Phone", "Email", "Address", "Notes"],
+    importantInfoRows(schedule),
+    "important-info-table",
+  );
+}
+
 function bodyForView(schedule, view, selectedDriverId) {
   if (view === "executive") return executiveTable(schedule);
   if (view === "operational") return operationalTable(schedule);
   if (view === "driver") return driverTable(schedule, selectedDriverId);
+  if (view === "importantInfo") return importantInfoTable(schedule);
   return workingTimeTable(schedule);
 }
 
@@ -346,6 +345,7 @@ function driverHeading(schedule, view, selectedDriverId) {
 
 function stylesFor(view) {
   const isExecutive = view === "executive";
+  const isPortrait = view === "executive" || view === "importantInfo";
   const fontSize = isExecutive ? "11.5px" : "8.5px";
   const padding = isExecutive ? "9px 10px" : "5px 6px";
 
@@ -360,7 +360,7 @@ function stylesFor(view) {
     }
     .page {
       width: 100%;
-      max-width: ${isExecutive ? "190mm" : "277mm"};
+      max-width: ${isPortrait ? "190mm" : "277mm"};
       margin: 0 auto;
       padding: 10mm 8mm;
     }
@@ -450,19 +450,6 @@ function stylesFor(view) {
       color: #262626;
       break-after: avoid;
       page-break-after: avoid;
-    }
-    .route-section {
-      margin: 6px 0 0;
-      break-inside: avoid;
-      page-break-inside: avoid;
-    }
-    .route-heading {
-      margin: 0 0 4px;
-      font-size: 8px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: .05em;
-      color: #525252;
     }
     table {
       width: 100%;
@@ -652,12 +639,28 @@ function stylesFor(view) {
       color: #262626;
     }
     .summary-table th, .summary-table td { font-size: 11px; padding: 8px 10px; }
-    .route-table th, .route-table td { font-size: 8px; padding: 5px 6px; }
-    .route-table th:nth-child(1), .route-table td:nth-child(1) { width: 18%; }
-    .route-table th:nth-child(2), .route-table td:nth-child(2) { width: 18%; }
-    .route-table th:nth-child(3), .route-table td:nth-child(3) { width: 12%; }
-    .route-table th:nth-child(4), .route-table td:nth-child(4) { width: 18%; }
-    .route-table th:nth-child(5), .route-table td:nth-child(5) { width: 34%; }
+    .important-info-table th,
+    .important-info-table td {
+      font-size: 9px;
+      padding: 7px 8px;
+    }
+    .important-info-table .type-cell {
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: #404040;
+    }
+    .important-info-table th:nth-child(1), .important-info-table td:nth-child(1) { width: 8%; }
+    .important-info-table th:nth-child(2), .important-info-table td:nth-child(2) { width: 12%; }
+    .important-info-table th:nth-child(3), .important-info-table td:nth-child(3) { width: 9%; }
+    .important-info-table th:nth-child(4), .important-info-table td:nth-child(4) { width: 9%; }
+    .important-info-table th:nth-child(5), .important-info-table td:nth-child(5) { width: 8%; }
+    .important-info-table th:nth-child(6), .important-info-table td:nth-child(6) { width: 10%; }
+    .important-info-table th:nth-child(7), .important-info-table td:nth-child(7) { width: 9%; }
+    .important-info-table th:nth-child(8), .important-info-table td:nth-child(8) { width: 9%; }
+    .important-info-table th:nth-child(9), .important-info-table td:nth-child(9) { width: 10%; }
+    .important-info-table th:nth-child(10), .important-info-table td:nth-child(10) { width: 9%; }
+    .important-info-table th:nth-child(11), .important-info-table td:nth-child(11) { width: 7%; }
     .empty {
       border: 1px dashed #d4d4d4;
       padding: 24px;
@@ -683,13 +686,11 @@ function stylesFor(view) {
       .day-heading,
       .executive-day-heading,
       .driver-section-heading,
-      .route-heading,
       .summary-section h3 {
         break-after: avoid;
         page-break-after: avoid;
       }
       .driver-section,
-      .route-section,
       .summary-section {
         break-inside: avoid;
         page-break-inside: avoid;

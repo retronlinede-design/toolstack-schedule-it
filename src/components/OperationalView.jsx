@@ -178,45 +178,7 @@ function OperationalTable({ entries, driversById, vehiclesById, onEdit, onDelete
   );
 }
 
-function routeRowsFor(routeNotes, scheduleDayId, driverId) {
-  return [...routeNotes]
-    .filter((route) => route.scheduleDayId === scheduleDayId && route.driverId === driverId)
-    .sort((a, b) => (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER));
-}
-
-function RouteTable({ routes }) {
-  if (routes.length === 0) return null;
-
-  return (
-    <div className="mt-3 overflow-x-auto">
-      <div className="mb-2 text-xs font-black uppercase tracking-widest text-neutral-500">Common Routes</div>
-      <table className="min-w-[720px] w-full border-collapse border border-neutral-200 bg-white text-xs shadow-sm">
-        <thead>
-          <tr className="bg-neutral-50 text-[10px] uppercase font-black tracking-tighter text-neutral-500">
-            <th className="border border-neutral-200 p-3 text-left">From</th>
-            <th className="border border-neutral-200 p-3 text-left">To</th>
-            <th className="border border-neutral-200 p-3 text-left">Distance</th>
-            <th className="border border-neutral-200 p-3 text-left">Estimated Travel Time</th>
-            <th className="border border-neutral-200 p-3 text-left">Notes</th>
-          </tr>
-        </thead>
-        <tbody>
-          {routes.map((route) => (
-            <tr key={route.id} className="align-top">
-              <td className="border border-neutral-200 p-3 font-semibold text-neutral-900">{route.from || EMPTY}</td>
-              <td className="border border-neutral-200 p-3 font-semibold text-neutral-900">{route.to || EMPTY}</td>
-              <td className="border border-neutral-200 p-3">{route.distance || EMPTY}</td>
-              <td className="border border-neutral-200 p-3">{route.estimatedTravelTime || EMPTY}</td>
-              <td className="border border-neutral-200 p-3">{route.notes || EMPTY}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-export default function OperationalView({ entriesByMonth, routeNotes = [], drivers, vehicles, onEdit, onDelete, onReorderMovements, groupByDriver = true }) {
+export default function OperationalView({ entriesByMonth, drivers, vehicles, onEdit, onDelete, onReorderMovements, groupByDriver = true }) {
   const driversById = buildLookup(drivers);
   const vehiclesById = buildLookup(vehicles);
   const entries = sortMovementsByDateAndTime(
@@ -260,7 +222,6 @@ export default function OperationalView({ entriesByMonth, routeNotes = [], drive
                   onDelete={onDelete}
                   onReorderMovements={onReorderMovements}
                 />
-                <RouteTable routes={routeRowsFor(routeNotes, dayGroup.day?.id, driverGroup.driverId)} />
               </div>
             ))}
           </div>

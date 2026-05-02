@@ -1,6 +1,7 @@
 import { useState } from "react";
 import DriverView from "./DriverView";
 import ExecutiveView from "./ExecutiveView";
+import ImportantInfoView from "./ImportantInfoView";
 import OperationalView from "./OperationalView";
 import WorkingTimeSummary from "./WorkingTimeSummary";
 
@@ -9,6 +10,7 @@ const tabs = [
   { id: "operational", label: "Operational" },
   { id: "driver", label: "Driver" },
   { id: "summary", label: "Working Time" },
+  { id: "importantInfo", label: "Important Info" },
 ];
 
 function SectionCard({ title, subtitle, children }) {
@@ -27,7 +29,7 @@ export default function PreviewTabs({
   entriesByMonth,
   profile,
   movements,
-  routeNotes,
+  importantInfoItems,
   drivers,
   vehicles,
   scheduleDays,
@@ -62,7 +64,6 @@ export default function PreviewTabs({
         {activeTab === "operational" ? (
           <OperationalView
             entriesByMonth={entriesByMonth}
-            routeNotes={routeNotes}
             drivers={drivers}
             vehicles={vehicles}
             onEdit={onEdit}
@@ -73,7 +74,6 @@ export default function PreviewTabs({
         {activeTab === "driver" ? (
           <DriverView
             entriesByMonth={entriesByMonth}
-            routeNotes={routeNotes}
             drivers={drivers}
             vehicles={vehicles}
             selectedDriverId={selectedDriverId}
@@ -85,6 +85,7 @@ export default function PreviewTabs({
         {activeTab === "summary" ? (
           <WorkingTimeSummary movements={movements} drivers={drivers} vehicles={vehicles} scheduleDays={scheduleDays} />
         ) : null}
+        {activeTab === "importantInfo" ? <ImportantInfoView items={importantInfoItems} /> : null}
       </SectionCard>
     </div>
   );

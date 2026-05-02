@@ -95,7 +95,7 @@ export default function ScheduleBuilder({
   vehicles,
   scheduleDays,
   movements,
-  routeNotes = [],
+  importantInfoItems = [],
   errors = {},
   onChange,
   onSubmit,
@@ -110,39 +110,39 @@ export default function ScheduleBuilder({
   onDuplicateMovement,
   onMoveMovement,
   onDeleteMovement,
-  onSaveRouteNote,
-  onDuplicateRouteNote,
-  onMoveRouteNote,
-  onDeleteRouteNote,
+  onSaveImportantInfoItem,
+  onDuplicateImportantInfoItem,
+  onMoveImportantInfoItem,
+  onDeleteImportantInfoItem,
 }) {
   const [editingMovementId, setEditingMovementId] = useState(null);
   const [inlineDraft, setInlineDraft] = useState(null);
   const [inlineErrors, setInlineErrors] = useState({});
-  const [routeDraft, setRouteDraft] = useState({
+  const [importantInfoDraft, setImportantInfoDraft] = useState({
     id: null,
-    scheduleDayId: "",
-    driverId: "",
+    type: "Route",
+    title: "",
     from: "",
     to: "",
     distance: "",
     estimatedTravelTime: "",
+    name: "",
+    phone: "",
+    email: "",
+    address: "",
     notes: "",
     sortOrder: null,
   });
-  const [routeErrors, setRouteErrors] = useState({});
+  const [importantInfoErrors, setImportantInfoErrors] = useState({});
   const selectedDay = scheduleDays.find((day) => day.id === draft.scheduleDayId);
   const selectedDayMovements = sortMovementsByDateAndTime(
     movements
       .filter((movement) => movement.scheduleDayId === draft.scheduleDayId)
       .map((movement) => ({ ...movement, day: selectedDay })),
   );
-  const selectedDayRouteNotes = [...routeNotes]
-    .filter((route) => route.scheduleDayId === draft.scheduleDayId)
-    .sort((a, b) => {
-      const driverCompare = getName(drivers, a.driverId).localeCompare(getName(drivers, b.driverId));
-      if (driverCompare !== 0) return driverCompare;
-      return (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER);
-    });
+  const sortedImportantInfoItems = [...importantInfoItems].sort(
+    (a, b) => (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER),
+  );
 
   function updateField(name, value) {
     onChange((current) => ({
@@ -227,55 +227,63 @@ export default function ScheduleBuilder({
     setInlineErrors({});
   }
 
-  function updateRouteField(name, value) {
-    setRouteDraft((current) => ({
+  function updateImportantInfoField(name, value) {
+    setImportantInfoDraft((current) => ({
       ...current,
       [name]: value,
     }));
   }
 
-  function clearRouteDraft() {
-    setRouteDraft({
+  function clearImportantInfoDraft() {
+    setImportantInfoDraft({
       id: null,
-      scheduleDayId: draft.scheduleDayId || "",
-      driverId: draft.driverId || drivers[0]?.id || "",
+      type: "Route",
+      title: "",
       from: "",
       to: "",
       distance: "",
       estimatedTravelTime: "",
+      name: "",
+      phone: "",
+      email: "",
+      address: "",
       notes: "",
       sortOrder: null,
     });
-    setRouteErrors({});
+    setImportantInfoErrors({});
   }
 
-  function editRoute(route) {
-    setRouteDraft({ ...route });
-    setRouteErrors({});
+  function editImportantInfoItem(item) {
+    setImportantInfoDraft({ ...item });
+    setImportantInfoErrors({});
   }
 
-  function saveRoute() {
-    const resolvedRoute = {
-      ...routeDraft,
-      scheduleDayId: routeDraft.scheduleDayId || draft.scheduleDayId,
-      driverId: routeDraft.driverId || draft.driverId || drivers[0]?.id || "",
-    };
+  function saveImportantInfoItem() {
     const nextErrors = {};
-    if (!resolvedRoute.scheduleDayId) nextErrors.scheduleDayId = "Select a schedule day before saving a route.";
-    if (!resolvedRoute.driverId) nextErrors.driverId = "Select a driver.";
-    if (!resolvedRoute.from && !resolvedRoute.to) nextErrors.route = "Enter at least a from or to location.";
-    setRouteErrors(nextErrors);
+    if (!importantInfoDraft.type) nextErrors.type = "Select a type.";
+    if (
+      !importantInfoDraft.title &&
+      !importantInfoDraft.from &&
+      !importantInfoDraft.to &&
+      !importantInfoDraft.name &&
+      !importantInfoDraft.phone &&
+      !importantInfoDraft.email &&
+      !importantInfoDraft.address &&
+      !importantInfoDraft.notes
+    ) {
+      nextErrors.item = "Enter a title or at least one useful information field.";
+    }
+    setImportantInfoErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
-    onSaveRouteNote(resolvedRoute);
-    clearRouteDraft();
+    onSaveImportantInfoItem(importantInfoDraft);
+    clearImportantInfoDraft();
   }
 
-  function routePosition(route) {
-    const peerRoutes = selectedDayRouteNotes.filter((item) => item.driverId === route.driverId);
+  function importantInfoPosition(item) {
     return {
-      index: peerRoutes.findIndex((item) => item.id === route.id),
-      count: peerRoutes.length,
+      index: sortedImportantInfoItems.findIndex((current) => current.id === item.id),
+      count: sortedImportantInfoItems.length,
     };
   }
 
@@ -624,80 +632,104 @@ export default function ScheduleBuilder({
         )}
       </SectionCard>
 
-      <SectionCard title="Selected Day Driver Routes" subtitle="Manual route notes for common daily driver logistics">
+      <SectionCard title="Important Info" subtitle="Mission routes, contacts, addresses, phone numbers, and notes for the separate info document">
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-6">
-          <Field label="Driver" error={routeErrors.driverId}>
-            <Select value={routeDraft.driverId || draft.driverId || ""} onChange={(event) => updateRouteField("driverId", event.target.value)}>
-              <option value="">Select driver...</option>
-              {drivers.map((driver) => (
-                <option key={driver.id} value={driver.id}>
-                  {driver.name}
-                </option>
-              ))}
+          <Field label="Type" error={importantInfoErrors.type}>
+            <Select value={importantInfoDraft.type} onChange={(event) => updateImportantInfoField("type", event.target.value)}>
+              <option value="Route">Route</option>
+              <option value="Contact">Contact</option>
+              <option value="Address">Address</option>
+              <option value="Note">Note</option>
             </Select>
           </Field>
-          <Field label="From" error={routeErrors.route}>
-            <Input value={routeDraft.from} onChange={(event) => updateRouteField("from", event.target.value)} placeholder="Hotel" />
+          <Field label="Title" error={importantInfoErrors.item}>
+            <Input value={importantInfoDraft.title} onChange={(event) => updateImportantInfoField("title", event.target.value)} placeholder="Airport transfer" />
+          </Field>
+          <Field label="From">
+            <Input value={importantInfoDraft.from} onChange={(event) => updateImportantInfoField("from", event.target.value)} placeholder="Hotel" />
           </Field>
           <Field label="To">
-            <Input value={routeDraft.to} onChange={(event) => updateRouteField("to", event.target.value)} placeholder="Airport" />
+            <Input value={importantInfoDraft.to} onChange={(event) => updateImportantInfoField("to", event.target.value)} placeholder="Airport" />
           </Field>
           <Field label="Distance">
-            <Input value={routeDraft.distance} onChange={(event) => updateRouteField("distance", event.target.value)} placeholder="38 km" />
+            <Input value={importantInfoDraft.distance} onChange={(event) => updateImportantInfoField("distance", event.target.value)} placeholder="38 km" />
           </Field>
           <Field label="Estimated Time">
-            <Input value={routeDraft.estimatedTravelTime} onChange={(event) => updateRouteField("estimatedTravelTime", event.target.value)} placeholder="35-45 min" />
+            <Input value={importantInfoDraft.estimatedTravelTime} onChange={(event) => updateImportantInfoField("estimatedTravelTime", event.target.value)} placeholder="35-45 min" />
           </Field>
-          <div className="flex items-end gap-2">
-            <button onClick={saveRoute} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white">
-              <Save className="h-4 w-4" /> {routeDraft.id ? "Update" : "Add"}
-            </button>
-            <button onClick={clearRouteDraft} className="inline-flex items-center gap-2 rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700">
-              <Eraser className="h-4 w-4" /> Clear
-            </button>
-          </div>
         </div>
-        {routeErrors.scheduleDayId ? <p className="text-xs font-medium text-red-600">{routeErrors.scheduleDayId}</p> : null}
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+          <Field label="Name">
+            <Input value={importantInfoDraft.name} onChange={(event) => updateImportantInfoField("name", event.target.value)} placeholder="Contact name" />
+          </Field>
+          <Field label="Phone">
+            <Input value={importantInfoDraft.phone} onChange={(event) => updateImportantInfoField("phone", event.target.value)} placeholder="+49..." />
+          </Field>
+          <Field label="Email">
+            <Input type="email" value={importantInfoDraft.email} onChange={(event) => updateImportantInfoField("email", event.target.value)} placeholder="name@example.com" />
+          </Field>
+          <Field label="Address">
+            <Input value={importantInfoDraft.address} onChange={(event) => updateImportantInfoField("address", event.target.value)} placeholder="Street, city" />
+          </Field>
+        </div>
         <Field label="Notes">
-          <Textarea value={routeDraft.notes} onChange={(event) => updateRouteField("notes", event.target.value)} placeholder="Allow extra time during peak traffic." />
+          <Textarea value={importantInfoDraft.notes} onChange={(event) => updateImportantInfoField("notes", event.target.value)} placeholder="Allow extra time during peak traffic." />
         </Field>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={saveImportantInfoItem} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white">
+            <Save className="h-4 w-4" /> {importantInfoDraft.id ? "Update Info" : "Add Info"}
+          </button>
+          <button onClick={clearImportantInfoDraft} className="inline-flex items-center gap-2 rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700">
+            <Eraser className="h-4 w-4" /> Clear
+          </button>
+        </div>
 
-        {selectedDayRouteNotes.length === 0 ? (
+        {sortedImportantInfoItems.length === 0 ? (
           <div className="rounded-3xl border-2 border-dashed py-8 text-center text-sm italic text-neutral-400">
-            No route notes saved for this day yet.
+            No important information saved yet.
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-[860px] w-full border-collapse border border-neutral-200 bg-white text-sm">
+            <table className="min-w-[1180px] w-full border-collapse border border-neutral-200 bg-white text-sm">
               <thead className="bg-neutral-50 text-[10px] uppercase tracking-tighter text-neutral-500">
                 <tr>
-                  <th className="border border-neutral-200 p-3 text-left">Driver</th>
+                  <th className="border border-neutral-200 p-3 text-left">Type</th>
+                  <th className="border border-neutral-200 p-3 text-left">Title</th>
                   <th className="border border-neutral-200 p-3 text-left">From</th>
                   <th className="border border-neutral-200 p-3 text-left">To</th>
                   <th className="border border-neutral-200 p-3 text-left">Distance</th>
                   <th className="border border-neutral-200 p-3 text-left">Estimated Travel Time</th>
+                  <th className="border border-neutral-200 p-3 text-left">Name</th>
+                  <th className="border border-neutral-200 p-3 text-left">Phone</th>
+                  <th className="border border-neutral-200 p-3 text-left">Email</th>
+                  <th className="border border-neutral-200 p-3 text-left">Address</th>
                   <th className="border border-neutral-200 p-3 text-left">Notes</th>
                   <th className="border border-neutral-200 p-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {selectedDayRouteNotes.map((route) => {
-                  const position = routePosition(route);
+                {sortedImportantInfoItems.map((item) => {
+                  const position = importantInfoPosition(item);
                   return (
-                    <tr key={route.id} className="align-top">
-                      <td className="border border-neutral-200 p-3 font-semibold text-neutral-900">{getName(drivers, route.driverId)}</td>
-                      <td className="border border-neutral-200 p-3">{route.from || "-"}</td>
-                      <td className="border border-neutral-200 p-3">{route.to || "-"}</td>
-                      <td className="border border-neutral-200 p-3">{route.distance || "-"}</td>
-                      <td className="border border-neutral-200 p-3">{route.estimatedTravelTime || "-"}</td>
-                      <td className="border border-neutral-200 p-3">{route.notes || "-"}</td>
+                    <tr key={item.id} className="align-top">
+                      <td className="border border-neutral-200 p-3 font-black uppercase tracking-wide text-neutral-700">{item.type || "-"}</td>
+                      <td className="border border-neutral-200 p-3 font-semibold text-neutral-900">{item.title || "-"}</td>
+                      <td className="border border-neutral-200 p-3">{item.from || "-"}</td>
+                      <td className="border border-neutral-200 p-3">{item.to || "-"}</td>
+                      <td className="border border-neutral-200 p-3">{item.distance || "-"}</td>
+                      <td className="border border-neutral-200 p-3">{item.estimatedTravelTime || "-"}</td>
+                      <td className="border border-neutral-200 p-3">{item.name || "-"}</td>
+                      <td className="border border-neutral-200 p-3">{item.phone || "-"}</td>
+                      <td className="border border-neutral-200 p-3">{item.email || "-"}</td>
+                      <td className="border border-neutral-200 p-3">{item.address || "-"}</td>
+                      <td className="border border-neutral-200 p-3 whitespace-pre-line">{item.notes || "-"}</td>
                       <td className="border border-neutral-200 p-3">
                         <div className="flex justify-end gap-1">
-                          <button onClick={() => editRoute(route)} className="rounded-lg bg-blue-50 p-2 text-blue-600" title="Edit route">
+                          <button onClick={() => editImportantInfoItem(item)} className="rounded-lg bg-blue-50 p-2 text-blue-600" title="Edit important info">
                             <Pencil className="h-4 w-4" />
                           </button>
                           <button
-                            onClick={() => onMoveRouteNote(route.id, "up")}
+                            onClick={() => onMoveImportantInfoItem(item.id, "up")}
                             disabled={position.index <= 0}
                             className="rounded-lg bg-neutral-50 p-2 text-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
                             title="Move up"
@@ -705,17 +737,17 @@ export default function ScheduleBuilder({
                             <ArrowUp className="h-4 w-4" />
                           </button>
                           <button
-                            onClick={() => onMoveRouteNote(route.id, "down")}
+                            onClick={() => onMoveImportantInfoItem(item.id, "down")}
                             disabled={position.index < 0 || position.index === position.count - 1}
                             className="rounded-lg bg-neutral-50 p-2 text-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
                             title="Move down"
                           >
                             <ArrowDown className="h-4 w-4" />
                           </button>
-                          <button onClick={() => onDuplicateRouteNote(route)} className="rounded-lg bg-neutral-50 p-2 text-neutral-600" title="Duplicate route">
+                          <button onClick={() => onDuplicateImportantInfoItem(item)} className="rounded-lg bg-neutral-50 p-2 text-neutral-600" title="Duplicate important info">
                             <Copy className="h-4 w-4" />
                           </button>
-                          <button onClick={() => onDeleteRouteNote(route.id)} className="rounded-lg bg-red-50 p-2 text-red-600" title="Delete route">
+                          <button onClick={() => onDeleteImportantInfoItem(item.id)} className="rounded-lg bg-red-50 p-2 text-red-600" title="Delete important info">
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
