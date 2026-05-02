@@ -119,10 +119,10 @@ function executiveTable(schedule) {
   });
 
   return dayGroups
-    .map((dayGroup) => {
+    .map((dayGroup, index) => {
       const dayTitle = dayGroup.day?.title ? `<div class="executive-day-title">${escapeHtml(dayGroup.day.title)}</div>` : "";
       return `
-        <section class="executive-day-section">
+        <section class="executive-day-section${index === 0 ? " first-day-section" : ""}">
           <div class="executive-day-heading">
             <div class="executive-day-date">${escapeHtml(formatLongDate(dayGroup.day?.date) || "Unscheduled")}</div>
             ${dayTitle}
@@ -224,7 +224,7 @@ function operationalSections(schedule, driverId, groupByDriver) {
   if (movements.length === 0) return `<p class="empty">No records available for this view.</p>`;
 
   return groupOperationalMovements(movements, driversById, vehiclesById, groupByDriver)
-    .map((dayGroup) => {
+    .map((dayGroup, index) => {
       const dayTitle = dayGroup.day?.title ? `<div class="day-title">${escapeHtml(dayGroup.day.title)}</div>` : "";
       const driverSections = dayGroup.driverGroups
         .map((driverGroup) => {
@@ -240,7 +240,7 @@ function operationalSections(schedule, driverId, groupByDriver) {
         .join("");
 
       return `
-        <section class="day-section">
+        <section class="day-section${index === 0 ? " first-day-section" : ""}">
           <div class="day-heading">
             <div class="day-date">${escapeHtml(formatLongDate(dayGroup.day?.date) || "Unscheduled")}</div>
             ${dayTitle}
@@ -675,6 +675,30 @@ function stylesFor(view) {
     @media print {
       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .page { padding: 0; }
+      .day-section:not(.first-day-section),
+      .executive-day-section:not(.first-day-section) {
+        break-before: page;
+        page-break-before: always;
+      }
+      .day-heading,
+      .executive-day-heading,
+      .driver-section-heading,
+      .route-heading,
+      .summary-section h3 {
+        break-after: avoid;
+        page-break-after: avoid;
+      }
+      .driver-section,
+      .route-section,
+      .summary-section {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      thead { display: table-header-group; }
+      tr {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
     }
   `;
 }
