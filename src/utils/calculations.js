@@ -1,10 +1,12 @@
 import { minutesToDuration, parseTimeToMinutes } from "./time";
 
-const DUTY_DAY_MINUTES = 8 * 60;
+const NORMAL_DAY_END_MINUTES = 16 * 60 + 30;
+const MIN_REST_MINUTES = 11 * 60;
+const DAY_MINUTES = 24 * 60;
 
 function durationBetween(start, end) {
   if (start === null || end === null) return null;
-  return end >= start ? end - start : end + 24 * 60 - start;
+  return end >= start ? end - start : end + DAY_MINUTES - start;
 }
 
 function formatMinutesAsTime(value) {
@@ -17,6 +19,19 @@ function addMinutes(current, value, mode) {
   if (value === null) return current;
   if (current === null) return value;
   return mode === "min" ? Math.min(current, value) : Math.max(current, value);
+}
+
+function dateToDayNumber(value) {
+  if (!value) return null;
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return null;
+  return Math.floor(date.getTime() / (DAY_MINUTES * 60 * 1000));
+}
+
+function absoluteMinutes(date, time) {
+  const dayNumber = dateToDayNumber(date);
+  if (dayNumber === null || time === null) return null;
+  return dayNumber * DAY_MINUTES + time;
 }
 
 export function sortMovementsByDateAndTime(movements) {
@@ -82,10 +97,18 @@ export function calculateWorkingTimeSummary(movements, drivers, vehicles = [], s
     .map((summary) => {
       const start = summary.primaryStart ?? summary.fallbackStart;
       const end = summary.primaryEnd ?? summary.fallbackEnd;
-      const usedFallback = (summary.primaryStart === null && summary.fallbackStart !== null) || (summary.primaryEnd === null && summary.fallbackEnd !== null);
-      const isComplete = start !== null && end !== null;
+      const notes = [];
+      if (summary.primaryStart === null && summary.fallbackStart !== null) notes.push("Estimated start");
+      if (summary.primaryEnd === null && summary.fallbackEnd !== null) notes.push("Estimated end");
+      if (start === null) notes.push("Missing start");
+      if (end === null) notes.push("Missing end");
       const totalMinutes = durationBetween(start, end) || 0;
-      const overtimeMinutes = Math.max(totalMinutes - DUTY_DAY_MINUTES, 0);
+      const adjustedEnd = start !== null && end !== null && end < start ? end + DAY_MINUTES : end;
+      const overtimeBoundary = start !== null && start > NORMAL_DAY_END_MINUTES ? start : NORMAL_DAY_END_MINUTES;
+      const overtimeMinutes = adjustedEnd !== null ? Math.max(adjustedEnd - overtimeBoundary, 0) : 0;
+      const dutyStartAbsolute = absoluteMinutes(summary.date, start);
+      const dutyEndAbsolute =
+        dutyStartAbsolute !== null && adjustedEnd !== null ? dutyStartAbsolute - start + adjustedEnd : absoluteMinutes(summary.date, adjustedEnd);
 
       return {
         driverId: summary.driverId,
@@ -102,10 +125,32 @@ export function calculateWorkingTimeSummary(movements, drivers, vehicles = [], s
         totalDuration: minutesToDuration(totalMinutes),
         overtimeMinutes,
         overtimeDuration: minutesToDuration(overtimeMinutes),
-        status: isComplete ? (usedFallback ? "Estimated" : "Complete") : "Incomplete",
+        dutyStartAbsolute,
+        dutyEndAbsolute,
+        restMinutes: null,
+        restDuration: "-",
+        shortRest: false,
+        notes,
       };
     })
     .sort((a, b) => a.date.localeCompare(b.date) || a.driverName.localeCompare(b.driverName));
+
+  [...driverDaySummaries]
+    .sort((a, b) => a.driverName.localeCompare(b.driverName) || (a.dutyStartAbsolute ?? Number.MAX_SAFE_INTEGER) - (b.dutyStartAbsolute ?? Number.MAX_SAFE_INTEGER))
+    .forEach((summary, index, sortedSummaries) => {
+      const previous = sortedSummaries
+        .slice(0, index)
+        .reverse()
+        .find((item) => item.driverId === summary.driverId && item.dutyEndAbsolute !== null);
+
+      if (!previous || summary.dutyStartAbsolute === null) return;
+
+      const restMinutes = Math.max(summary.dutyStartAbsolute - previous.dutyEndAbsolute, 0);
+      summary.restMinutes = restMinutes;
+      summary.restDuration = minutesToDuration(restMinutes);
+      summary.shortRest = restMinutes < MIN_REST_MINUTES;
+      if (summary.shortRest) summary.notes.push("Short rest");
+    });
 
   const dailyTotals = [...driverDaySummaries.reduce((acc, summary) => {
     const current = acc.get(summary.date) || {
@@ -113,13 +158,13 @@ export function calculateWorkingTimeSummary(movements, drivers, vehicles = [], s
       driverCount: 0,
       totalMinutes: 0,
       overtimeMinutes: 0,
-      incompleteCount: 0,
+      shortRestCount: 0,
     };
 
     current.driverCount += 1;
     current.totalMinutes += summary.totalMinutes;
     current.overtimeMinutes += summary.overtimeMinutes;
-    if (summary.status === "Incomplete") current.incompleteCount += 1;
+    if (summary.shortRest) current.shortRestCount += 1;
     acc.set(summary.date, current);
     return acc;
   }, new Map()).values()]
@@ -128,7 +173,6 @@ export function calculateWorkingTimeSummary(movements, drivers, vehicles = [], s
       ...summary,
       totalDuration: minutesToDuration(summary.totalMinutes),
       overtimeDuration: minutesToDuration(summary.overtimeMinutes),
-      status: summary.incompleteCount > 0 ? `${summary.incompleteCount} incomplete` : "Complete",
     }));
 
   const overallDriverTotals = [...driverDaySummaries.reduce((acc, summary) => {
@@ -138,13 +182,17 @@ export function calculateWorkingTimeSummary(movements, drivers, vehicles = [], s
       dayCount: 0,
       totalMinutes: 0,
       overtimeMinutes: 0,
-      incompleteCount: 0,
+      shortRestCount: 0,
+      minimumRestMinutes: null,
     };
 
     current.dayCount += 1;
     current.totalMinutes += summary.totalMinutes;
     current.overtimeMinutes += summary.overtimeMinutes;
-    if (summary.status === "Incomplete") current.incompleteCount += 1;
+    if (summary.shortRest) current.shortRestCount += 1;
+    if (summary.restMinutes !== null) {
+      current.minimumRestMinutes = current.minimumRestMinutes === null ? summary.restMinutes : Math.min(current.minimumRestMinutes, summary.restMinutes);
+    }
     acc.set(summary.driverId, current);
     return acc;
   }, new Map()).values()]
@@ -153,7 +201,7 @@ export function calculateWorkingTimeSummary(movements, drivers, vehicles = [], s
       ...summary,
       totalDuration: minutesToDuration(summary.totalMinutes),
       overtimeDuration: minutesToDuration(summary.overtimeMinutes),
-      status: summary.incompleteCount > 0 ? `${summary.incompleteCount} incomplete` : "Complete",
+      minimumRestDuration: summary.minimumRestMinutes === null ? "-" : minutesToDuration(summary.minimumRestMinutes),
     }));
 
   return {
@@ -164,7 +212,7 @@ export function calculateWorkingTimeSummary(movements, drivers, vehicles = [], s
 }
 
 export function calculateDriverSummary(movements, drivers, vehicles = [], scheduleDays = []) {
-  return calculateWorkingTimeSummary(movements, drivers, vehicles, scheduleDays).driverDaySummaries.filter((summary) => summary.status !== "Incomplete");
+  return calculateWorkingTimeSummary(movements, drivers, vehicles, scheduleDays).driverDaySummaries.filter((summary) => summary.start !== null && summary.end !== null);
 }
 
 export function calculateLegacyDriverTotals(movements, drivers) {

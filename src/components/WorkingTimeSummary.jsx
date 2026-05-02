@@ -18,10 +18,18 @@ function Section({ title, children }) {
   );
 }
 
-function StatusBadge({ value }) {
-  const tone = value === "Complete" ? "bg-green-50 text-green-700" : value === "Estimated" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700";
+function Notes({ notes }) {
+  if (!notes?.length) return <span className="text-neutral-400">-</span>;
 
-  return <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${tone}`}>{value}</span>;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {notes.map((note) => (
+        <span key={note} className={`rounded-full px-2 py-1 text-xs font-semibold ${note === "Short rest" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>
+          {note}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 export default function WorkingTimeSummary({ movements, drivers, vehicles, scheduleDays }) {
@@ -38,8 +46,8 @@ export default function WorkingTimeSummary({ movements, drivers, vehicles, sched
               <th className="border border-neutral-200 p-3 text-left">Date</th>
               <th className="border border-neutral-200 p-3 text-left">Drivers</th>
               <th className="border border-neutral-200 p-3 text-left">Total Duty Time</th>
-              <th className="border border-neutral-200 p-3 text-left">Overtime</th>
-              <th className="border border-neutral-200 p-3 text-left">Status</th>
+              <th className="border border-neutral-200 p-3 text-left">Overtime After 16:30</th>
+              <th className="border border-neutral-200 p-3 text-left">Short Rest Count</th>
             </tr>
           </thead>
           <tbody>
@@ -49,7 +57,7 @@ export default function WorkingTimeSummary({ movements, drivers, vehicles, sched
                 <td className="border border-neutral-200 p-3 text-neutral-600">{summary.driverCount}</td>
                 <td className="border border-neutral-200 p-3 font-bold text-neutral-900">{summary.totalDuration}</td>
                 <td className="border border-neutral-200 p-3 text-neutral-600">{summary.overtimeDuration}</td>
-                <td className="border border-neutral-200 p-3 text-neutral-600">{summary.status}</td>
+                <td className="border border-neutral-200 p-3 text-neutral-600">{summary.shortRestCount}</td>
               </tr>
             ))}
           </tbody>
@@ -66,13 +74,14 @@ export default function WorkingTimeSummary({ movements, drivers, vehicles, sched
               <th className="border border-neutral-200 p-3 text-left">Start</th>
               <th className="border border-neutral-200 p-3 text-left">End</th>
               <th className="border border-neutral-200 p-3 text-left">Total Duty Time</th>
-              <th className="border border-neutral-200 p-3 text-left">Overtime</th>
-              <th className="border border-neutral-200 p-3 text-left">Status</th>
+              <th className="border border-neutral-200 p-3 text-left">Overtime After 16:30</th>
+              <th className="border border-neutral-200 p-3 text-left">Rest Since Previous Duty</th>
+              <th className="border border-neutral-200 p-3 text-left">Notes</th>
             </tr>
           </thead>
           <tbody>
             {driverDaySummaries.map((summary) => (
-              <tr key={`${summary.driverId}-${summary.date}`} className="border-t border-neutral-100">
+              <tr key={`${summary.driverId}-${summary.date}`} className={`border-t border-neutral-100 ${summary.shortRest ? "bg-red-50/40" : ""}`}>
                 <td className="border border-neutral-200 p-3 font-semibold text-neutral-900">{formatLongDate(summary.date)}</td>
                 <td className="border border-neutral-200 p-3 font-bold text-neutral-900">{summary.driverName}</td>
                 <td className="border border-neutral-200 p-3 text-neutral-600">{summary.vehicleName}</td>
@@ -81,7 +90,10 @@ export default function WorkingTimeSummary({ movements, drivers, vehicles, sched
                 <td className="border border-neutral-200 p-3 text-neutral-600">{summary.totalDuration}</td>
                 <td className="border border-neutral-200 p-3 text-neutral-600">{summary.overtimeDuration}</td>
                 <td className="border border-neutral-200 p-3">
-                  <StatusBadge value={summary.status} />
+                  <span className={summary.shortRest ? "font-bold text-red-700" : "text-neutral-600"}>{summary.restDuration}</span>
+                </td>
+                <td className="border border-neutral-200 p-3">
+                  <Notes notes={summary.notes} />
                 </td>
               </tr>
             ))}
@@ -96,8 +108,9 @@ export default function WorkingTimeSummary({ movements, drivers, vehicles, sched
               <th className="border border-neutral-200 p-3 text-left">Driver</th>
               <th className="border border-neutral-200 p-3 text-left">Days</th>
               <th className="border border-neutral-200 p-3 text-left">Total Duty Time</th>
-              <th className="border border-neutral-200 p-3 text-left">Overtime</th>
-              <th className="border border-neutral-200 p-3 text-left">Status</th>
+              <th className="border border-neutral-200 p-3 text-left">Overtime After 16:30</th>
+              <th className="border border-neutral-200 p-3 text-left">Short Rest Count</th>
+              <th className="border border-neutral-200 p-3 text-left">Minimum Rest Period</th>
             </tr>
           </thead>
           <tbody>
@@ -107,7 +120,8 @@ export default function WorkingTimeSummary({ movements, drivers, vehicles, sched
                 <td className="border border-neutral-200 p-3 text-neutral-600">{summary.dayCount}</td>
                 <td className="border border-neutral-200 p-3 font-bold text-neutral-900">{summary.totalDuration}</td>
                 <td className="border border-neutral-200 p-3 text-neutral-600">{summary.overtimeDuration}</td>
-                <td className="border border-neutral-200 p-3 text-neutral-600">{summary.status}</td>
+                <td className="border border-neutral-200 p-3 text-neutral-600">{summary.shortRestCount}</td>
+                <td className="border border-neutral-200 p-3 text-neutral-600">{summary.minimumRestDuration}</td>
               </tr>
             ))}
           </tbody>

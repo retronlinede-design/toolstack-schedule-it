@@ -282,7 +282,7 @@ function workingTimeTable(schedule) {
     cell(summary.driverCount),
     cell(summary.totalDuration, "total-cell"),
     cell(summary.overtimeDuration, "total-cell"),
-    cell(summary.status),
+    cell(summary.shortRestCount),
   ]);
   const driverDayRows = driverDaySummaries.map((summary) => [
     cell(formatLongDate(summary.date)),
@@ -292,28 +292,30 @@ function workingTimeTable(schedule) {
     cell(summary.endTime, "time-cell"),
     cell(summary.totalDuration, "total-cell"),
     cell(summary.overtimeDuration, "total-cell"),
-    cell(summary.status),
+    cell(summary.restDuration),
+    cell(summary.notes?.join(", ") || "-"),
   ]);
   const overallRows = overallDriverTotals.map((summary) => [
     cell(summary.driverName),
     cell(summary.dayCount),
     cell(summary.totalDuration, "total-cell"),
     cell(summary.overtimeDuration, "total-cell"),
-    cell(summary.status),
+    cell(summary.shortRestCount),
+    cell(summary.minimumRestDuration),
   ]);
 
   return `
     <section class="summary-section">
       <h3>Daily Totals</h3>
-      ${table(["Date", "Drivers", "Total Duty Time", "Overtime", "Status"], dailyRows, "summary-table")}
+      ${table(["Date", "Drivers", "Total Duty Time", "Overtime After 16:30", "Short Rest Count"], dailyRows, "summary-table")}
     </section>
     <section class="summary-section">
       <h3>Driver Totals Per Day</h3>
-      ${table(["Date", "Driver", "Vehicle", "Start", "End", "Total Duty Time", "Overtime", "Status"], driverDayRows, "summary-table")}
+      ${table(["Date", "Driver", "Vehicle", "Start", "End", "Total Duty Time", "Overtime After 16:30", "Rest Since Previous Duty", "Notes"], driverDayRows, "summary-table")}
     </section>
     <section class="summary-section">
       <h3>Overall Driver Totals</h3>
-      ${table(["Driver", "Days", "Total Duty Time", "Overtime", "Status"], overallRows, "summary-table")}
+      ${table(["Driver", "Days", "Total Duty Time", "Overtime After 16:30", "Short Rest Count", "Minimum Rest Period"], overallRows, "summary-table")}
     </section>
   `;
 }
