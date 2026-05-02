@@ -101,6 +101,7 @@ export default function ScheduleBuilder({
   vehicles,
   scheduleDays,
   movements,
+  vehicleHandoverNotes = [],
   importantInfoItems = [],
   errors = {},
   onChange,
@@ -116,6 +117,10 @@ export default function ScheduleBuilder({
   onDuplicateMovement,
   onMoveMovement,
   onDeleteMovement,
+  onSaveVehicleHandoverNote,
+  onDuplicateVehicleHandoverNote,
+  onMoveVehicleHandoverNote,
+  onDeleteVehicleHandoverNote,
   onSaveImportantInfoItem,
   onDuplicateImportantInfoItem,
   onMoveImportantInfoItem,
@@ -124,6 +129,20 @@ export default function ScheduleBuilder({
   const [editingMovementId, setEditingMovementId] = useState(null);
   const [inlineDraft, setInlineDraft] = useState(null);
   const [inlineErrors, setInlineErrors] = useState({});
+  const [handoverDraft, setHandoverDraft] = useState({
+    id: null,
+    scheduleDayId: "",
+    vehicleId: "",
+    fromDriverId: "",
+    toDriverId: "",
+    location: "",
+    instruction: "",
+    keyLocation: "",
+    time: "",
+    notes: "",
+    sortOrder: null,
+  });
+  const [handoverErrors, setHandoverErrors] = useState({});
   const [importantInfoDraft, setImportantInfoDraft] = useState({
     id: null,
     type: "Route",
@@ -149,6 +168,9 @@ export default function ScheduleBuilder({
   const sortedImportantInfoItems = [...importantInfoItems].sort(
     (a, b) => (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER),
   );
+  const selectedDayHandoverNotes = [...vehicleHandoverNotes]
+    .filter((note) => note.scheduleDayId === draft.scheduleDayId)
+    .sort((a, b) => (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER));
 
   function updateField(name, value) {
     onChange((current) => ({
@@ -231,6 +253,61 @@ export default function ScheduleBuilder({
     setEditingMovementId(null);
     setInlineDraft(null);
     setInlineErrors({});
+  }
+
+  function updateHandoverField(name, value) {
+    setHandoverDraft((current) => ({
+      ...current,
+      [name]: value,
+    }));
+  }
+
+  function clearHandoverDraft() {
+    setHandoverDraft({
+      id: null,
+      scheduleDayId: draft.scheduleDayId || "",
+      vehicleId: draft.vehicleId || vehicles[0]?.id || "",
+      fromDriverId: "",
+      toDriverId: "",
+      location: "",
+      instruction: "",
+      keyLocation: "",
+      time: "",
+      notes: "",
+      sortOrder: null,
+    });
+    setHandoverErrors({});
+  }
+
+  function editHandover(note) {
+    setHandoverDraft({ ...note });
+    setHandoverErrors({});
+  }
+
+  function saveHandover() {
+    const resolvedNote = {
+      ...handoverDraft,
+      scheduleDayId: handoverDraft.scheduleDayId || draft.scheduleDayId,
+      vehicleId: handoverDraft.vehicleId || draft.vehicleId || vehicles[0]?.id || "",
+    };
+    const nextErrors = {};
+    if (!resolvedNote.scheduleDayId) nextErrors.scheduleDayId = "Select a schedule day before saving a handover note.";
+    if (!resolvedNote.vehicleId) nextErrors.vehicleId = "Select a vehicle.";
+    if (!resolvedNote.location && !resolvedNote.instruction && !resolvedNote.keyLocation && !resolvedNote.notes) {
+      nextErrors.note = "Enter a location, instruction, key location, or notes.";
+    }
+    setHandoverErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+
+    onSaveVehicleHandoverNote(resolvedNote);
+    clearHandoverDraft();
+  }
+
+  function handoverPosition(note) {
+    return {
+      index: selectedDayHandoverNotes.findIndex((item) => item.id === note.id),
+      count: selectedDayHandoverNotes.length,
+    };
   }
 
   function updateImportantInfoField(name, value) {
@@ -640,6 +717,137 @@ export default function ScheduleBuilder({
                           </td>
                         </>
                       )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </SectionCard>
+
+      <SectionCard title="Selected Day Vehicle Handover / Car Location" subtitle="Manual vehicle location, handover, and key instructions for drivers">
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+          <Field label="Vehicle" error={handoverErrors.vehicleId}>
+            <Select value={handoverDraft.vehicleId || draft.vehicleId || ""} onChange={(event) => updateHandoverField("vehicleId", event.target.value)}>
+              <option value="">Select vehicle...</option>
+              {vehicles.map((vehicle) => (
+                <option key={vehicle.id} value={vehicle.id}>
+                  {vehicle.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="From Driver">
+            <Select value={handoverDraft.fromDriverId || ""} onChange={(event) => updateHandoverField("fromDriverId", event.target.value)}>
+              <option value="">Unknown / none</option>
+              {drivers.map((driver) => (
+                <option key={driver.id} value={driver.id}>
+                  {driver.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="To Driver">
+            <Select value={handoverDraft.toDriverId || ""} onChange={(event) => updateHandoverField("toDriverId", event.target.value)}>
+              <option value="">Unknown / none</option>
+              {drivers.map((driver) => (
+                <option key={driver.id} value={driver.id}>
+                  {driver.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Time">
+            <Input type="time" value={handoverDraft.time} onChange={(event) => updateHandoverField("time", event.target.value)} />
+          </Field>
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <Field label="Location" error={handoverErrors.note}>
+            <Input value={handoverDraft.location} onChange={(event) => updateHandoverField("location", event.target.value)} placeholder="Consulate garage" />
+          </Field>
+          <Field label="Instruction">
+            <Input value={handoverDraft.instruction} onChange={(event) => updateHandoverField("instruction", event.target.value)} placeholder="Leave BMW at OR after final movement" />
+          </Field>
+          <Field label="Key Location">
+            <Input value={handoverDraft.keyLocation} onChange={(event) => updateHandoverField("keyLocation", event.target.value)} placeholder="Reception" />
+          </Field>
+        </div>
+        <Field label="Notes">
+          <Textarea value={handoverDraft.notes} onChange={(event) => updateHandoverField("notes", event.target.value)} placeholder="Rory collects BMW from airport parking P20." />
+        </Field>
+        {handoverErrors.scheduleDayId ? <p className="text-xs font-medium text-red-600">{handoverErrors.scheduleDayId}</p> : null}
+        <div className="flex flex-wrap gap-2">
+          <button onClick={saveHandover} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white">
+            <Save className="h-4 w-4" /> {handoverDraft.id ? "Update Handover" : "Add Handover"}
+          </button>
+          <button onClick={clearHandoverDraft} className="inline-flex items-center gap-2 rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700">
+            <Eraser className="h-4 w-4" /> Clear
+          </button>
+        </div>
+
+        {selectedDayHandoverNotes.length === 0 ? (
+          <div className="rounded-3xl border-2 border-dashed py-8 text-center text-sm italic text-neutral-400">
+            No vehicle handover notes saved for this day yet.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-[1040px] w-full border-collapse border border-neutral-200 bg-white text-sm">
+              <thead className="bg-neutral-50 text-[10px] uppercase tracking-tighter text-neutral-500">
+                <tr>
+                  <th className="border border-neutral-200 p-3 text-left">Time</th>
+                  <th className="border border-neutral-200 p-3 text-left">Vehicle</th>
+                  <th className="border border-neutral-200 p-3 text-left">From Driver</th>
+                  <th className="border border-neutral-200 p-3 text-left">To Driver</th>
+                  <th className="border border-neutral-200 p-3 text-left">Location</th>
+                  <th className="border border-neutral-200 p-3 text-left">Instruction</th>
+                  <th className="border border-neutral-200 p-3 text-left">Key Location</th>
+                  <th className="border border-neutral-200 p-3 text-left">Notes</th>
+                  <th className="border border-neutral-200 p-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {selectedDayHandoverNotes.map((note) => {
+                  const position = handoverPosition(note);
+                  return (
+                    <tr key={note.id} className="align-top">
+                      <td className="border border-neutral-200 p-3 font-semibold text-neutral-900">{note.time || "-"}</td>
+                      <td className="border border-neutral-200 p-3 font-semibold text-neutral-900">{getName(vehicles, note.vehicleId)}</td>
+                      <td className="border border-neutral-200 p-3">{note.fromDriverId ? getName(drivers, note.fromDriverId) : "-"}</td>
+                      <td className="border border-neutral-200 p-3">{note.toDriverId ? getName(drivers, note.toDriverId) : "-"}</td>
+                      <td className="border border-neutral-200 p-3">{note.location || "-"}</td>
+                      <td className="border border-neutral-200 p-3">{note.instruction || "-"}</td>
+                      <td className="border border-neutral-200 p-3">{note.keyLocation || "-"}</td>
+                      <td className="border border-neutral-200 p-3 whitespace-pre-line">{note.notes || "-"}</td>
+                      <td className="border border-neutral-200 p-3">
+                        <div className="flex justify-end gap-1">
+                          <button onClick={() => editHandover(note)} className="rounded-lg bg-blue-50 p-2 text-blue-600" title="Edit handover">
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => onMoveVehicleHandoverNote(note.id, "up")}
+                            disabled={position.index <= 0}
+                            className="rounded-lg bg-neutral-50 p-2 text-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
+                            title="Move up"
+                          >
+                            <ArrowUp className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => onMoveVehicleHandoverNote(note.id, "down")}
+                            disabled={position.index < 0 || position.index === position.count - 1}
+                            className="rounded-lg bg-neutral-50 p-2 text-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
+                            title="Move down"
+                          >
+                            <ArrowDown className="h-4 w-4" />
+                          </button>
+                          <button onClick={() => onDuplicateVehicleHandoverNote(note)} className="rounded-lg bg-neutral-50 p-2 text-neutral-600" title="Duplicate handover">
+                            <Copy className="h-4 w-4" />
+                          </button>
+                          <button onClick={() => onDeleteVehicleHandoverNote(note.id)} className="rounded-lg bg-red-50 p-2 text-red-600" title="Delete handover">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}

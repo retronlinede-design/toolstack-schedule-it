@@ -48,6 +48,15 @@ function nextImportantInfoSortOrder(importantInfoItems) {
   return orders.length === 0 ? 10 : Math.max(...orders) + 10;
 }
 
+function nextVehicleHandoverSortOrder(vehicleHandoverNotes, scheduleDayId) {
+  const orders = vehicleHandoverNotes
+    .filter((note) => note.scheduleDayId === scheduleDayId)
+    .map((note) => note.sortOrder)
+    .filter(Number.isFinite);
+
+  return orders.length === 0 ? 10 : Math.max(...orders) + 10;
+}
+
 function nameKey(value) {
   return (value || "").trim().toLowerCase();
 }
@@ -261,11 +270,19 @@ export default function ScheduleItApp() {
         id: createId("movement"),
         scheduleDayId: nextDay.id,
       }));
+    const copiedVehicleHandoverNotes = (schedule.vehicleHandoverNotes || [])
+      .filter((note) => note.scheduleDayId === sourceDay.id)
+      .map((note) => ({
+        ...note,
+        id: createId("handover"),
+        scheduleDayId: nextDay.id,
+      }));
 
     setSchedule((current) => ({
       ...current,
       scheduleDays: [...current.scheduleDays, nextDay],
       movements: [...current.movements, ...copiedMovements],
+      vehicleHandoverNotes: [...(current.vehicleHandoverNotes || []), ...copiedVehicleHandoverNotes],
     }));
     updateDraft((current) => ({
       ...current,
@@ -403,6 +420,89 @@ export default function ScheduleItApp() {
     }));
   }
 
+  function handleSaveVehicleHandoverNote(noteDraft) {
+    if (!noteDraft.scheduleDayId || !noteDraft.vehicleId || (!noteDraft.location && !noteDraft.instruction && !noteDraft.keyLocation && !noteDraft.notes)) {
+      return;
+    }
+
+    setSchedule((current) => {
+      const note = {
+        id: noteDraft.id || createId("handover"),
+        scheduleDayId: noteDraft.scheduleDayId,
+        vehicleId: noteDraft.vehicleId,
+        fromDriverId: noteDraft.fromDriverId || "",
+        toDriverId: noteDraft.toDriverId || "",
+        location: noteDraft.location || "",
+        instruction: noteDraft.instruction || "",
+        keyLocation: noteDraft.keyLocation || "",
+        time: noteDraft.time || "",
+        notes: noteDraft.notes || "",
+        sortOrder: Number.isFinite(noteDraft.sortOrder)
+          ? noteDraft.sortOrder
+          : nextVehicleHandoverSortOrder(current.vehicleHandoverNotes || [], noteDraft.scheduleDayId),
+      };
+
+      return {
+        ...current,
+        vehicleHandoverNotes: [...(current.vehicleHandoverNotes || []).filter((item) => item.id !== note.id), note],
+      };
+    });
+  }
+
+  function handleDuplicateVehicleHandoverNote(note) {
+    setSchedule((current) => ({
+      ...current,
+      vehicleHandoverNotes: [
+        ...(current.vehicleHandoverNotes || []),
+        {
+          ...note,
+          id: createId("handover"),
+          sortOrder: nextVehicleHandoverSortOrder(current.vehicleHandoverNotes || [], note.scheduleDayId),
+        },
+      ],
+    }));
+  }
+
+  function handleMoveVehicleHandoverNote(id, direction) {
+    setSchedule((current) => {
+      const note = (current.vehicleHandoverNotes || []).find((item) => item.id === id);
+      if (!note) return current;
+
+      const orderedNotes = [...(current.vehicleHandoverNotes || [])]
+        .filter((item) => item.scheduleDayId === note.scheduleDayId)
+        .sort((a, b) => (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER));
+      const currentIndex = orderedNotes.findIndex((item) => item.id === id);
+      const nextIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+      if (currentIndex < 0 || nextIndex < 0 || nextIndex >= orderedNotes.length) return current;
+
+      const reordered = [...orderedNotes];
+      const [moved] = reordered.splice(currentIndex, 1);
+      reordered.splice(nextIndex, 0, moved);
+      const sortOrdersById = new Map(reordered.map((item, index) => [item.id, (index + 1) * 10]));
+
+      return {
+        ...current,
+        vehicleHandoverNotes: (current.vehicleHandoverNotes || []).map((item) =>
+          item.scheduleDayId === note.scheduleDayId
+            ? {
+                ...item,
+                sortOrder: sortOrdersById.get(item.id),
+              }
+            : item,
+        ),
+      };
+    });
+  }
+
+  function handleDeleteVehicleHandoverNote(id) {
+    if (!window.confirm("Delete this vehicle handover note?")) return;
+
+    setSchedule((current) => ({
+      ...current,
+      vehicleHandoverNotes: (current.vehicleHandoverNotes || []).filter((note) => note.id !== id),
+    }));
+  }
+
   function handleSaveImportantInfoItem(infoDraft) {
     if (
       !infoDraft.type ||
@@ -503,6 +603,7 @@ export default function ScheduleItApp() {
       profile: defaultProfile,
       scheduleDays: [],
       movements: [],
+      vehicleHandoverNotes: [],
       importantInfoItems: [],
       routeNotes: [],
     };
@@ -640,6 +741,7 @@ export default function ScheduleItApp() {
         vehicles,
         scheduleDays: mode === "replace" ? [targetDay] : [...current.scheduleDays, targetDay],
         movements: mode === "replace" ? importedMovements : [...current.movements, ...importedMovements],
+        vehicleHandoverNotes: mode === "replace" ? [] : current.vehicleHandoverNotes || [],
         importantInfoItems: current.importantInfoItems || [],
         routeNotes: current.routeNotes || [],
       };
@@ -770,6 +872,7 @@ export default function ScheduleItApp() {
             vehicles={schedule.vehicles}
             scheduleDays={schedule.scheduleDays}
             movements={schedule.movements}
+            vehicleHandoverNotes={schedule.vehicleHandoverNotes || []}
             importantInfoItems={schedule.importantInfoItems || []}
             errors={validationErrors}
             onChange={updateDraft}
@@ -785,6 +888,10 @@ export default function ScheduleItApp() {
             onDuplicateMovement={handleDuplicateMovement}
             onMoveMovement={handleMoveMovement}
             onDeleteMovement={handleDelete}
+            onSaveVehicleHandoverNote={handleSaveVehicleHandoverNote}
+            onDuplicateVehicleHandoverNote={handleDuplicateVehicleHandoverNote}
+            onMoveVehicleHandoverNote={handleMoveVehicleHandoverNote}
+            onDeleteVehicleHandoverNote={handleDeleteVehicleHandoverNote}
             onSaveImportantInfoItem={handleSaveImportantInfoItem}
             onDuplicateImportantInfoItem={handleDuplicateImportantInfoItem}
             onMoveImportantInfoItem={handleMoveImportantInfoItem}
@@ -794,6 +901,7 @@ export default function ScheduleItApp() {
             entriesByMonth={entriesByMonth}
             profile={schedule.profile}
             movements={schedule.movements}
+            vehicleHandoverNotes={schedule.vehicleHandoverNotes || []}
             importantInfoItems={schedule.importantInfoItems || []}
             drivers={schedule.drivers}
             vehicles={schedule.vehicles}

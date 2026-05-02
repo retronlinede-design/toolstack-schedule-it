@@ -262,6 +262,61 @@ function groupOperationalMovements(movements, driversById, vehiclesById, groupBy
   return dayGroups;
 }
 
+function handoverRowsFor(schedule, scheduleDayId, driverId) {
+  const driversById = lookup(schedule.drivers);
+  const vehiclesById = lookup(schedule.vehicles);
+
+  return [...(schedule.vehicleHandoverNotes || [])]
+    .filter((note) => note.scheduleDayId === scheduleDayId)
+    .filter((note) => !driverId || note.fromDriverId === driverId || note.toDriverId === driverId)
+    .sort((a, b) => (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER))
+    .map((note) => [
+      cell(note.time, "time-cell"),
+      cell(vehiclesById.get(note.vehicleId)?.name, "total-cell"),
+      cell(driversById.get(note.fromDriverId)?.name),
+      cell(driversById.get(note.toDriverId)?.name),
+      cell(note.location),
+      cell(note.instruction, "wrap-cell"),
+      cell(note.keyLocation),
+      cell(note.notes, "wrap-cell"),
+    ]);
+}
+
+function handoverTable(schedule, scheduleDayId, driverId) {
+  const rows = handoverRowsFor(schedule, scheduleDayId, driverId);
+  if (rows.length === 0) return "";
+
+  return `
+    <section class="handover-section">
+      <h3 class="handover-heading">Vehicle Handover / Car Location</h3>
+      ${table(["Time", "Vehicle", "From Driver", "To Driver", "Location", "Instruction", "Key Location", "Notes"], rows, "handover-table")}
+    </section>
+  `;
+}
+
+function ensureOperationalHandoverDayGroups(dayGroups, schedule, driverId) {
+  const groupsByKey = new Map(dayGroups.map((group) => [group.key, group]));
+
+  (schedule.vehicleHandoverNotes || [])
+    .filter((note) => !driverId || note.fromDriverId === driverId || note.toDriverId === driverId)
+    .forEach((note) => {
+      const day = schedule.scheduleDays.find((item) => item.id === note.scheduleDayId);
+      const dayKey = note.scheduleDayId || day?.date || "unscheduled";
+      if (!groupsByKey.has(dayKey)) {
+        const group = {
+          key: dayKey,
+          day,
+          driverGroups: [],
+          driverGroupsByKey: new Map(),
+        };
+        groupsByKey.set(dayKey, group);
+        dayGroups.push(group);
+      }
+    });
+
+  return dayGroups;
+}
+
 function operationalSections(schedule, driverId, groupByDriver) {
   const driversById = lookup(schedule.drivers);
   const vehiclesById = lookup(schedule.vehicles);
@@ -269,9 +324,13 @@ function operationalSections(schedule, driverId, groupByDriver) {
     movementsWithDays(schedule).filter((movement) => movement.isOperationalVisible !== false && (!driverId || movement.driverId === driverId)),
   );
 
-  if (movements.length === 0) return `<p class="empty">No records available for this view.</p>`;
+  const visibleHandovers = (schedule.vehicleHandoverNotes || []).filter(
+    (note) => !driverId || note.fromDriverId === driverId || note.toDriverId === driverId,
+  );
 
-  return groupOperationalMovements(movements, driversById, vehiclesById, groupByDriver)
+  if (movements.length === 0 && visibleHandovers.length === 0) return `<p class="empty">No records available for this view.</p>`;
+
+  return ensureOperationalHandoverDayGroups(groupOperationalMovements(movements, driversById, vehiclesById, groupByDriver), schedule, driverId)
     .map((dayGroup, index) => {
       const dayTitle = dayGroup.day?.title ? `<div class="day-title">${escapeHtml(dayGroup.day.title)}</div>` : "";
       const driverSections = dayGroup.driverGroups
@@ -293,6 +352,7 @@ function operationalSections(schedule, driverId, groupByDriver) {
             ${dayTitle}
           </div>
           ${driverSections}
+          ${handoverTable(schedule, dayGroup.day?.id || dayGroup.key, driverId)}
         </section>
       `;
     })
@@ -835,6 +895,34 @@ function stylesFor(view) {
       border-color: #fecaca;
       background: #fef2f2;
     }
+    .handover-section {
+      margin: 8px 0 0;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .handover-heading {
+      margin: 0 0 5px;
+      color: #262626;
+      font-size: 8.5px;
+      font-weight: 900;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+    .handover-table th,
+    .handover-table td {
+      font-size: 8px;
+      padding: 5px 6px;
+    }
+    .handover-table th:nth-child(1), .handover-table td:nth-child(1) { width: 7%; }
+    .handover-table th:nth-child(2), .handover-table td:nth-child(2) { width: 10%; }
+    .handover-table th:nth-child(3), .handover-table td:nth-child(3) { width: 9%; }
+    .handover-table th:nth-child(4), .handover-table td:nth-child(4) { width: 9%; }
+    .handover-table th:nth-child(5), .handover-table td:nth-child(5) { width: 15%; }
+    .handover-table th:nth-child(6), .handover-table td:nth-child(6) { width: 20%; }
+    .handover-table th:nth-child(7), .handover-table td:nth-child(7) { width: 12%; }
+    .handover-table th:nth-child(8), .handover-table td:nth-child(8) { width: 18%; }
     .short-rest-cell {
       color: #b91c1c;
       font-weight: 800;
@@ -959,12 +1047,14 @@ function stylesFor(view) {
       .day-heading,
       .executive-day-heading,
       .driver-section-heading,
+      .handover-heading,
       .important-info-section-heading,
       .summary-section h3 {
         break-after: avoid;
         page-break-after: avoid;
       }
       .driver-section,
+      .handover-section,
       .working-driver-section,
       .working-driver-summary,
       .important-info-section,

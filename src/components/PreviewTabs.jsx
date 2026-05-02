@@ -29,6 +29,7 @@ export default function PreviewTabs({
   entriesByMonth,
   profile,
   movements,
+  vehicleHandoverNotes,
   importantInfoItems,
   drivers,
   vehicles,
@@ -64,8 +65,10 @@ export default function PreviewTabs({
         {activeTab === "operational" ? (
           <OperationalView
             entriesByMonth={entriesByMonth}
+            vehicleHandoverNotes={vehicleHandoverNotes}
             drivers={drivers}
             vehicles={vehicles}
+            scheduleDays={scheduleDays}
             onEdit={onEdit}
             onDelete={onDelete}
             onReorderMovements={onReorderMovements}
@@ -74,8 +77,10 @@ export default function PreviewTabs({
         {activeTab === "driver" ? (
           <DriverView
             entriesByMonth={entriesByMonth}
+            vehicleHandoverNotes={vehicleHandoverNotes}
             drivers={drivers}
             vehicles={vehicles}
+            scheduleDays={scheduleDays}
             selectedDriverId={selectedDriverId}
             onSelectedDriverChange={onSelectedDriverChange}
             onEdit={onEdit}

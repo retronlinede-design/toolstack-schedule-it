@@ -47,6 +47,29 @@ function groupEntries(entries, driversById, vehiclesById, groupByDriver) {
   return dayGroups;
 }
 
+function ensureHandoverDayGroups(dayGroups, vehicleHandoverNotes, scheduleDays, selectedDriverId) {
+  const groupsByKey = new Map(dayGroups.map((group) => [group.key, group]));
+
+  vehicleHandoverNotes
+    .filter((note) => !selectedDriverId || note.fromDriverId === selectedDriverId || note.toDriverId === selectedDriverId)
+    .forEach((note) => {
+      const day = scheduleDays.find((item) => item.id === note.scheduleDayId);
+      const key = note.scheduleDayId || day?.date || "unscheduled";
+      if (!groupsByKey.has(key)) {
+        const group = {
+          key,
+          day,
+          driverGroups: [],
+          driverGroupsByKey: new Map(),
+        };
+        groupsByKey.set(key, group);
+        dayGroups.push(group);
+      }
+    });
+
+  return dayGroups;
+}
+
 function OperationalRows({ entries, driversById, vehiclesById, onEdit, onDelete, onReorderMovements }) {
   const [draggedEntry, setDraggedEntry] = useState(null);
   const [dragOverId, setDragOverId] = useState(null);
@@ -178,7 +201,63 @@ function OperationalTable({ entries, driversById, vehiclesById, onEdit, onDelete
   );
 }
 
-export default function OperationalView({ entriesByMonth, drivers, vehicles, onEdit, onDelete, onReorderMovements, groupByDriver = true }) {
+function handoverRowsFor(vehicleHandoverNotes, scheduleDayId, selectedDriverId) {
+  return [...(vehicleHandoverNotes || [])]
+    .filter((note) => note.scheduleDayId === scheduleDayId)
+    .filter((note) => !selectedDriverId || note.fromDriverId === selectedDriverId || note.toDriverId === selectedDriverId)
+    .sort((a, b) => (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER));
+}
+
+function HandoverTable({ notes, driversById, vehiclesById }) {
+  if (notes.length === 0) return null;
+
+  return (
+    <div className="mt-4 overflow-x-auto">
+      <div className="mb-2 text-xs font-black uppercase tracking-widest text-neutral-500">Vehicle Handover / Car Location</div>
+      <table className="min-w-[920px] w-full border-collapse border border-neutral-200 bg-white text-xs shadow-sm">
+        <thead>
+          <tr className="bg-neutral-50 text-[10px] uppercase font-black tracking-tighter text-neutral-500">
+            <th className="border border-neutral-200 p-3 text-left">Time</th>
+            <th className="border border-neutral-200 p-3 text-left">Vehicle</th>
+            <th className="border border-neutral-200 p-3 text-left">From Driver</th>
+            <th className="border border-neutral-200 p-3 text-left">To Driver</th>
+            <th className="border border-neutral-200 p-3 text-left">Location</th>
+            <th className="border border-neutral-200 p-3 text-left">Instruction</th>
+            <th className="border border-neutral-200 p-3 text-left">Key Location</th>
+            <th className="border border-neutral-200 p-3 text-left">Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {notes.map((note) => (
+            <tr key={note.id} className="align-top">
+              <td className="border border-neutral-200 p-3 font-semibold text-neutral-900">{note.time || EMPTY}</td>
+              <td className="border border-neutral-200 p-3 font-semibold text-neutral-900">{vehiclesById.get(note.vehicleId)?.name || EMPTY}</td>
+              <td className="border border-neutral-200 p-3">{driversById.get(note.fromDriverId)?.name || EMPTY}</td>
+              <td className="border border-neutral-200 p-3">{driversById.get(note.toDriverId)?.name || EMPTY}</td>
+              <td className="border border-neutral-200 p-3">{note.location || EMPTY}</td>
+              <td className="border border-neutral-200 p-3">{note.instruction || EMPTY}</td>
+              <td className="border border-neutral-200 p-3">{note.keyLocation || EMPTY}</td>
+              <td className="border border-neutral-200 p-3 whitespace-pre-line">{note.notes || EMPTY}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export default function OperationalView({
+  entriesByMonth,
+  vehicleHandoverNotes = [],
+  drivers,
+  vehicles,
+  scheduleDays = [],
+  onEdit,
+  onDelete,
+  onReorderMovements,
+  groupByDriver = true,
+  selectedDriverId = "",
+}) {
   const driversById = buildLookup(drivers);
   const vehiclesById = buildLookup(vehicles);
   const entries = sortMovementsByDateAndTime(
@@ -186,9 +265,12 @@ export default function OperationalView({ entriesByMonth, drivers, vehicles, onE
       .flat()
       .filter((entry) => entry.isOperationalVisible !== false),
   );
-  const dayGroups = groupEntries(entries, driversById, vehiclesById, groupByDriver);
+  const dayGroups = ensureHandoverDayGroups(groupEntries(entries, driversById, vehiclesById, groupByDriver), vehicleHandoverNotes, scheduleDays, selectedDriverId);
+  const visibleHandoverNotes = vehicleHandoverNotes.filter(
+    (note) => !selectedDriverId || note.fromDriverId === selectedDriverId || note.toDriverId === selectedDriverId,
+  );
 
-  if (entries.length === 0) {
+  if (entries.length === 0 && visibleHandoverNotes.length === 0) {
     return (
       <div className="py-12 text-center text-neutral-400 border-2 border-dashed rounded-3xl italic">
         No operational-visible movements yet.
@@ -225,6 +307,11 @@ export default function OperationalView({ entriesByMonth, drivers, vehicles, onE
               </div>
             ))}
           </div>
+          <HandoverTable
+            notes={handoverRowsFor(vehicleHandoverNotes, dayGroup.day?.id || dayGroup.key, selectedDriverId)}
+            driversById={driversById}
+            vehiclesById={vehiclesById}
+          />
         </section>
       ))}
     </div>

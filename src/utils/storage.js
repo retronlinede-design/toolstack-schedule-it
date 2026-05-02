@@ -86,6 +86,7 @@ export function normalizeState(state) {
   const importantInfoItems = Array.isArray(state?.importantInfoItems)
     ? state.importantInfoItems
     : migrateRouteNotesToImportantInfo(routeNotes, scheduleDays, drivers);
+  const vehicleHandoverNotes = Array.isArray(state?.vehicleHandoverNotes) ? state.vehicleHandoverNotes : [];
 
   return {
     ...defaultScheduleState,
@@ -98,6 +99,7 @@ export function normalizeState(state) {
     vehicles: state?.vehicles?.length ? state.vehicles : defaultScheduleState.vehicles,
     scheduleDays,
     movements,
+    vehicleHandoverNotes,
     importantInfoItems,
     routeNotes,
   };

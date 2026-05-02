@@ -36,6 +36,7 @@ export const defaultScheduleState = {
   vehicles: defaultVehicles,
   scheduleDays: [],
   movements: [],
+  vehicleHandoverNotes: [],
   importantInfoItems: [],
   routeNotes: [],
 };
