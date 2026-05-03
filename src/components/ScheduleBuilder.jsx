@@ -37,7 +37,7 @@ function Input(props) {
   return (
     <input
       {...props}
-      className={`w-full rounded-2xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200 ${props.className || ""}`}
+      className={`min-w-0 w-full max-w-full rounded-2xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200 ${props.className || ""}`}
     />
   );
 }
@@ -46,7 +46,7 @@ function Textarea(props) {
   return (
     <textarea
       {...props}
-      className={`min-h-[88px] w-full rounded-2xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200 ${props.className || ""}`}
+      className={`min-h-[88px] min-w-0 w-full max-w-full rounded-2xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200 ${props.className || ""}`}
     />
   );
 }
@@ -55,14 +55,14 @@ function Select(props) {
   return (
     <select
       {...props}
-      className={`w-full rounded-2xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200 ${props.className || ""}`}
+      className={`min-w-0 w-full max-w-full rounded-2xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200 ${props.className || ""}`}
     />
   );
 }
 
 function SectionCard({ title, subtitle, children }) {
   return (
-    <section className="rounded-3xl bg-white p-4 shadow-sm md:p-5">
+    <section className="min-w-0 w-full max-w-full rounded-3xl bg-white p-4 shadow-sm md:p-5">
       <div className="mb-3">
         <h2 className="text-xl font-semibold text-neutral-900">{title}</h2>
         {subtitle ? <p className="mt-1 text-sm text-neutral-700">{subtitle}</p> : null}
@@ -477,7 +477,7 @@ export default function ScheduleBuilder({
               ))}
             </Select>
           </Field>
-          <div className="grid grid-cols-2 gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
+          <div className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-3 sm:grid-cols-2">
             <label className="flex items-center gap-2 text-sm text-neutral-700">
               <input
                 type="checkbox"
@@ -520,8 +520,8 @@ export default function ScheduleBuilder({
             <Input value={draft.engagementDetails} onChange={(event) => updateField("engagementDetails", event.target.value)} />
           </Field>
           <Field label="Venue" icon={MapPin}>
-            <div className="flex gap-2">
-              <Input value={draft.venue} onChange={(event) => updateField("venue", event.target.value)} />
+            <div className="flex min-w-0 gap-2">
+              <Input value={draft.venue} onChange={(event) => updateField("venue", event.target.value)} className="min-w-0 flex-1" />
               <button
                 type="button"
                 onClick={() => openInMaps(draft.venue, draft.address)}
@@ -560,7 +560,7 @@ export default function ScheduleBuilder({
             No movements saved for this day yet.
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="min-w-0 max-w-full overflow-x-auto">
             <table className="min-w-[760px] w-full border-collapse border border-neutral-200 bg-white text-sm">
               <thead className="bg-neutral-50 text-[10px] uppercase tracking-tighter text-neutral-500">
                 <tr>
@@ -633,7 +633,7 @@ export default function ScheduleBuilder({
                                 ))}
                               </Select>
                             </Field>
-                            <div className="grid grid-cols-2 gap-3 rounded-2xl border border-neutral-200 bg-white p-3">
+                            <div className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-200 bg-white p-3 sm:grid-cols-2">
                               <label className="flex items-center gap-2 text-sm text-neutral-700">
                                 <input
                                   type="checkbox"
@@ -818,7 +818,7 @@ export default function ScheduleBuilder({
             No vehicle handover notes saved for this day yet.
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="min-w-0 max-w-full overflow-x-auto">
             <table className="min-w-[1040px] w-full border-collapse border border-neutral-200 bg-white text-sm">
               <thead className="bg-neutral-50 text-[10px] uppercase tracking-tighter text-neutral-500">
                 <tr>
@@ -947,7 +947,7 @@ export default function ScheduleBuilder({
             No important information saved yet.
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="min-w-0 max-w-full overflow-x-auto">
             <table className="min-w-[1180px] w-full border-collapse border border-neutral-200 bg-white text-sm">
               <thead className="bg-neutral-50 text-[10px] uppercase tracking-tighter text-neutral-500">
                 <tr>

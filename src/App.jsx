@@ -845,8 +845,8 @@ export default function ScheduleItApp() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-100 text-neutral-900">
-      <div className="mx-auto max-w-7xl p-4 md:p-6">
+    <div className="min-h-screen overflow-x-hidden bg-neutral-100 text-neutral-900">
+      <div className="mx-auto w-full max-w-full px-3 py-4 md:max-w-7xl md:p-6">
         <div className="no-print mb-6 rounded-3xl bg-white p-5 shadow-lg">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
@@ -898,8 +898,8 @@ export default function ScheduleItApp() {
         ) : null}
 
         {isPreviewOpen ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 no-print">
-            <div className="relative h-full w-full max-w-5xl overflow-y-auto rounded-3xl bg-white shadow-2xl p-8">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4 no-print">
+            <div className="relative h-full w-full max-w-full overflow-y-auto rounded-3xl bg-white p-4 shadow-2xl sm:max-w-5xl sm:p-8">
               <div className="sticky top-0 mb-6 flex items-center justify-between border-b border-neutral-200 bg-white pb-4 z-10">
                 <div>
                   <h2 className="text-xl font-semibold text-neutral-900">Document Preview</h2>
@@ -945,7 +945,7 @@ export default function ScheduleItApp() {
           </div>
         ) : null}
 
-        <div className="grid gap-6 xl:grid-cols-1">
+        <div className="grid min-w-0 gap-6 xl:grid-cols-1">
           <ScheduleBuilder
             draft={draft}
             drivers={schedule.drivers}

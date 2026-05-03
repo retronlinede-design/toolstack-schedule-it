@@ -37,8 +37,8 @@ export default function HtmlImportPanel({ onBack, onApply }) {
   }
 
   return (
-    <div>
-      <div className="mb-5 flex items-center justify-between gap-3">
+    <div className="min-w-0 max-w-full">
+      <div className="mb-5 flex min-w-0 items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-neutral-900">Import from HTML</h2>
           <p className="text-sm text-neutral-500">Paste an exported ScheduleIt table or compatible schedule HTML.</p>
@@ -54,7 +54,7 @@ export default function HtmlImportPanel({ onBack, onApply }) {
         <textarea
           value={rawHtml}
           onChange={(event) => setRawHtml(event.target.value)}
-          className="min-h-48 w-full rounded-2xl border border-neutral-300 bg-white px-3 py-2 font-mono text-xs text-neutral-900 shadow-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200"
+          className="min-h-48 min-w-0 w-full max-w-full rounded-2xl border border-neutral-300 bg-white px-3 py-2 font-mono text-xs text-neutral-900 shadow-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200"
           placeholder="Paste raw HTML here..."
         />
 
@@ -95,7 +95,7 @@ export default function HtmlImportPanel({ onBack, onApply }) {
             </div>
 
             {parseResult.movements.length > 0 ? (
-              <div className="overflow-x-auto">
+              <div className="min-w-0 max-w-full overflow-x-auto">
                 <table className="min-w-[900px] w-full border-collapse border border-neutral-200 bg-white text-xs">
                   <thead className="bg-neutral-50 text-[10px] uppercase text-neutral-500">
                     <tr>
@@ -128,4 +128,3 @@ export default function HtmlImportPanel({ onBack, onApply }) {
     </div>
   );
 }
-

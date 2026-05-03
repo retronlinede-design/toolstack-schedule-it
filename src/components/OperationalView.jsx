@@ -167,7 +167,7 @@ function OperationalRows({ entries, driversById, vehiclesById, onEdit, onDelete,
 
 function OperationalTable({ entries, driversById, vehiclesById, onEdit, onDelete, onReorderMovements }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="min-w-0 max-w-full overflow-x-auto">
       <table className="min-w-[1120px] w-full border-collapse border border-neutral-200 bg-white text-xs shadow-sm">
         <thead>
           <tr className="bg-neutral-50 text-[10px] uppercase font-black tracking-tighter text-neutral-500">
@@ -232,7 +232,7 @@ function HandoverTable({
   if (notes.length === 0) return null;
 
   return (
-    <div className="mt-4 overflow-x-auto">
+    <div className="mt-4 min-w-0 max-w-full overflow-x-auto">
       <div className="mb-2 text-xs font-black uppercase tracking-widest text-neutral-500">Vehicle Handover / Car Location</div>
       <table className="min-w-[920px] w-full border-collapse border border-neutral-200 bg-white text-xs shadow-sm">
         <thead>
@@ -383,7 +383,7 @@ export default function OperationalView({
               targetScheduleDayId: dayGroup.day?.id || dayGroup.key,
             })
           }
-          className={`rounded-2xl border bg-white p-3 transition-colors ${
+          className={`min-w-0 max-w-full rounded-2xl border bg-white p-3 transition-colors ${
             handoverDragOverId === `day-${dayGroup.day?.id || dayGroup.key}`
               ? "border-amber-300 bg-amber-50/40"
               : "border-neutral-200"
@@ -411,7 +411,7 @@ export default function OperationalView({
                     targetDriverId: driverGroup.driverId,
                   })
                 }
-                className={`rounded-xl transition-colors ${
+                className={`min-w-0 max-w-full rounded-xl transition-colors ${
                   handoverDragOverId === `driver-${dayGroup.day?.id || dayGroup.key}-${driverGroup.driverId}`
                     ? "bg-amber-50 ring-2 ring-inset ring-amber-200"
                     : ""

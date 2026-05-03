@@ -11,9 +11,9 @@ function EmptyState() {
 
 function Section({ title, children, secondary = false }) {
   return (
-    <section className={`space-y-3 ${secondary ? "pt-2" : ""}`}>
+    <section className={`min-w-0 max-w-full space-y-3 ${secondary ? "pt-2" : ""}`}>
       <h3 className="text-xs font-black uppercase tracking-widest text-neutral-500">{title}</h3>
-      <div className="overflow-x-auto">{children}</div>
+      <div className="min-w-0 max-w-full overflow-x-auto">{children}</div>
     </section>
   );
 }
@@ -76,7 +76,7 @@ function groupDailySummaries(driverDaySummaries, dailyTotals) {
 
 function MetricCard({ label, value, alert = false }) {
   return (
-    <div className={`rounded-2xl border p-4 ${alert ? "border-red-100 bg-red-50/60" : "border-neutral-200 bg-neutral-50"}`}>
+    <div className={`min-w-0 max-w-full rounded-2xl border p-4 ${alert ? "border-red-100 bg-red-50/60" : "border-neutral-200 bg-neutral-50"}`}>
       <div className="text-[10px] font-black uppercase tracking-widest text-neutral-500">{label}</div>
       <div className={`mt-1 text-lg font-black ${alert ? "text-red-700" : "text-neutral-900"}`}>{value || "-"}</div>
     </div>
@@ -93,7 +93,7 @@ export default function WorkingTimeSummary({ movements, drivers, vehicles, sched
   return (
     <div className="space-y-8">
       {driverGroups.map((group) => (
-        <section key={group.driverId} className="rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
+        <section key={group.driverId} className="min-w-0 max-w-full rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
           <div className="mb-4 border-b border-neutral-100 pb-3">
             <p className="text-xs font-black uppercase tracking-widest text-neutral-400">Driver</p>
             <h3 className="text-2xl font-black text-neutral-900">{group.driverName}</h3>
@@ -105,7 +105,7 @@ export default function WorkingTimeSummary({ movements, drivers, vehicles, sched
             <MetricCard label="Short Rest Count" value={group.total?.shortRestCount} alert={Number(group.total?.shortRestCount) > 0} />
             <MetricCard label="Minimum Rest Period" value={group.total?.minimumRestDuration} alert={Number(group.total?.shortRestCount) > 0} />
           </div>
-          <div className="overflow-x-auto">
+          <div className="min-w-0 max-w-full overflow-x-auto">
             <table className="min-w-[760px] w-full border-collapse border border-neutral-200 bg-white text-sm shadow-sm">
               <thead className="bg-neutral-50 text-[10px] uppercase tracking-tighter text-neutral-500">
                 <tr>
@@ -143,7 +143,7 @@ export default function WorkingTimeSummary({ movements, drivers, vehicles, sched
       <Section title="Daily Totals" secondary>
         <div className="space-y-5">
           {dailyGroups.map((group) => (
-            <section key={group.key} className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+            <section key={group.key} className="min-w-0 max-w-full rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
               <div className="mb-3 flex flex-col gap-1 border-b border-neutral-100 pb-3 sm:flex-row sm:items-end sm:justify-between">
                 <h4 className="text-lg font-black text-neutral-900">{formatLongDate(group.date) || "Missing date"}</h4>
                 <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
