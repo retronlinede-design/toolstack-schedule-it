@@ -743,8 +743,17 @@ export default function ScheduleItApp() {
     }
 
     const nextSchedule = normalizeState(parsed);
+    const firstDay = nextSchedule.scheduleDays[0];
+    const nextDriverId = nextSchedule.drivers.some((driver) => driver.id === selectedDriverId)
+      ? selectedDriverId
+      : nextSchedule.drivers[0]?.id || "";
+
     setSchedule(nextSchedule);
-    resetDraft(nextSchedule.profile);
+    setSelectedDriverId(nextDriverId);
+    setPreviewView("executive");
+    setIsPreviewOpen(false);
+    setIsExportOpen(false);
+    resetDraft(nextSchedule.profile, firstDay);
     return "Import complete. Current schedule data was replaced.";
   }
 
