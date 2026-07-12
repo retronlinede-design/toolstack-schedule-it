@@ -121,4 +121,11 @@ textarea.ts-control { min-height: 92px; resize: vertical; }
   .ts-button.ts-icon-button { width: 44px; }
 }
 
-@media print { .ts-app { background: white; } }
+@media print {
+  .no-print, .ts-modal-header { display: none !important; }
+  .ts-app, body { background: white !important; }
+  .ts-modal-backdrop, .ts-modal { position: static; display: block; max-height: none; overflow: visible; border: 0; box-shadow: none; background: white; }
+  .ts-modal-body { overflow: visible; padding: 0; }
+  table, article, section { break-inside: avoid; }
+  h1, h2, h3, h4 { break-after: avoid; }
+}

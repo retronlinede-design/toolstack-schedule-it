@@ -877,12 +877,12 @@ export default function ScheduleBuilder({
         {handoverErrors.scheduleDayId ? <p className="text-xs font-medium text-red-600">{handoverErrors.scheduleDayId}</p> : null}
         {handoverErrors.integrityIssues?.length ? <ul className="list-disc pl-5 text-xs font-medium text-red-700">{handoverErrors.integrityIssues.map((issue, index) => <li key={`${issue.type}-${index}`}>{issue.message}</li>)}</ul> : null}
         <div className="flex flex-wrap gap-2">
-          <button onClick={saveHandover} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white">
+          <Button onClick={saveHandover} variant="primary">
             <Save className="h-4 w-4" /> {handoverDraft.id ? "Update Handover" : "Add Handover"}
-          </button>
-          <button onClick={clearHandoverDraft} className="inline-flex items-center gap-2 rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700">
+          </Button>
+          <Button onClick={clearHandoverDraft} variant="secondary">
             <Eraser className="h-4 w-4" /> Clear
-          </button>
+          </Button>
         </div>
 
         {!draft.scheduleDayId ? (
@@ -942,12 +942,12 @@ export default function ScheduleBuilder({
           <Textarea value={importantInfoDraft.notes} onChange={(event) => updateImportantInfoField("notes", event.target.value)} placeholder="Allow extra time during peak traffic." />
         </Field>
         <div className="flex flex-wrap gap-2">
-          <button onClick={saveImportantInfoItem} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white">
+          <Button onClick={saveImportantInfoItem} variant="primary">
             <Save className="h-4 w-4" /> {importantInfoDraft.id ? "Update Info" : "Add Info"}
-          </button>
-          <button onClick={clearImportantInfoDraft} className="inline-flex items-center gap-2 rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700">
+          </Button>
+          <Button onClick={clearImportantInfoDraft} variant="secondary">
             <Eraser className="h-4 w-4" /> Clear
-          </button>
+          </Button>
         </div>
 
         {sortedImportantInfoItems.length === 0 ? (

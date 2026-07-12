@@ -1,12 +1,11 @@
 import { calculateWorkingTimeSummary } from "../utils/calculations";
 import { formatLongDate } from "../utils/time";
+import AlertBanner from "./ui/AlertBanner";
+import Badge from "./ui/Badge";
+import SharedEmptyState from "./ui/EmptyState";
 
-function EmptyState() {
-  return (
-    <div className="py-12 text-center text-neutral-400 border-2 border-dashed rounded-3xl italic">
-      No working time records yet. Add driver start/end times, or departure/arrival fallback times, to calculate duty hours.
-    </div>
-  );
+function WorkingEmptyState() {
+  return <SharedEmptyState title="No working-time rows" description="Add driver start/end times, or departure/arrival fallback times, to calculate duty hours." />;
 }
 
 function Section({ title, children, secondary = false }) {
@@ -87,12 +86,18 @@ export default function WorkingTimeSummary({ movements, drivers, vehicles, sched
   const { driverDaySummaries, dailyTotals, overallDriverTotals } = calculateWorkingTimeSummary(movements, drivers, vehicles, scheduleDays);
   const driverGroups = [...groupDriverSummaries(driverDaySummaries, overallDriverTotals)];
   const dailyGroups = groupDailySummaries(driverDaySummaries, dailyTotals);
+  const dayDateById = new Map(scheduleDays.map((day) => [day.id, day.date]));
+  const movementMeta = (driverId, date) => {
+    const records = movements.filter((movement) => movement.driverId === driverId && dayDateById.get(movement.scheduleDayId) === date);
+    return { count: records.length, overnight: records.some((movement) => movement.continuesOvernight) };
+  };
 
-  if (driverDaySummaries.length === 0) return <EmptyState />;
+  if (driverDaySummaries.length === 0) return <WorkingEmptyState />;
 
   return (
     <div className="space-y-8">
-      {integrity?.summary?.chronologyErrors > 0 ? <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800">Unresolved chronology conflicts make these working-time results unreliable.</div> : null}
+      <AlertBanner tone="info">Working-time totals are based on the current recorded duty span and do not model breaks or split-duty segments.</AlertBanner>
+      {integrity?.summary?.chronologyErrors > 0 ? <AlertBanner tone="danger"><strong>Results may be unreliable.</strong> Unresolved chronology conflicts affect the recorded duty spans.</AlertBanner> : null}
       {driverGroups.map((group) => (
         <section key={group.driverId} className="min-w-0 max-w-full rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
           <div className="mb-4 border-b border-neutral-100 pb-3">
@@ -108,15 +113,10 @@ export default function WorkingTimeSummary({ movements, drivers, vehicles, sched
           </div>
           <div className="min-w-0 max-w-full overflow-x-auto">
             <table className="min-w-[760px] w-full border-collapse border border-neutral-200 bg-white text-sm shadow-sm">
+              <caption className="sr-only">Working-time rows for {group.driverName}</caption>
               <thead className="bg-neutral-50 text-[10px] uppercase tracking-tighter text-neutral-500">
                 <tr>
-                  <th className="border border-neutral-200 p-3 text-left">Date</th>
-                  <th className="border border-neutral-200 p-3 text-left">Start</th>
-                  <th className="border border-neutral-200 p-3 text-left">End</th>
-                  <th className="border border-neutral-200 p-3 text-left">Duty Time</th>
-                  <th className="border border-neutral-200 p-3 text-left">Overtime After 16:30</th>
-                  <th className="border border-neutral-200 p-3 text-left">Rest Since Previous Duty</th>
-                  <th className="border border-neutral-200 p-3 text-left">Notes</th>
+                  {['Date', 'Start', 'End', 'Duty Time', 'Overtime After 16:30', 'Rest Since Previous Duty', 'Notes'].map((label) => <th key={label} scope="col" className="border border-neutral-200 p-3 text-left">{label}</th>)}
                 </tr>
               </thead>
               <tbody>
@@ -131,7 +131,7 @@ export default function WorkingTimeSummary({ movements, drivers, vehicles, sched
                       <span className={summary.shortRest ? "font-bold text-red-700" : "text-neutral-600"}>{summary.restDuration}</span>
                     </td>
                     <td className="border border-neutral-200 p-3">
-                      <Notes notes={summary.notes} />
+                      <div className="flex flex-wrap gap-1"><Notes notes={summary.notes} /><Badge>{movementMeta(summary.driverId, summary.date).count} movements</Badge>{movementMeta(summary.driverId, summary.date).overnight ? <Badge tone="info">Overnight</Badge> : null}</div>
                     </td>
                   </tr>
                 ))}
@@ -152,14 +152,10 @@ export default function WorkingTimeSummary({ movements, drivers, vehicles, sched
                 </p>
               </div>
               <table className="min-w-[760px] w-full border-collapse border border-neutral-200 bg-white text-sm shadow-sm">
+                <caption className="sr-only">Daily working-time totals for {formatLongDate(group.date)}</caption>
                 <thead className="bg-neutral-50 text-[10px] uppercase tracking-tighter text-neutral-500">
                   <tr>
-                    <th className="border border-neutral-200 p-3 text-left">Driver</th>
-                    <th className="border border-neutral-200 p-3 text-left">Vehicle</th>
-                    <th className="border border-neutral-200 p-3 text-left">Duty Time</th>
-                    <th className="border border-neutral-200 p-3 text-left">Overtime After 16:30</th>
-                    <th className="border border-neutral-200 p-3 text-left">Rest Since Previous Duty</th>
-                    <th className="border border-neutral-200 p-3 text-left">Notes</th>
+                    {['Driver', 'Vehicle', 'Duty Time', 'Overtime After 16:30', 'Rest Since Previous Duty', 'Notes'].map((label) => <th key={label} scope="col" className="border border-neutral-200 p-3 text-left">{label}</th>)}
                   </tr>
                 </thead>
                 <tbody>

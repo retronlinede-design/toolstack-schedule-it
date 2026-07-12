@@ -48,6 +48,7 @@ export default function ExportPanel({ selectedDriverName, hasDrivers, hasBlockin
   const [message, setMessage] = useState("");
   const [isHtmlImportOpen, setIsHtmlImportOpen] = useState(false);
   const [jsonPreparation, setJsonPreparation] = useState(null);
+  const [selectedFileName, setSelectedFileName] = useState("");
 
   async function handleCopy(view) {
     const result = await onCopyHtml(view);
@@ -58,6 +59,7 @@ export default function ExportPanel({ selectedDriverName, hasDrivers, hasBlockin
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    setSelectedFileName(file.name);
 
     const result = await onImportJson(file);
     setJsonPreparation(result);
@@ -76,6 +78,7 @@ export default function ExportPanel({ selectedDriverName, hasDrivers, hasBlockin
         {jsonPreparation?.ok ? (
           <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
             <h3 className="font-bold">Replacement preview — {jsonPreparation.preview.backupType}</h3>
+            <p className="mt-1 break-all">Selected file: {selectedFileName}</p>
             <p className="mt-1">Schema {jsonPreparation.preview.schemaVersion}{jsonPreparation.preview.exportedAt ? ` · Exported ${jsonPreparation.preview.exportedAt}` : ""}</p>
             {jsonPreparation.preview.migrationRequired ? <p className="mt-2 font-semibold">Legacy backup: migration/normalization is required before storage.</p> : null}
             <div className="mt-3 overflow-x-auto">
@@ -89,9 +92,12 @@ export default function ExportPanel({ selectedDriverName, hasDrivers, hasBlockin
           </div>
         ) : null}
 
+        <section aria-labelledby="official-outputs-title">
+          <h3 id="official-outputs-title" className="ts-card-title mb-1">Official programme outputs</h3>
+          <p className="mb-3 text-sm text-[var(--ts-text-muted)]">Print / Save PDF or copy a non-restorable programme document.</p>
         <div className="grid gap-5 lg:grid-cols-2">
           <div>
-            <h3 className="mb-2 text-xs font-black uppercase tracking-widest text-neutral-400">Print</h3>
+            <h4 className="mb-2 text-sm font-semibold text-neutral-700">Print / Save PDF</h4>
             <div className="grid gap-3">
               {printActions.map(([view, label]) => (
                 <PanelButton key={view} icon={Printer} label={label} description="Non-restorable report output for print/PDF." onClick={() => onPrintView(view)} disabled={hasBlockingIssues} />
@@ -107,7 +113,7 @@ export default function ExportPanel({ selectedDriverName, hasDrivers, hasBlockin
           </div>
 
           <div>
-            <h3 className="mb-2 text-xs font-black uppercase tracking-widest text-neutral-400">Copy HTML</h3>
+            <h4 className="mb-2 text-sm font-semibold text-neutral-700">Copy programme · Not restorable</h4>
             <div className="grid gap-3">
               {copyActions.map(([view, label]) => (
                 <PanelButton key={view} icon={Clipboard} label={label} description="Copy non-restorable report HTML." onClick={() => handleCopy(view)} disabled={hasBlockingIssues} />
@@ -122,12 +128,13 @@ export default function ExportPanel({ selectedDriverName, hasDrivers, hasBlockin
             </div>
           </div>
         </div>
+        </section>
 
-        <div className="mt-5 grid gap-3 lg:grid-cols-2">
+        <section className="mt-6" aria-labelledby="restorable-title"><h3 id="restorable-title" className="ts-card-title mb-1">Restorable data</h3><p className="mb-3 text-sm text-[var(--ts-text-muted)]">Verified full backups preserve the complete Schedule-It state.</p><div className="grid gap-3 lg:grid-cols-2">
           <PanelButton icon={FileJson} label="Full Backup — restorable" description="Download a metadata-labelled Schedule-It backup." onClick={onExportJson} />
-          <PanelButton icon={FileUp} label="Select Full Backup" description="Validate and preview a restorable Schedule-It backup." onClick={() => inputRef.current?.click()} />
-          <PanelButton icon={Code} label="Import from HTML" description="Paste schedule HTML and preview parsed rows." onClick={() => setIsHtmlImportOpen(true)} />
-        </div>
+          <PanelButton icon={FileUp} label="Import Full Backup" description="Validate, preview, snapshot, then replace the current schedule." onClick={() => inputRef.current?.click()} />
+        </div></section>
+        <section className="mt-6" aria-labelledby="lossy-title"><h3 id="lossy-title" className="ts-card-title mb-1">Non-restorable imports and reports</h3><p className="mb-3 text-sm text-[var(--ts-text-muted)]">HTML is a lossy import format, not a backup.</p><PanelButton icon={Code} label="HTML import · Lossy import" description="Paste schedule HTML and preview parsed rows before append or replacement." onClick={() => setIsHtmlImportOpen(true)} /></section>
 
         <input ref={inputRef} type="file" accept="application/json,.json" onChange={handleImport} className="hidden" />
           </>

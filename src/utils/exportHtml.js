@@ -509,7 +509,10 @@ function importantInfoCard(item) {
         ${importantInfoDetail("From", item.from)}
         ${importantInfoDetail("To", item.to)}
         ${importantInfoDetail("Distance", item.distance)}
-        ${importantInfoDetail("Estimated Travel Time", item.estimatedTravelTime)}
+          ${importantInfoDetail("Estimated Travel Time", item.estimatedTravelTime)}
+          ${importantInfoDetail("Name", item.name)}
+          ${importantInfoDetail("Phone", item.phone)}
+          ${importantInfoDetail("Email", item.email)}
       </div>
       ${item.address ? `<div class="important-info-address">${escapeHtml(item.address)}</div>` : ""}
       ${item.notes ? `<div class="important-info-notes">${escapeHtml(item.notes)}</div>` : ""}

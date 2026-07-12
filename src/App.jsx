@@ -29,7 +29,8 @@ import { duplicateMovementForSchedule } from "./domain/schedulingMutations";
 import { Button } from "./components/ui/Button";
 import Card from "./components/ui/Card";
 import Badge from "./components/ui/Badge";
-import ModalShell from "./components/ui/ModalShell";
+import PreviewWorkspace from "./components/preview/PreviewWorkspace";
+import IntegrityPanel from "./components/integrity/IntegrityPanel";
 
 function createId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -923,10 +924,10 @@ export default function ScheduleItApp() {
             <Badge>Executive {visibilityCounts.executive}</Badge><Badge>CG {visibilityCounts.cg}</Badge><Badge>Marida {visibilityCounts.marida}</Badge><Badge>Operational {visibilityCounts.operational}</Badge>
             <Badge tone={visibilityCounts.hidden ? "warning" : "neutral"}>Hidden {visibilityCounts.hidden}</Badge>
           </div>
-          <div id="schedule-integrity" className={`ts-alert mt-3 ${integrity.errors.length ? "ts-alert--danger" : "ts-alert--info"}`}>
+          <div className={`ts-alert mt-3 ${integrity.errors.length ? "ts-alert--danger" : "ts-alert--info"}`}>
             <div className="flex flex-wrap items-center justify-between gap-2"><strong>Schedule Integrity</strong><span>{integrity.errors.length} errors · {integrity.warnings.length} warnings</span></div>
             <div className="mt-1 flex flex-wrap gap-x-3 text-xs"><span>Chronology: {integrity.summary.chronologyErrors}</span><span>Driver: {integrity.summary.driverOverlaps}</span><span>Vehicle: {integrity.summary.vehicleOverlaps}</span><span>Handover: {integrity.summary.handoverConflicts}</span><span>Orphans: {integrity.summary.orphanReferences}</span></div>
-            {(integrity.errors.length || integrity.warnings.length) ? <details className="mt-2"><summary className="cursor-pointer font-semibold">Review Schedule Issues</summary><ul className="mt-2 list-disc space-y-1 pl-5 text-xs">{[...integrity.errors, ...integrity.warnings].map((issue, index) => <li key={`${issue.type}-${issue.conflictKey || issue.handoverId || issue.movementIds?.join("-")}-${index}`}><strong>{issue.severity === "error" ? "Conflict" : "Warning"}:</strong> {issue.message}</li>)}</ul></details> : null}
+            <Button variant="ghost" className="mt-2 min-h-9 px-2" onClick={() => document.getElementById("schedule-integrity")?.scrollIntoView({ behavior: "smooth" })}>Review Issues</Button>
           </div>
           <div className="mt-4 flex justify-end">
             <div className="flex flex-col items-end gap-2">
@@ -944,6 +945,8 @@ export default function ScheduleItApp() {
           onDownloadCandidate={() => operationResult?.candidate && downloadJson("schedule-it-candidate-backup.json", createFullBackup(operationResult.candidate))}
         />
 
+        <IntegrityPanel integrity={integrity} onReviewIssue={(issue) => document.getElementById(`movement-${issue.movementIds?.[0]}`)?.focus()} />
+
         {isExportOpen ? (
           <ExportPanel
             onClose={() => setIsExportOpen(false)}
@@ -960,27 +963,7 @@ export default function ScheduleItApp() {
         ) : null}
 
         {isPreviewOpen ? (
-          <ModalShell title="Document Preview" subtitle="Review before printing" onClose={() => setIsPreviewOpen(false)}>
-              <div className="mb-4 flex justify-end"><Button onClick={printPreview} variant="primary"><Printer className="h-4 w-4" /> Print</Button></div>
-              <div className="mb-5 flex flex-wrap gap-2">
-                {documentPreviewTabs.map((tab) => (
-                  <Button
-                    key={tab.id}
-                    onClick={() => setPreviewView(tab.id)}
-                    variant={previewView === tab.id ? "primary" : "secondary"}
-                    className="min-h-10 px-3 py-2 text-xs"
-                  >
-                    {tab.label}
-                  </Button>
-                ))}
-              </div>
-              <iframe
-                ref={previewFrameRef}
-                title={`${previewDocument.title} Preview`}
-                srcDoc={previewSrcDoc}
-                className="h-[70vh] w-full rounded-2xl border border-neutral-100 bg-white"
-              />
-          </ModalShell>
+          <PreviewWorkspace tabs={documentPreviewTabs} selectedView={previewView} onViewChange={setPreviewView} scheduleDays={schedule.scheduleDays} integrity={integrity} selectedDriverName={selectedDriver?.name || ""} documentTitle={previewDocument.title} srcDoc={previewSrcDoc} frameRef={previewFrameRef} onPrint={printPreview} onCopy={handleCopyHtml} onClose={() => setIsPreviewOpen(false)} />
         ) : null}
 
         <div className="grid min-w-0 gap-6 xl:grid-cols-1">

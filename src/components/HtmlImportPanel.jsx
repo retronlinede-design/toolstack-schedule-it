@@ -1,6 +1,9 @@
 import { ArrowLeft, Check, ClipboardPaste } from "lucide-react";
 import { useState } from "react";
 import { parseScheduleHtml } from "../utils/importHtml";
+import AlertBanner from "./ui/AlertBanner";
+import { Button } from "./ui/Button";
+import { Select, Textarea } from "./ui/FormControls";
 
 function AlertList({ title, items, tone }) {
   if (!items.length) return null;
@@ -44,15 +47,15 @@ export default function HtmlImportPanel({ onBack, onApply }) {
           <p className="text-sm text-neutral-500">Paste an exported ScheduleIt table or compatible schedule HTML.</p>
           <p className="mt-1 text-xs font-semibold text-amber-700">HTML import is not a full backup restore.</p>
         </div>
-        <button onClick={onBack} className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-50">
+        <Button onClick={onBack} variant="secondary">
           <ArrowLeft className="h-4 w-4" /> Back
-        </button>
+        </Button>
       </div>
 
-      {message ? <div className="mb-4 rounded-2xl bg-neutral-50 px-4 py-3 text-sm text-neutral-700">{message}</div> : null}
+      {message ? <AlertBanner tone="info" className="mb-4">{message}</AlertBanner> : null}
 
       <div className="grid gap-4">
-        <textarea
+        <Textarea
           value={rawHtml}
           onChange={(event) => setRawHtml(event.target.value)}
           className="min-h-48 min-w-0 w-full max-w-full rounded-2xl border border-neutral-300 bg-white px-3 py-2 font-mono text-xs text-neutral-900 shadow-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200"
@@ -60,24 +63,24 @@ export default function HtmlImportPanel({ onBack, onApply }) {
         />
 
         <div className="flex flex-wrap gap-2">
-          <button onClick={handleParse} className="inline-flex items-center gap-2 rounded-xl bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800">
+          <Button onClick={handleParse} variant="secondary">
             <ClipboardPaste className="h-4 w-4" /> Parse Preview
-          </button>
-          <select
+          </Button>
+          <Select
             value={mode}
             onChange={(event) => setMode(event.target.value)}
             className="rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900"
           >
             <option value="appendNewDay">Append to new schedule day</option>
             <option value="replace">Replace current schedule</option>
-          </select>
-          <button
+          </Select>
+          <Button
             onClick={handleApply}
             disabled={!parseResult || parseResult.errors.length > 0}
-            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            variant={mode === "replace" ? "danger-strong" : "primary"}
           >
             <Check className="h-4 w-4" /> {mode === "replace" ? "Replace Current Schedule" : "Append Imported Day"}
-          </button>
+          </Button>
         </div>
 
         {parseResult ? (

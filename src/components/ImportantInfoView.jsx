@@ -1,3 +1,5 @@
+import EmptyState from "./ui/EmptyState";
+
 const typeOrder = ["Route", "Contact", "Address", "Note"];
 
 function sortedItems(items) {
@@ -29,6 +31,9 @@ function ImportantInfoCard({ item }) {
         <Detail label="To" value={item.to} />
         <Detail label="Distance" value={item.distance} />
         <Detail label="Estimated Travel Time" value={item.estimatedTravelTime} />
+        <Detail label="Name" value={item.name} />
+        <Detail label="Phone" value={item.phone} />
+        <Detail label="Email" value={item.email} />
       </div>
       {item.address ? <div className="mt-3 border-t border-neutral-100 pt-3 text-sm text-neutral-500">{item.address}</div> : null}
       {item.notes ? <div className="mt-3 whitespace-pre-line border-t border-neutral-100 pt-3 text-sm font-semibold text-neutral-900">{item.notes}</div> : null}
@@ -40,11 +45,7 @@ export default function ImportantInfoView({ items = [] }) {
   const sorted = sortedItems(items);
 
   if (sorted.length === 0) {
-    return (
-      <div className="py-12 text-center text-neutral-400 border-2 border-dashed rounded-3xl italic">
-        No important information saved yet.
-      </div>
-    );
+    return <EmptyState title="No important information" description="Route, contact, address, and note items will appear here." />;
   }
 
   return (
