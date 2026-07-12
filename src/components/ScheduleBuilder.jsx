@@ -26,6 +26,11 @@ import { Button } from "./ui/Button";
 import { Input as UiInput, Select as UiSelect, Textarea as UiTextarea } from "./ui/FormControls";
 import Badge from "./ui/Badge";
 import EmptyState from "./ui/EmptyState";
+import DayNavigator from "./builder/DayNavigator";
+import MovementCard from "./builder/MovementCard";
+import HandoverCard from "./builder/HandoverCard";
+import ImportantInfoCard from "./builder/ImportantInfoCard";
+import DisclosureSection from "./builder/DisclosureSection";
 
 function Field({ label, icon: Icon, error, children }) {
   return (
@@ -296,6 +301,7 @@ export default function ScheduleBuilder({
     setEditingMovementId(null);
     setInlineDraft(null);
     setInlineErrors({});
+    window.requestAnimationFrame(() => document.getElementById(`movement-${inlineDraft.id}`)?.focus({ preventScroll: true }));
   }
 
   function cancelInlineEdit() {
@@ -371,13 +377,6 @@ export default function ScheduleBuilder({
     clearHandoverDraft();
   }
 
-  function handoverPosition(note) {
-    return {
-      index: selectedDayHandoverNotes.findIndex((item) => item.id === note.id),
-      count: selectedDayHandoverNotes.length,
-    };
-  }
-
   function updateImportantInfoField(name, value) {
     setImportantInfoDraft((current) => ({
       ...current,
@@ -431,13 +430,6 @@ export default function ScheduleBuilder({
     clearImportantInfoDraft();
   }
 
-  function importantInfoPosition(item) {
-    return {
-      index: sortedImportantInfoItems.findIndex((current) => current.id === item.id),
-      count: sortedImportantInfoItems.length,
-    };
-  }
-
   return (
     <div className="no-print space-y-5">
       <div className="grid gap-5 md:grid-cols-2">
@@ -455,14 +447,14 @@ export default function ScheduleBuilder({
         <SectionCard title="Movement Actions" subtitle="Save, duplicate, or clear the active movement">
           <div className="grid gap-2 sm:grid-cols-2">
             <ActionButton onClick={onSubmit} variant="primary">
-              <Save className="h-4 w-4" /> {draft.id ? "Update Movement" : "Save Movement"}
+              <Save className="h-4 w-4" /> {draft.id ? "Update Movement" : "Add Movement"}
             </ActionButton>
             <ActionButton onClick={onClear}>
-              <Eraser className="h-4 w-4" /> Clear Form
+              <Eraser className="h-4 w-4" /> Reset Draft
             </ActionButton>
             {draft.id ? (
               <ActionButton onClick={onCancelEdit}>
-                <Plus className="h-4 w-4" /> New Movement
+                <X className="h-4 w-4" /> Cancel Edit
               </ActionButton>
             ) : null}
           </div>
@@ -470,6 +462,7 @@ export default function ScheduleBuilder({
       </div>
 
       <SectionCard title="Schedule Day" subtitle="Create, select, duplicate, or update the day being edited">
+        <DayNavigator days={scheduleDays} selectedDayId={draft.scheduleDayId} movements={movements} integrity={integrity} onSelect={onSelectDay} />
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Field label="Select Schedule Day" icon={CalendarDays} error={errors.scheduleDayId}>
             <Select value={draft.scheduleDayId || ""} onChange={(event) => onSelectDay(event.target.value)}>
@@ -505,6 +498,8 @@ export default function ScheduleBuilder({
       </SectionCard>
 
       <SectionCard title="Movement Editor" subtitle="Fields used by Executive, Operational, Driver, and Working Time views">
+        <div className="flex flex-col gap-4">
+        <div className="order-2"><h3 className="mb-3 text-base font-semibold">Assignment</h3>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Field label="Schedule Day ID">
             <Input value={draft.scheduleDayId || ""} readOnly className="border-none bg-neutral-50 font-mono text-xs text-neutral-500" />
@@ -530,12 +525,14 @@ export default function ScheduleBuilder({
             </Select>
           </Field>
         </div>
+        </div>
 
-        <AudienceEditor movement={draft} drivers={drivers} vehicles={vehicles} idPrefix="main" onChange={(audiences) => onChange((current) => ({ ...current, audiences, isExecutiveVisible: audiences.executive, isOperationalVisible: audiences.operational }))} />
-        <label className="flex items-center gap-2 text-sm font-medium text-neutral-700"><input type="checkbox" checked={draft.continuesOvernight === true} onChange={(event) => updateField("continuesOvernight", event.target.checked)} />Continues past midnight</label>
-        <ConflictIssues issues={errors.integrityIssues} movement={draft} onChange={onChange} />
+        <DisclosureSection className="order-4" title="Audience" summary={getAudienceSummary(draft)} forceOpen={Boolean(errors.integrityIssues?.length)}>
+          <AudienceEditor movement={draft} drivers={drivers} vehicles={vehicles} idPrefix="main" onChange={(audiences) => onChange((current) => ({ ...current, audiences, isExecutiveVisible: audiences.executive, isOperationalVisible: audiences.operational }))} />
+        </DisclosureSection>
 
-        <div>
+        <div className="order-3">
+          <h3 className="mb-3 text-base font-semibold">Timing</h3>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Field label="Driver Start" icon={Clock3}>
               <Input type="time" value={draft.driverStart} onChange={(event) => updateField("driverStart", event.target.value)} />
@@ -546,13 +543,22 @@ export default function ScheduleBuilder({
             <Field label="Arrival Time" icon={Clock3}>
               <Input type="time" value={draft.arrivalTime} onChange={(event) => updateField("arrivalTime", event.target.value)} />
             </Field>
+            <Field label="Event Start" icon={Clock3}>
+              <Input type="time" value={draft.eventStartTime} onChange={(event) => updateField("eventStartTime", event.target.value)} />
+            </Field>
+            <Field label="Event End" icon={Clock3}>
+              <Input type="time" value={draft.eventEndTime} onChange={(event) => updateField("eventEndTime", event.target.value)} />
+            </Field>
             <Field label="End Time" icon={Clock3}>
               <Input type="time" value={draft.endTime} onChange={(event) => updateField("endTime", event.target.value)} />
             </Field>
           </div>
+          <label className="mt-3 flex items-center gap-2 text-sm font-medium text-neutral-700"><input type="checkbox" checked={draft.continuesOvernight === true} onChange={(event) => updateField("continuesOvernight", event.target.checked)} />Continues past midnight</label>
           {errors.timing ? <p className="mt-2 text-xs font-medium text-red-600">{errors.timing}</p> : null}
+          <div className="mt-3"><ConflictIssues issues={errors.integrityIssues} movement={draft} onChange={onChange} /></div>
         </div>
 
+        <div className="order-1"><h3 className="mb-3 text-base font-semibold">Core details</h3>
         <div className="grid gap-4 md:grid-cols-2">
           <Field label="Engagement Details" icon={FileText} error={errors.engagementDetails}>
             <Input value={draft.engagementDetails} onChange={(event) => updateField("engagementDetails", event.target.value)} />
@@ -577,26 +583,58 @@ export default function ScheduleBuilder({
           <Field label="Parking" icon={Car}>
             <Input value={draft.parking} onChange={(event) => updateField("parking", event.target.value)} />
           </Field>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-3">
-          <Field label="Location Notes" icon={FileText}>
-            <Textarea value={draft.locationNotes} onChange={(event) => updateField("locationNotes", event.target.value)} />
-          </Field>
           <Field label="Participants" icon={Users}>
             <Textarea value={draft.participants} onChange={(event) => updateField("participants", event.target.value)} />
+          </Field>
+        </div>
+        </div>
+
+        <DisclosureSection className="order-5" title="Operational details" summary={[draft.contactPerson && "Contact added", draft.parking && "Parking added", draft.securityNotes && "Security notes", draft.protocolNotes && "Protocol notes", draft.internalNotes && "Internal notes"].filter(Boolean).join(" · ") || "No additional operational details"}>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <Field label="Contact Person"><Input value={draft.contactPerson || ""} onChange={(event) => updateField("contactPerson", event.target.value)} /></Field>
+          <Field label="Contact Phone"><Input type="tel" value={draft.contactPhone || ""} onChange={(event) => updateField("contactPhone", event.target.value)} /></Field>
+          <Field label="Location Notes" icon={FileText}>
+            <Textarea value={draft.locationNotes} onChange={(event) => updateField("locationNotes", event.target.value)} />
           </Field>
           <Field label="Internal Notes" icon={FileText}>
             <Textarea value={draft.internalNotes} onChange={(event) => updateField("internalNotes", event.target.value)} />
           </Field>
+          <Field label="Security Notes"><Textarea value={draft.securityNotes || ""} onChange={(event) => updateField("securityNotes", event.target.value)} /></Field>
+          <Field label="Protocol Notes"><Textarea value={draft.protocolNotes || ""} onChange={(event) => updateField("protocolNotes", event.target.value)} /></Field>
+          <Field label="Dress Code"><Input value={draft.dressCode || ""} onChange={(event) => updateField("dressCode", event.target.value)} /></Field>
+          <Field label="Documents"><Textarea value={draft.documentsToCarry || ""} onChange={(event) => updateField("documentsToCarry", event.target.value)} /></Field>
+          <Field label="Materials / Gifts"><Textarea value={draft.materialsOrGifts || ""} onChange={(event) => updateField("materialsOrGifts", event.target.value)} /></Field>
+          <Field label="Special Instructions"><Textarea value={draft.specialInstructions || ""} onChange={(event) => updateField("specialInstructions", event.target.value)} /></Field>
+        </div>
+        </DisclosureSection>
         </div>
       </SectionCard>
 
       <SectionCard title="Selected Day Movements" subtitle="Edit, duplicate, or delete saved movements for the selected day">
-        {selectedDayMovements.length === 0 ? (
+        {!draft.scheduleDayId ? (
+          <EmptyState title="No day selected" description="Select or create a programme day before adding movements." />
+        ) : selectedDayMovements.length === 0 ? (
           <EmptyState title="No movements saved" description="Add a movement above to begin this schedule day." />
         ) : (
-          <div className="min-w-0 max-w-full overflow-x-auto">
+          <>
+          <div className="space-y-3">
+            {selectedDayMovements.map((movement, index) => (
+              <MovementCard key={movement.id} movement={movement} index={index} count={selectedDayMovements.length} drivers={drivers} vehicles={vehicles} issues={integrity?.conflictsByMovementId?.[movement.id] || []} editing={editingMovementId === movement.id || draft.id === movement.id} showInlineEditor={editingMovementId === movement.id} onQuickEdit={startInlineEdit} onFullEdit={onEditMovement} onDuplicate={onDuplicateMovement} onMove={onMoveMovement} onDelete={onDeleteMovement}>
+                <div className="space-y-4">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <Field label="Engagement Details" error={inlineErrors.engagementDetails}><Input value={inlineDraft?.engagementDetails || ""} onChange={(event) => updateInlineField("engagementDetails", event.target.value)} /></Field>
+                    <Field label="Driver"><Select value={inlineDraft?.driverId || ""} onChange={(event) => updateInlineDriver(event.target.value)}>{drivers.map((driver) => <option key={driver.id} value={driver.id}>{driver.name}</option>)}</Select></Field>
+                    <Field label="Vehicle"><Select value={inlineDraft?.vehicleId || ""} onChange={(event) => updateInlineField("vehicleId", event.target.value)}>{vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.name}</option>)}</Select></Field>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                    {[["driverStart", "Driver Start"], ["departureTime", "Departure"], ["arrivalTime", "Arrival"], ["eventStartTime", "Event Start"], ["eventEndTime", "Event End"], ["endTime", "Duty End"]].map(([field, label]) => <Field key={field} label={label}><Input type="time" value={inlineDraft?.[field] || ""} onChange={(event) => updateInlineField(field, event.target.value)} /></Field>)}
+                  </div>
+                  <div className="flex flex-wrap justify-end gap-2"><Button onClick={cancelInlineEdit}>Cancel</Button><Button variant="primary" onClick={saveInlineEdit}>Save quick edit</Button></div>
+                </div>
+              </MovementCard>
+            ))}
+          </div>
+          <div className="hidden" aria-hidden="true">
             <table className="min-w-[760px] w-full border-collapse border border-neutral-200 bg-white text-sm">
               <thead className="bg-neutral-50 text-[10px] uppercase tracking-tighter text-neutral-500">
                 <tr>
@@ -771,6 +809,7 @@ export default function ScheduleBuilder({
               </tbody>
             </table>
           </div>
+          </>
         )}
       </SectionCard>
 
@@ -846,78 +885,16 @@ export default function ScheduleBuilder({
           </button>
         </div>
 
-        {selectedDayHandoverNotes.length === 0 ? (
+        {!draft.scheduleDayId ? (
+          <EmptyState title="No day selected" description="Select a programme day to manage vehicle handovers." />
+        ) : selectedDayHandoverNotes.length === 0 ? (
           <EmptyState title="No vehicle handovers" description="Handover and key-location notes for this day will appear here." />
         ) : (
-          <div className="min-w-0 max-w-full overflow-x-auto">
-            <table className="min-w-[1040px] w-full border-collapse border border-neutral-200 bg-white text-sm">
-              <thead className="bg-neutral-50 text-[10px] uppercase tracking-tighter text-neutral-500">
-                <tr>
-                  <th className="border border-neutral-200 p-3 text-left">Time</th>
-                  <th className="border border-neutral-200 p-3 text-left">Vehicle</th>
-                  <th className="border border-neutral-200 p-3 text-left">From Driver</th>
-                  <th className="border border-neutral-200 p-3 text-left">To Driver</th>
-                  <th className="border border-neutral-200 p-3 text-left">Driver Sheet</th>
-                  <th className="border border-neutral-200 p-3 text-left">Location</th>
-                  <th className="border border-neutral-200 p-3 text-left">Instruction</th>
-                  <th className="border border-neutral-200 p-3 text-left">Key Location</th>
-                  <th className="border border-neutral-200 p-3 text-left">Notes</th>
-                  <th className="border border-neutral-200 p-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {selectedDayHandoverNotes.map((note) => {
-                  const position = handoverPosition(note);
-                  return (
-                    <tr key={note.id} className="align-top">
-                      <td className="border border-neutral-200 p-3 font-semibold text-neutral-900">{note.time || "-"}</td>
-                      <td className="border border-neutral-200 p-3 font-semibold text-neutral-900">{getName(vehicles, note.vehicleId)}</td>
-                      <td className="border border-neutral-200 p-3">{note.fromDriverId ? getName(drivers, note.fromDriverId) : "-"}</td>
-                      <td className="border border-neutral-200 p-3">{note.toDriverId ? getName(drivers, note.toDriverId) : "-"}</td>
-                      <td className="border border-neutral-200 p-3">
-                        {Array.isArray(note.visibleToDriverIds) && note.visibleToDriverIds.length > 0
-                          ? note.visibleToDriverIds.map((id) => getName(drivers, id)).join(", ")
-                          : "Operational only"}
-                      </td>
-                      <td className="border border-neutral-200 p-3">{note.location || "-"}</td>
-                      <td className="border border-neutral-200 p-3">{note.instruction || "-"}</td>
-                      <td className="border border-neutral-200 p-3">{note.keyLocation || "-"}</td>
-                      <td className="border border-neutral-200 p-3 whitespace-pre-line">{note.notes || "-"}</td>
-                      <td className="border border-neutral-200 p-3">
-                        <div className="flex justify-end gap-1">
-                          <button onClick={() => editHandover(note)} className="rounded-lg bg-blue-50 p-2 text-blue-600" title="Edit handover">
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => onMoveVehicleHandoverNote(note.id, "up")}
-                            disabled={position.index <= 0}
-                            className="rounded-lg bg-neutral-50 p-2 text-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
-                            title="Move up"
-                          >
-                            <ArrowUp className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => onMoveVehicleHandoverNote(note.id, "down")}
-                            disabled={position.index < 0 || position.index === position.count - 1}
-                            className="rounded-lg bg-neutral-50 p-2 text-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
-                            title="Move down"
-                          >
-                            <ArrowDown className="h-4 w-4" />
-                          </button>
-                          <button onClick={() => onDuplicateVehicleHandoverNote(note)} className="rounded-lg bg-neutral-50 p-2 text-neutral-600" title="Duplicate handover">
-                            <Copy className="h-4 w-4" />
-                          </button>
-                          <button onClick={() => onDeleteVehicleHandoverNote(note.id)} className="rounded-lg bg-red-50 p-2 text-red-600" title="Delete handover">
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <>
+          <div className="space-y-3">
+            {selectedDayHandoverNotes.map((note, index) => <HandoverCard key={note.id} note={note} index={index} count={selectedDayHandoverNotes.length} drivers={drivers} vehicles={vehicles} issues={integrity?.conflictsByHandoverId?.[note.id] || []} onEdit={editHandover} onMove={onMoveVehicleHandoverNote} onDuplicate={onDuplicateVehicleHandoverNote} onDelete={onDeleteVehicleHandoverNote} />)}
           </div>
+          </>
         )}
       </SectionCard>
 
@@ -976,75 +953,11 @@ export default function ScheduleBuilder({
         {sortedImportantInfoItems.length === 0 ? (
           <EmptyState title="No important information" description="Routes, contacts, addresses, and notes will appear here." />
         ) : (
-          <div className="min-w-0 max-w-full overflow-x-auto">
-            <table className="min-w-[1180px] w-full border-collapse border border-neutral-200 bg-white text-sm">
-              <thead className="bg-neutral-50 text-[10px] uppercase tracking-tighter text-neutral-500">
-                <tr>
-                  <th className="border border-neutral-200 p-3 text-left">Type</th>
-                  <th className="border border-neutral-200 p-3 text-left">Title</th>
-                  <th className="border border-neutral-200 p-3 text-left">From</th>
-                  <th className="border border-neutral-200 p-3 text-left">To</th>
-                  <th className="border border-neutral-200 p-3 text-left">Distance</th>
-                  <th className="border border-neutral-200 p-3 text-left">Estimated Travel Time</th>
-                  <th className="border border-neutral-200 p-3 text-left">Name</th>
-                  <th className="border border-neutral-200 p-3 text-left">Phone</th>
-                  <th className="border border-neutral-200 p-3 text-left">Email</th>
-                  <th className="border border-neutral-200 p-3 text-left">Address</th>
-                  <th className="border border-neutral-200 p-3 text-left">Notes</th>
-                  <th className="border border-neutral-200 p-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedImportantInfoItems.map((item) => {
-                  const position = importantInfoPosition(item);
-                  return (
-                    <tr key={item.id} className="align-top">
-                      <td className="border border-neutral-200 p-3 font-black uppercase tracking-wide text-neutral-700">{item.type || "-"}</td>
-                      <td className="border border-neutral-200 p-3 font-semibold text-neutral-900">{item.title || "-"}</td>
-                      <td className="border border-neutral-200 p-3">{item.from || "-"}</td>
-                      <td className="border border-neutral-200 p-3">{item.to || "-"}</td>
-                      <td className="border border-neutral-200 p-3">{item.distance || "-"}</td>
-                      <td className="border border-neutral-200 p-3">{item.estimatedTravelTime || "-"}</td>
-                      <td className="border border-neutral-200 p-3">{item.name || "-"}</td>
-                      <td className="border border-neutral-200 p-3">{item.phone || "-"}</td>
-                      <td className="border border-neutral-200 p-3">{item.email || "-"}</td>
-                      <td className="border border-neutral-200 p-3">{item.address || "-"}</td>
-                      <td className="border border-neutral-200 p-3 whitespace-pre-line">{item.notes || "-"}</td>
-                      <td className="border border-neutral-200 p-3">
-                        <div className="flex justify-end gap-1">
-                          <button onClick={() => editImportantInfoItem(item)} className="rounded-lg bg-blue-50 p-2 text-blue-600" title="Edit important info">
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => onMoveImportantInfoItem(item.id, "up")}
-                            disabled={position.index <= 0}
-                            className="rounded-lg bg-neutral-50 p-2 text-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
-                            title="Move up"
-                          >
-                            <ArrowUp className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => onMoveImportantInfoItem(item.id, "down")}
-                            disabled={position.index < 0 || position.index === position.count - 1}
-                            className="rounded-lg bg-neutral-50 p-2 text-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
-                            title="Move down"
-                          >
-                            <ArrowDown className="h-4 w-4" />
-                          </button>
-                          <button onClick={() => onDuplicateImportantInfoItem(item)} className="rounded-lg bg-neutral-50 p-2 text-neutral-600" title="Duplicate important info">
-                            <Copy className="h-4 w-4" />
-                          </button>
-                          <button onClick={() => onDeleteImportantInfoItem(item.id)} className="rounded-lg bg-red-50 p-2 text-red-600" title="Delete important info">
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <>
+          <div className="space-y-3">
+            {sortedImportantInfoItems.map((item, index) => <ImportantInfoCard key={item.id} item={item} index={index} count={sortedImportantInfoItems.length} onEdit={editImportantInfoItem} onMove={onMoveImportantInfoItem} onDuplicate={onDuplicateImportantInfoItem} onDelete={onDeleteImportantInfoItem} />)}
           </div>
+          </>
         )}
       </SectionCard>
     </div>

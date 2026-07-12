@@ -314,6 +314,7 @@ export default function ScheduleItApp() {
         date: draft.date,
       },
     );
+    window.requestAnimationFrame(() => document.getElementById(`movement-${movement.id}`)?.focus({ preventScroll: true }));
   }
 
   function handleCreateDay() {
