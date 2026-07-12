@@ -77,6 +77,7 @@ function parseOperationalRow(cells, indexes, sortOrder, warnings) {
     isOperationalVisible: true,
     audiences: { executive: true, operational: true, cg: false, marida: false, driverIds: [] },
     continuesOvernight: false,
+    workClassification: "active",
     conflictOverrides: [],
   };
 
@@ -120,6 +121,7 @@ function parseExecutiveRow(cells, indexes, sortOrder, warnings) {
     isOperationalVisible: true,
     audiences: { executive: true, operational: true, cg: false, marida: false, driverIds: [] },
     continuesOvernight: false,
+    workClassification: "active",
     conflictOverrides: [],
   };
 }

@@ -1,4 +1,5 @@
 import { detectHandoverConflicts } from "./handoverConflicts";
+import { calculateWorkingTime } from "./workingTime";
 import { detectResourceConflicts } from "./resourceConflicts";
 import { buildMovementInterval, buildMovementTimeline } from "./timeIntervals";
 
@@ -45,6 +46,7 @@ export function analyzeScheduleIntegrity(schedule) {
   allIssues.push(...detectResourceConflicts(schedule.movements, intervalsById, "driverId", "DRIVER"));
   allIssues.push(...detectResourceConflicts(schedule.movements, intervalsById, "vehicleId", "VEHICLE"));
   allIssues.push(...detectHandoverConflicts(schedule, intervalsById));
+  allIssues.push(...calculateWorkingTime(schedule).warnings.filter((issue) => issue.type === "WORKING_TIME_WARNING"));
 
   const errors = allIssues.filter((issue) => issue.severity === "error");
   const warnings = allIssues.filter((issue) => issue.severity === "warning");

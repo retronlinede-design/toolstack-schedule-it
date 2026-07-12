@@ -1,5 +1,5 @@
 import { calculateWorkingTimeSummary, sortMovementsByDateAndTime } from "./calculations";
-import { formatLongDate } from "./time";
+import { formatLongDate, minutesToDuration } from "./time";
 import { selectMovementsForView } from "../domain/audiences";
 
 const EMPTY = "-";
@@ -379,6 +379,7 @@ function workingTimeTable(schedule) {
     schedule.drivers,
     schedule.vehicles,
     schedule.scheduleDays,
+    schedule.workingTimePolicy,
   );
 
   if (driverDaySummaries.length === 0) return `<p class="empty">No records available for this view.</p>`;
@@ -425,9 +426,9 @@ function workingTimeTable(schedule) {
         cell(formatLongDate(summary.date)),
         cell(summary.startTime, "time-cell"),
         cell(summary.endTime, "time-cell"),
-        cell(summary.totalDuration, "total-cell"),
+        cell(`${summary.totalDuration} (span ${minutesToDuration(summary.totalSpanMinutes)}; active ${minutesToDuration(summary.activeMinutes)}; travel ${minutesToDuration(summary.travelMinutes)}; standby ${minutesToDuration(summary.standbyMinutes)}; breaks ${minutesToDuration(summary.effectiveBreakMinutes)}; segments ${summary.dutySegmentCount})`, "total-cell"),
         cell(summary.overtimeDuration, "total-cell"),
-        cell(summary.restDuration, summary.shortRest ? "short-rest-cell" : ""),
+        cell(summary.restBeforeNextDutyMinutes == null ? "-" : minutesToDuration(summary.restBeforeNextDutyMinutes)),
         cell(summary.notes?.join(", ") || "-"),
       ]);
 
@@ -441,12 +442,12 @@ function workingTimeTable(schedule) {
             <strong>Vehicle: ${escapeHtml(group.vehicleName || EMPTY)}</strong>
           </div>
           <div class="working-driver-summary">
-            <div><span>Total Duty Time</span><strong>${escapeHtml(group.total?.totalDuration || EMPTY)}</strong></div>
-            <div><span>Overtime After 16:30</span><strong>${escapeHtml(group.total?.overtimeDuration || EMPTY)}</strong></div>
+            <div><span>Counted Working Time</span><strong>${escapeHtml(group.total?.totalDuration || EMPTY)}</strong></div>
+            <div><span>Overtime</span><strong>${escapeHtml(group.total?.overtimeDuration || EMPTY)}</strong></div>
             <div class="${Number(group.total?.shortRestCount) > 0 ? "metric-alert" : ""}"><span>Short Rest Count</span><strong>${escapeHtml(group.total?.shortRestCount ?? EMPTY)}</strong></div>
             <div class="${Number(group.total?.shortRestCount) > 0 ? "metric-alert" : ""}"><span>Minimum Rest Period</span><strong>${escapeHtml(group.total?.minimumRestDuration || EMPTY)}</strong></div>
           </div>
-          ${table(["Date", "Start", "End", "Duty Time", "Overtime After 16:30", "Rest Since Previous Duty", "Notes"], dayRows, "summary-table working-driver-breakdown")}
+          ${table(["Date", "Start", "End", "Counted Working Time", "Overtime", "Rest Before Next Duty", "Notes"], dayRows, "summary-table working-driver-breakdown")}
         </section>
       `;
     })
@@ -458,7 +459,7 @@ function workingTimeTable(schedule) {
         cell(summary.vehicleName || EMPTY),
         cell(summary.totalDuration, "total-cell"),
         cell(summary.overtimeDuration, "total-cell"),
-        cell(summary.restDuration, summary.shortRest ? "short-rest-cell" : ""),
+        cell(summary.restBeforeNextDutyMinutes == null ? "-" : minutesToDuration(summary.restBeforeNextDutyMinutes)),
         cell(summary.notes?.join(", ") || "-"),
       ]);
 
@@ -468,7 +469,7 @@ function workingTimeTable(schedule) {
             <h3>${escapeHtml(formatLongDate(group.date) || "Missing date")}</h3>
             <span>${escapeHtml(group.drivers.length)} ${group.drivers.length === 1 ? "driver" : "drivers"}</span>
           </div>
-          ${table(["Driver", "Vehicle", "Duty Time", "Overtime After 16:30", "Rest Since Previous Duty", "Notes"], rows, "summary-table daily-driver-table")}
+          ${table(["Driver", "Vehicle", "Counted Working Time", "Overtime", "Rest Before Next Duty", "Notes"], rows, "summary-table daily-driver-table")}
           <div class="daily-total-summary">
             <div><span>Combined Duty Time</span><strong>${escapeHtml(group.total?.totalDuration || EMPTY)}</strong></div>
             <div><span>Combined Overtime</span><strong>${escapeHtml(group.total?.overtimeDuration || EMPTY)}</strong></div>
@@ -480,6 +481,7 @@ function workingTimeTable(schedule) {
     .join("");
 
   return `
+    <div class="notice"><p>Working-time results are based on recorded movement intervals and the configured policy. Breaks, standby, travel, and split duties are calculated from explicit movement classifications.</p><p><strong>This is an operational planning summary, not a legal compliance determination.</strong></p></div>
     ${driverSections}
     <section class="summary-section daily-totals-wrapper">
       <h3>Daily Totals</h3>

@@ -1,4 +1,5 @@
 import { parseStrictTime } from "../domain/timeIntervals";
+import { WORK_CLASSIFICATIONS, validateWorkingTimePolicy } from "../domain/workingTimePolicy";
 
 export const VALIDATION_LIMITS = {
   maxDepth: 20,
@@ -13,7 +14,7 @@ export const VALIDATION_LIMITS = {
 };
 
 const forbiddenKeys = new Set(["__proto__", "proto", "constructor", "prototype"]);
-const rootKeys = new Set(["version", "profile", "drivers", "vehicles", "scheduleDays", "movements", "vehicleHandoverNotes", "importantInfoItems", "routeNotes"]);
+const rootKeys = new Set(["version", "profile", "drivers", "vehicles", "scheduleDays", "movements", "vehicleHandoverNotes", "importantInfoItems", "routeNotes", "workingTimePolicy"]);
 const profileKeys = new Set(["missionName", "documentTitle"]);
 const driverKeys = new Set(["id", "name", "defaultVehicle"]);
 const vehicleKeys = new Set(["id", "name"]);
@@ -24,7 +25,7 @@ const movementKeys = new Set([
   "internalNotes", "contactPerson", "contactPhone", "securityNotes", "protocolNotes", "dressCode", "documentsToCarry",
   "materialsOrGifts", "specialInstructions", "isExecutiveVisible", "isOperationalVisible",
   "audiences",
-  "continuesOvernight", "conflictOverrides",
+  "continuesOvernight", "conflictOverrides", "workClassification",
 ]);
 const audienceKeys = new Set(["executive", "operational", "cg", "marida", "driverIds"]);
 const overrideKeys = new Set(["conflictKey", "reason", "acknowledgedAt"]);
@@ -104,6 +105,10 @@ export function validateScheduleBackupState(state) {
   if (!plain(state)) return { ok: false, errors: [{ code: "INVALID_SCHEMA", path: "$", message: "Schedule state must be a plain object." }], warnings };
   addUnknownWarnings(state, rootKeys, "$", warnings);
   if (state.version !== 1) errors.push({ code: "UNSUPPORTED_VERSION", path: "version", message: "Only schedule state version 1 is supported." });
+  if (state.workingTimePolicy !== undefined) {
+    const policyResult = validateWorkingTimePolicy(state.workingTimePolicy);
+    policyResult.errors.forEach((message) => errors.push({ code: "INVALID_SCHEMA", path: "workingTimePolicy", message }));
+  }
   if (!plain(state.profile)) errors.push({ code: "INVALID_SCHEMA", path: "profile", message: "Profile must be a plain object." });
   else {
     addUnknownWarnings(state.profile, profileKeys, "profile", warnings);
@@ -143,7 +148,7 @@ export function validateScheduleBackupState(state) {
         if (typeof item[field] === "string" && item[field] && !parseStrictTime(item[field]).ok) errors.push({ code: "INVALID_SCHEMA", path: `${path}.${field}`, message: "Invalid time format." });
       }
     });
-    [...movementKeys].filter((field) => !["id", "scheduleDayId", "sortOrder", "driverId", "vehicleId", "driverStart", "departureTime", "arrivalTime", "endTime", "eventStartTime", "eventEndTime", "isExecutiveVisible", "isOperationalVisible", "audiences", "continuesOvernight", "conflictOverrides"].includes(field))
+    [...movementKeys].filter((field) => !["id", "scheduleDayId", "sortOrder", "driverId", "vehicleId", "driverStart", "departureTime", "arrivalTime", "endTime", "eventStartTime", "eventEndTime", "isExecutiveVisible", "isOperationalVisible", "audiences", "continuesOvernight", "conflictOverrides", "workClassification"].includes(field))
       .forEach((field) => { if (item[field] !== undefined) stringField(item[field], `${path}.${field}`, errors); });
     ["isExecutiveVisible", "isOperationalVisible"].forEach((field) => { if (item[field] !== undefined && typeof item[field] !== "boolean") errors.push({ code: "INVALID_SCHEMA", path: `${path}.${field}`, message: `${field} must be boolean.` }); });
     if (item.audiences !== undefined) {
@@ -167,6 +172,7 @@ export function validateScheduleBackupState(state) {
       }
     }
     if (item.continuesOvernight !== undefined && typeof item.continuesOvernight !== "boolean") errors.push({ code: "INVALID_SCHEMA", path: `${path}.continuesOvernight`, message: "continuesOvernight must be boolean." });
+    if (item.workClassification !== undefined && !WORK_CLASSIFICATIONS.includes(item.workClassification)) errors.push({ code: "INVALID_SCHEMA", path: `${path}.workClassification`, message: "Unsupported work classification." });
     if (item.conflictOverrides !== undefined) {
       if (!Array.isArray(item.conflictOverrides)) errors.push({ code: "INVALID_SCHEMA", path: `${path}.conflictOverrides`, message: "conflictOverrides must be an array." });
       else {

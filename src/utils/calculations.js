@@ -1,4 +1,5 @@
 import { minutesToDuration, parseTimeToMinutes } from "./time";
+import { calculateWorkingTime } from "../domain/workingTime";
 
 const NORMAL_DAY_END_MINUTES = 16 * 60 + 30;
 const MIN_REST_MINUTES = 11 * 60;
@@ -72,7 +73,39 @@ export function sortMovementsByDateAndTime(movements) {
   });
 }
 
-export function calculateWorkingTimeSummary(movements, drivers, vehicles = [], scheduleDays = []) {
+export function calculateWorkingTimeSummary(movements, drivers, vehicles = [], scheduleDays = [], workingTimePolicy) {
+  const result = calculateWorkingTime({ movements, drivers, vehicles, scheduleDays, workingTimePolicy });
+  const driverDaySummaries = result.dailySummaries.map((summary) => ({
+    ...summary,
+    start: summary.dutyStart === null ? null : summary.dutyStart % DAY_MINUTES,
+    end: summary.dutyEnd === null ? null : summary.dutyEnd % DAY_MINUTES,
+    startTime: summary.dutyStartTime,
+    endTime: summary.dutyEndTime,
+    totalMinutes: summary.countedWorkingMinutes,
+    totalDuration: minutesToDuration(summary.countedWorkingMinutes),
+    overtimeDuration: minutesToDuration(summary.overtimeMinutes),
+    dutyStartAbsolute: summary.dutyStart,
+    dutyEndAbsolute: summary.dutyEnd,
+    restDuration: summary.restDuration,
+    notes: summary.warnings,
+    hasValidDate: Boolean(summary.date),
+  }));
+  const dailyTotals = [...driverDaySummaries.reduce((map, summary) => {
+    const total = map.get(summary.date) || { date: summary.date, driverCount: 0, totalMinutes: 0, overtimeMinutes: 0, shortRestCount: 0 };
+    total.driverCount += 1; total.totalMinutes += summary.totalMinutes; total.overtimeMinutes += summary.overtimeMinutes; if (summary.shortRest) total.shortRestCount += 1;
+    map.set(summary.date, total); return map;
+  }, new Map()).values()].map((total) => ({ ...total, totalDuration: minutesToDuration(total.totalMinutes), overtimeDuration: minutesToDuration(total.overtimeMinutes) }));
+  const overallDriverTotals = [...driverDaySummaries.reduce((map, summary) => {
+    const total = map.get(summary.driverId) || { driverId: summary.driverId, driverName: summary.driverName, dayCount: 0, totalMinutes: 0, overtimeMinutes: 0, shortRestCount: 0, minimumRestMinutes: null };
+    total.dayCount += 1; total.totalMinutes += summary.totalMinutes; total.overtimeMinutes += summary.overtimeMinutes; if (summary.shortRest) total.shortRestCount += 1;
+    if (summary.restMinutes !== null) total.minimumRestMinutes = total.minimumRestMinutes === null ? summary.restMinutes : Math.min(total.minimumRestMinutes, summary.restMinutes);
+    map.set(summary.driverId, total); return map;
+  }, new Map()).values()].map((total) => ({ ...total, totalDuration: minutesToDuration(total.totalMinutes), overtimeDuration: minutesToDuration(total.overtimeMinutes), minimumRestDuration: total.minimumRestMinutes === null ? "-" : minutesToDuration(total.minimumRestMinutes) }));
+  return { driverDaySummaries, dailyTotals, overallDriverTotals, warnings: result.warnings, policy: result.policy };
+}
+
+/** @deprecated Compatibility reference only. Runtime working-time output uses calculateWorkingTimeSummary. */
+export function calculateLegacyWorkingTimeSummary(movements, drivers, vehicles = [], scheduleDays = []) {
   const daysById = new Map(scheduleDays.map((day) => [day.id, day]));
   const vehiclesById = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]));
   const driversById = new Map(drivers.map((driver) => [driver.id, driver]));

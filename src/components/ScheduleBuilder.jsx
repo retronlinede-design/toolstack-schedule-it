@@ -554,6 +554,7 @@ export default function ScheduleBuilder({
             </Field>
           </div>
           <label className="mt-3 flex items-center gap-2 text-sm font-medium text-neutral-700"><input type="checkbox" checked={draft.continuesOvernight === true} onChange={(event) => updateField("continuesOvernight", event.target.checked)} />Continues past midnight</label>
+          <div className="mt-3 max-w-sm"><Field label="Working-time classification"><Select value={draft.workClassification || "active"} onChange={(event) => updateField("workClassification", event.target.value)}><option value="active">Active duty</option><option value="travel">Travel / driving</option><option value="standby">Standby</option><option value="break">Break</option><option value="nonWorking">Do not count</option></Select><p className="mt-1 text-xs text-neutral-500">Controls how this recorded interval contributes to working-time totals.</p></Field></div>
           {errors.timing ? <p className="mt-2 text-xs font-medium text-red-600">{errors.timing}</p> : null}
           <div className="mt-3"><ConflictIssues issues={errors.integrityIssues} movement={draft} onChange={onChange} /></div>
         </div>
@@ -629,6 +630,7 @@ export default function ScheduleBuilder({
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                     {[["driverStart", "Driver Start"], ["departureTime", "Departure"], ["arrivalTime", "Arrival"], ["eventStartTime", "Event Start"], ["eventEndTime", "Event End"], ["endTime", "Duty End"]].map(([field, label]) => <Field key={field} label={label}><Input type="time" value={inlineDraft?.[field] || ""} onChange={(event) => updateInlineField(field, event.target.value)} /></Field>)}
                   </div>
+                  <Field label="Working-time classification"><Select value={inlineDraft?.workClassification || "active"} onChange={(event) => updateInlineField("workClassification", event.target.value)}><option value="active">Active duty</option><option value="travel">Travel / driving</option><option value="standby">Standby</option><option value="break">Break</option><option value="nonWorking">Do not count</option></Select></Field>
                   <div className="flex flex-wrap justify-end gap-2"><Button onClick={cancelInlineEdit}>Cancel</Button><Button variant="primary" onClick={saveInlineEdit}>Save quick edit</Button></div>
                 </div>
               </MovementCard>

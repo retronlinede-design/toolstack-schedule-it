@@ -972,6 +972,8 @@ export default function ScheduleItApp() {
             drivers={schedule.drivers}
             vehicles={schedule.vehicles}
             scheduleDays={schedule.scheduleDays}
+            workingTimePolicy={schedule.workingTimePolicy}
+            onWorkingTimePolicyChange={(workingTimePolicy) => setSchedule((current) => ({ ...current, workingTimePolicy }))}
             movements={schedule.movements}
             vehicleHandoverNotes={schedule.vehicleHandoverNotes || []}
             importantInfoItems={schedule.importantInfoItems || []}

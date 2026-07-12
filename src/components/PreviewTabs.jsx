@@ -35,6 +35,8 @@ export default function PreviewTabs({
   drivers,
   vehicles,
   scheduleDays,
+  workingTimePolicy,
+  onWorkingTimePolicyChange,
   selectedDriverId,
   onSelectedDriverChange,
   onEdit,
@@ -90,7 +92,7 @@ export default function PreviewTabs({
           />
         ) : null}
         {activeTab === "summary" ? (
-          <WorkingTimeSummary movements={movements} drivers={drivers} vehicles={vehicles} scheduleDays={scheduleDays} integrity={integrity} />
+          <WorkingTimeSummary movements={movements} drivers={drivers} vehicles={vehicles} scheduleDays={scheduleDays} integrity={integrity} workingTimePolicy={workingTimePolicy} onWorkingTimePolicyChange={onWorkingTimePolicyChange} />
         ) : null}
         {activeTab === "importantInfo" ? <ImportantInfoView items={importantInfoItems} /> : null}
       </SectionCard>

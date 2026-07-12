@@ -37,6 +37,7 @@ export const emptyDraft = {
   audiences: { ...DEFAULT_MOVEMENT_AUDIENCES, driverIds: [] },
   continuesOvernight: false,
   conflictOverrides: [],
+  workClassification: "active",
 };
 
 export function createScheduleDayFromDraft(draft, existingDay) {
@@ -71,6 +72,7 @@ export function createMovementFromDraft(draft, scheduleDayId) {
     audiences,
     continuesOvernight: draft.continuesOvernight === true,
     conflictOverrides: Array.isArray(draft.conflictOverrides) ? draft.conflictOverrides : [],
+    workClassification: draft.workClassification || "active",
     eventStartTime: draft.eventStartTime ?? "",
     eventEndTime: draft.eventEndTime ?? "",
     contactPerson: draft.contactPerson || "",
@@ -122,5 +124,6 @@ export function createDraftFromMovement(movement, day, profile) {
     audiences,
     continuesOvernight: movement.continuesOvernight === true,
     conflictOverrides: Array.isArray(movement.conflictOverrides) ? movement.conflictOverrides : [],
+    workClassification: movement.workClassification || "active",
   };
 }

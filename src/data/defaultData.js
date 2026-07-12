@@ -29,6 +29,16 @@ export const defaultProfile = {
   documentTitle: "Programme",
 };
 
+export const defaultWorkingTimePolicy = {
+  standardDailyMinutes: 480,
+  shortRestThresholdMinutes: 660,
+  shortTurnaroundMinutes: 15,
+  standbyCountsAsWorkingTime: true,
+  travelCountsAsWorkingTime: true,
+  breakCountsAsWorkingTime: false,
+  splitDutyGapThresholdMinutes: 120,
+};
+
 const demoOperationalAudiences = { executive: false, operational: true, cg: false, marida: false, driverIds: [] };
 const demoExecutiveAudiences = { executive: true, operational: true, cg: false, marida: false, driverIds: [] };
 
@@ -42,6 +52,7 @@ export const defaultScheduleState = {
   vehicleHandoverNotes: [],
   importantInfoItems: [],
   routeNotes: [],
+  workingTimePolicy: defaultWorkingTimePolicy,
 };
 
 export function createMondayDemoState() {
@@ -82,6 +93,7 @@ export function createMondayDemoState() {
         isOperationalVisible: true,
         audiences: demoOperationalAudiences,
         continuesOvernight: false,
+        workClassification: "active",
         conflictOverrides: [],
       },
       {
@@ -105,6 +117,7 @@ export function createMondayDemoState() {
         isOperationalVisible: true,
         audiences: demoExecutiveAudiences,
         continuesOvernight: false,
+        workClassification: "active",
         conflictOverrides: [],
       },
       {
@@ -128,6 +141,7 @@ export function createMondayDemoState() {
         isOperationalVisible: true,
         audiences: demoExecutiveAudiences,
         continuesOvernight: false,
+        workClassification: "active",
         conflictOverrides: [],
       },
       {
@@ -151,6 +165,7 @@ export function createMondayDemoState() {
         isOperationalVisible: true,
         audiences: demoExecutiveAudiences,
         continuesOvernight: false,
+        workClassification: "active",
         conflictOverrides: [],
       },
       {
@@ -174,6 +189,7 @@ export function createMondayDemoState() {
         isOperationalVisible: true,
         audiences: demoExecutiveAudiences,
         continuesOvernight: false,
+        workClassification: "active",
         conflictOverrides: [],
       },
       {
@@ -197,6 +213,7 @@ export function createMondayDemoState() {
         isOperationalVisible: true,
         audiences: demoOperationalAudiences,
         continuesOvernight: false,
+        workClassification: "active",
         conflictOverrides: [],
       },
     ],

@@ -2,6 +2,7 @@ import { defaultScheduleState } from "../data/defaultData";
 import { parseTimeToMinutes } from "../utils/time";
 import { migrateRouteNotesToImportantInfo } from "./routeMigration";
 import { withNormalizedAudiences } from "../domain/audiences";
+import { normalizeWorkClassification, normalizeWorkingTimePolicy } from "../domain/workingTimePolicy";
 
 function fallbackTime(movement) {
   return parseTimeToMinutes(movement.driverStart || movement.departureTime || movement.arrivalTime || movement.endTime) ?? Number.MAX_SAFE_INTEGER;
@@ -31,6 +32,7 @@ export function normalizeState(state) {
     ...defaultScheduleState,
     ...state,
     profile: { ...defaultScheduleState.profile, ...state?.profile },
+    workingTimePolicy: normalizeWorkingTimePolicy(state?.workingTimePolicy),
     drivers,
     vehicles: Array.isArray(state?.vehicles) ? state.vehicles : defaultScheduleState.vehicles,
     scheduleDays,
@@ -38,6 +40,7 @@ export function normalizeState(state) {
       ...withNormalizedAudiences(movement, drivers.map((driver) => driver.id)),
       continuesOvernight: movement.continuesOvernight === true,
       conflictOverrides: Array.isArray(movement.conflictOverrides) ? movement.conflictOverrides : [],
+      workClassification: normalizeWorkClassification(movement.workClassification),
     })),
     vehicleHandoverNotes: (Array.isArray(state?.vehicleHandoverNotes) ? state.vehicleHandoverNotes : []).map((note) => ({
       ...note,
