@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, Play, Printer } from "lucide-react";
+import { Download, Printer, Wrench } from "lucide-react";
 import ExportPanel from "./components/ExportPanel";
 import PersistenceStatus from "./components/PersistenceStatus";
 import OperationResult from "./components/OperationResult";
 import PreviewTabs from "./components/PreviewTabs";
 import ScheduleBuilder from "./components/ScheduleBuilder";
 import StorageGate from "./components/StorageGate";
-import { createMondayDemoState, defaultProfile, defaultScheduleState } from "./data/defaultData";
+import { defaultProfile, defaultScheduleState } from "./data/defaultData";
 import {
   createDraftFromMovement,
   createMovementFromDraft,
@@ -31,6 +31,7 @@ import Card from "./components/ui/Card";
 import Badge from "./components/ui/Badge";
 import PreviewWorkspace from "./components/preview/PreviewWorkspace";
 import IntegrityPanel from "./components/integrity/IntegrityPanel";
+import ToolsWorkspace from "./components/tools/ToolsWorkspace";
 
 function createId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -110,6 +111,7 @@ export default function ScheduleItApp() {
   const [validationErrors, setValidationErrors] = useState({});
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
+  const [isToolsOpen, setIsToolsOpen] = useState(false);
   const [previewView, setPreviewView] = useState("executive");
   const [selectedDriverId, setSelectedDriverId] = useState(() => startup.ok ? startup.value.drivers[0]?.id || "" : "");
   const [persistence, setPersistence] = useState(() => ({
@@ -792,14 +794,6 @@ export default function ScheduleItApp() {
     performReplacement(nextSchedule, "clear", "Schedule data cleared. Drivers and vehicles were retained.");
   }
 
-  function handleLoadMondayDemo() {
-    if (!window.confirm("Replace with Demo Schedule? A verified snapshot of the current schedule will be retained.")) return;
-
-    const nextSchedule = createMondayDemoState();
-    const result = performReplacement(nextSchedule, "demo", "Demo schedule loaded.", nextSchedule.scheduleDays[0]);
-    if (result.ok) setSelectedDriverId("driver-greg");
-  }
-
   function handleExportJson() {
     downloadJson(fullBackupFilename(), createFullBackup(schedule));
   }
@@ -899,11 +893,8 @@ export default function ScheduleItApp() {
               </p>
             </div>
             <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-              <Button
-                onClick={handleLoadMondayDemo}
-                variant="secondary"
-              >
-                <Play className="h-4 w-4" /> Load Monday Demo
+              <Button onClick={() => setIsToolsOpen(true)} variant="secondary">
+                <Wrench className="h-4 w-4" /> Tools
               </Button>
               <Button
                 onClick={() => setIsPreviewOpen(true)}
@@ -966,14 +957,20 @@ export default function ScheduleItApp() {
           <PreviewWorkspace tabs={documentPreviewTabs} selectedView={previewView} onViewChange={setPreviewView} scheduleDays={schedule.scheduleDays} integrity={integrity} selectedDriverName={selectedDriver?.name || ""} documentTitle={previewDocument.title} srcDoc={previewSrcDoc} frameRef={previewFrameRef} onPrint={printPreview} onCopy={handleCopyHtml} onClose={() => setIsPreviewOpen(false)} />
         ) : null}
 
+        {isToolsOpen ? <ToolsWorkspace
+          onClose={() => setIsToolsOpen(false)}
+          importantInfoCount={(schedule.importantInfoItems || []).length}
+          handoverCount={(schedule.vehicleHandoverNotes || []).length}
+          handoverConflictCount={Object.values(integrity.conflictsByHandoverId).filter((issues) => issues.some((issue) => issue.severity === "error")).length}
+          builderProps={{ draft, drivers: schedule.drivers, vehicles: schedule.vehicles, scheduleDays: schedule.scheduleDays, movements: schedule.movements, vehicleHandoverNotes: schedule.vehicleHandoverNotes || [], importantInfoItems: schedule.importantInfoItems || [], integrity, errors: validationErrors, onChange: updateDraft, onSubmit: handleSubmit, onCancelEdit: () => resetDraft(), onClear: () => resetDraft(schedule.profile, schedule.scheduleDays.find((day) => day.id === draft.scheduleDayId)), onCreateDay: handleCreateDay, onSelectDay: handleSelectDay, onUpdateDay: handleUpdateDay, onDuplicateDay: handleDuplicateDay, onEditMovement: handleEdit, onUpdateMovement: handleUpdateMovement, onDuplicateMovement: handleDuplicateMovement, onMoveMovement: handleMoveMovement, onDeleteMovement: handleDelete, onSaveVehicleHandoverNote: handleSaveVehicleHandoverNote, onDuplicateVehicleHandoverNote: handleDuplicateVehicleHandoverNote, onMoveVehicleHandoverNote: handleMoveVehicleHandoverNote, onDeleteVehicleHandoverNote: handleDeleteVehicleHandoverNote, onSaveImportantInfoItem: handleSaveImportantInfoItem, onDuplicateImportantInfoItem: handleDuplicateImportantInfoItem, onMoveImportantInfoItem: handleMoveImportantInfoItem, onDeleteImportantInfoItem: handleDeleteImportantInfoItem }}
+        /> : null}
+
         <div className="grid min-w-0 gap-6 xl:grid-cols-1">
           <ScheduleBuilder
             draft={draft}
             drivers={schedule.drivers}
             vehicles={schedule.vehicles}
             scheduleDays={schedule.scheduleDays}
-            workingTimePolicy={schedule.workingTimePolicy}
-            onWorkingTimePolicyChange={(workingTimePolicy) => setSchedule((current) => ({ ...current, workingTimePolicy }))}
             movements={schedule.movements}
             vehicleHandoverNotes={schedule.vehicleHandoverNotes || []}
             importantInfoItems={schedule.importantInfoItems || []}
@@ -1011,6 +1008,8 @@ export default function ScheduleItApp() {
             drivers={schedule.drivers}
             vehicles={schedule.vehicles}
             scheduleDays={schedule.scheduleDays}
+            workingTimePolicy={schedule.workingTimePolicy}
+            onWorkingTimePolicyChange={(workingTimePolicy) => setSchedule((current) => ({ ...current, workingTimePolicy }))}
             selectedDriverId={selectedDriver?.id || ""}
             onSelectedDriverChange={setSelectedDriverId}
             onEdit={handleEdit}

@@ -16,7 +16,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { sortMovementsByDateAndTime } from "../utils/calculations";
 import { getWeekday } from "../utils/time";
 import { AUDIENCE_PRESETS, applyAudiencePreset, getAudienceBadges, getAudienceSummary, getAudienceWarnings, normalizeMovementAudiences } from "../domain/audiences";
@@ -142,6 +142,8 @@ function ConflictIssues({ issues = [], movement, onChange }) {
 }
 
 export default function ScheduleBuilder({
+  mode = "builder",
+  onToolDirtyChange,
   draft,
   drivers,
   vehicles,
@@ -219,6 +221,11 @@ export default function ScheduleBuilder({
   const selectedDayHandoverNotes = [...vehicleHandoverNotes]
     .filter((note) => note.scheduleDayId === draft.scheduleDayId)
     .sort((a, b) => (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER));
+  const handoverDirty = Boolean(handoverDraft.id || handoverDraft.fromDriverId || handoverDraft.toDriverId || handoverDraft.visibleToDriverIds.length || handoverDraft.location || handoverDraft.instruction || handoverDraft.keyLocation || handoverDraft.time || handoverDraft.notes);
+  const importantInfoDirty = Boolean(importantInfoDraft.id || importantInfoDraft.title || importantInfoDraft.from || importantInfoDraft.to || importantInfoDraft.distance || importantInfoDraft.estimatedTravelTime || importantInfoDraft.name || importantInfoDraft.phone || importantInfoDraft.email || importantInfoDraft.address || importantInfoDraft.notes);
+  useEffect(() => {
+    onToolDirtyChange?.(mode === "handover" ? handoverDirty : mode === "importantInfo" ? importantInfoDirty : false);
+  }, [handoverDirty, importantInfoDirty, mode, onToolDirtyChange]);
 
   function updateField(name, value) {
     onChange((current) => ({
@@ -432,6 +439,7 @@ export default function ScheduleBuilder({
 
   return (
     <div className="no-print space-y-5">
+      {mode === "builder" ? <>
       <div className="grid gap-5 md:grid-cols-2">
         <SectionCard title="Profile Details" subtitle="Details on the mission">
           <div className="space-y-4">
@@ -815,7 +823,10 @@ export default function ScheduleBuilder({
         )}
       </SectionCard>
 
-      <SectionCard title="Selected Day Vehicle Handover / Car Location" subtitle="Manual vehicle location, handover, and key instructions for drivers">
+      </> : null}
+
+      {mode === "handover" ? <SectionCard title="Vehicle Handover" subtitle="Manage vehicle transfers, keys, instructions, and driver visibility">
+        <div className="max-w-md"><Field label="Schedule Day" error={handoverErrors.scheduleDayId}><Select value={draft.scheduleDayId || ""} onChange={(event) => { onSelectDay(event.target.value); updateHandoverField("scheduleDayId", event.target.value); }}><option value="">Select a day...</option>{scheduleDays.map((day) => <option key={day.id} value={day.id}>{day.date} · {day.title}</option>)}</Select></Field></div>
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
           <Field label="Vehicle" error={handoverErrors.vehicleId}>
             <Select value={handoverDraft.vehicleId || draft.vehicleId || ""} onChange={(event) => updateHandoverField("vehicleId", event.target.value)}>
@@ -898,9 +909,9 @@ export default function ScheduleBuilder({
           </div>
           </>
         )}
-      </SectionCard>
+      </SectionCard> : null}
 
-      <SectionCard title="Important Info" subtitle="Mission routes, contacts, addresses, phone numbers, and notes for the separate info document">
+      {mode === "importantInfo" ? <SectionCard title="Important Information" subtitle="Manage routes, contacts, addresses, and programme notes">
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-6">
           <Field label="Type" error={importantInfoErrors.type}>
             <Select value={importantInfoDraft.type} onChange={(event) => updateImportantInfoField("type", event.target.value)}>
@@ -961,7 +972,7 @@ export default function ScheduleBuilder({
           </div>
           </>
         )}
-      </SectionCard>
+      </SectionCard> : null}
     </div>
   );
 }
