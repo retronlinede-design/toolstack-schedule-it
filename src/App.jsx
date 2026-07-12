@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, Play, Printer, X } from "lucide-react";
 import ExportPanel from "./components/ExportPanel";
+import PersistenceStatus from "./components/PersistenceStatus";
+import OperationResult from "./components/OperationResult";
 import PreviewTabs from "./components/PreviewTabs";
 import ScheduleBuilder from "./components/ScheduleBuilder";
-import { createMondayDemoState, defaultProfile } from "./data/defaultData";
+import StorageGate from "./components/StorageGate";
+import { createMondayDemoState, defaultProfile, defaultScheduleState } from "./data/defaultData";
 import {
   createDraftFromMovement,
   createMovementFromDraft,
@@ -12,8 +15,14 @@ import {
 } from "./data/schema";
 import { getEntriesByMonth, sortMovementsByDateAndTime } from "./utils/calculations";
 import { getExportDocument } from "./utils/exportHtml";
-import { downloadJson, loadScheduleState, normalizeState, saveScheduleState, validateScheduleState } from "./utils/storage";
+import { downloadJson, initializeScheduleStorage, normalizeState, saveScheduleState } from "./utils/storage";
 import { getWeekday } from "./utils/time";
+import { shouldWarnBeforeUnload } from "./storage/persistence";
+import { createFullBackup, fullBackupFilename } from "./import/backupSchema";
+import { prepareBackupImport } from "./import/prepareBackup";
+import { replaceScheduleTransaction, rollbackScheduleTransaction } from "./import/importTransaction";
+import { buildHtmlImportCandidate } from "./import/htmlCandidate";
+import { createClearCandidate } from "./import/operationCandidates";
 
 function createId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -57,10 +66,6 @@ function nextVehicleHandoverSortOrder(vehicleHandoverNotes, scheduleDayId) {
   return orders.length === 0 ? 10 : Math.max(...orders) + 10;
 }
 
-function nameKey(value) {
-  return (value || "").trim().toLowerCase();
-}
-
 function preserveClearedTimeFields(updatedMovement, previousMovement) {
   return {
     ...updatedMovement,
@@ -83,33 +88,157 @@ const documentPreviewTabs = [
   { id: "importantInfo", label: "Important Info" },
 ];
 
+let cachedStartupResult;
+function getInitialStorageResult() {
+  if (!cachedStartupResult) cachedStartupResult = initializeScheduleStorage();
+  return cachedStartupResult;
+}
+
 export default function ScheduleItApp() {
   const previewFrameRef = useRef(null);
-  const [schedule, setSchedule] = useState(() => loadScheduleState());
-  const [draft, setDraft] = useState(() => createInitialDraft(loadScheduleState().profile));
+  const [startup, setStartup] = useState(getInitialStorageResult);
+  const [schedule, setSchedule] = useState(() => startup.ok ? startup.value : null);
+  const [draft, setDraft] = useState(() => createInitialDraft(startup.ok ? startup.value.profile : defaultProfile));
   const [validationErrors, setValidationErrors] = useState({});
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [previewView, setPreviewView] = useState("executive");
-  const [selectedDriverId, setSelectedDriverId] = useState(() => loadScheduleState().drivers[0]?.id || "");
+  const [selectedDriverId, setSelectedDriverId] = useState(() => startup.ok ? startup.value.drivers[0]?.id || "" : "");
+  const [persistence, setPersistence] = useState(() => ({
+    status: startup.ok && !startup.needsInitialSave ? "saved" : "initializing",
+    persistedRevision: 0,
+    currentRevision: 0,
+    savedAt: startup.savedAt || null,
+  }));
+  const revisionRef = useRef(0);
+  const firstPersistenceEffect = useRef(true);
+  const saveTimerRef = useRef(null);
+  const latestScheduleRef = useRef(schedule);
+  const volatileRef = useRef(false);
+  const skipNextPersistenceRef = useRef(false);
+  const [operationResult, setOperationResult] = useState(null);
 
   useEffect(() => {
-    saveScheduleState(schedule);
-  }, [schedule]);
+    latestScheduleRef.current = schedule;
+    if (!schedule || volatileRef.current) return undefined;
+    if (skipNextPersistenceRef.current) {
+      skipNextPersistenceRef.current = false;
+      return undefined;
+    }
+    const isInitial = firstPersistenceEffect.current;
+    firstPersistenceEffect.current = false;
+    if (isInitial && !startup.needsInitialSave) return undefined;
 
+    revisionRef.current += 1;
+    const revision = revisionRef.current;
+    setPersistence((current) => ({ ...current, status: "saving", currentRevision: revision }));
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = window.setTimeout(() => {
+      const result = saveScheduleState(latestScheduleRef.current);
+      if (revision !== revisionRef.current) return;
+      setPersistence((current) => result.ok
+        ? { status: "saved", currentRevision: revision, persistedRevision: revision, savedAt: result.savedAt, error: null }
+        : { status: "failed", currentRevision: revision, persistedRevision: current.persistedRevision, error: result });
+    }, 250);
+    return () => clearTimeout(saveTimerRef.current);
+  }, [schedule, startup.needsInitialSave]);
+
+  useEffect(() => {
+    function warnBeforeUnload(event) {
+      if (shouldWarnBeforeUnload(persistence.status)) {
+        event.preventDefault();
+        event.returnValue = "";
+      }
+    }
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [persistence.status]);
+
+  function applyStartupResult(result) {
+    setStartup(result);
+    if (!result.ok) return;
+    cachedStartupResult = result;
+    volatileRef.current = false;
+    firstPersistenceEffect.current = true;
+    revisionRef.current = 0;
+    setSchedule(result.value);
+    setSelectedDriverId(result.value.drivers[0]?.id || "");
+    setDraft(createInitialDraft(result.value.profile));
+    setPersistence({ status: result.needsInitialSave ? "initializing" : "saved", currentRevision: 0, persistedRevision: 0, savedAt: result.savedAt || null });
+  }
+
+  function retryStartup() {
+    applyStartupResult(initializeScheduleStorage());
+  }
+
+  function useVolatileState(value) {
+    volatileRef.current = true;
+    const normalized = normalizeState(value);
+    setStartup({ ok: true, status: "volatile", value: normalized });
+    setSchedule(normalized);
+    setDraft(createInitialDraft(normalized.profile));
+    setSelectedDriverId(normalized.drivers[0]?.id || "");
+    setPersistence({ status: "unavailable", currentRevision: 0, persistedRevision: null, error: startup });
+  }
+
+  function retrySave() {
+    if (!latestScheduleRef.current || volatileRef.current) return;
+    const revision = revisionRef.current;
+    setPersistence((current) => ({ ...current, status: "saving" }));
+    const result = saveScheduleState(latestScheduleRef.current);
+    setPersistence(result.ok
+      ? { status: "saved", currentRevision: revision, persistedRevision: revision, savedAt: result.savedAt, error: null }
+      : { status: "failed", currentRevision: revision, persistedRevision: persistence.persistedRevision, error: result });
+  }
+
+  function applyTransactionalState(result, message, targetDay) {
+    skipNextPersistenceRef.current = true;
+    latestScheduleRef.current = result.storedState;
+    setSchedule(result.storedState);
+    const firstDay = targetDay || result.storedState.scheduleDays[0];
+    const nextDriverId = result.storedState.drivers.some((driver) => driver.id === selectedDriverId) ? selectedDriverId : result.storedState.drivers[0]?.id || "";
+    setSelectedDriverId(nextDriverId);
+    resetDraft(result.storedState.profile, firstDay);
+    setPersistence((current) => ({ ...current, status: "saved", savedAt: new Date().toISOString(), error: null }));
+    setOperationResult({ ok: true, snapshotKey: result.snapshotKey, message, operationType: result.operationType });
+  }
+
+  function performReplacement(candidate, operationType, message, targetDay) {
+    const result = replaceScheduleTransaction({ currentState: schedule, candidateState: candidate, operationType });
+    if (!result.ok) {
+      setOperationResult({ ...result, ok: false, candidate, message: "Replacement failed. The current React state was retained.", retry: () => performReplacement(candidate, operationType, message, targetDay) });
+      return result;
+    }
+    applyTransactionalState(result, message, targetDay);
+    return result;
+  }
+
+  function handleRollback() {
+    if (!operationResult?.snapshotKey) return;
+    const result = rollbackScheduleTransaction({ snapshotKey: operationResult.snapshotKey, currentState: schedule });
+    if (!result.ok) {
+      setOperationResult({ ...result, ok: false, message: "Rollback failed. Both retained snapshots were left intact." });
+      return;
+    }
+    applyTransactionalState(result, "Previous schedule restored.");
+  }
+
+  const activeSchedule = schedule || defaultScheduleState;
   const entriesByMonth = useMemo(
-    () => getEntriesByMonth(schedule.scheduleDays, schedule.movements),
-    [schedule.scheduleDays, schedule.movements],
+    () => getEntriesByMonth(activeSchedule.scheduleDays, activeSchedule.movements),
+    [activeSchedule.scheduleDays, activeSchedule.movements],
   );
-  const selectedDriver = schedule.drivers.find((driver) => driver.id === selectedDriverId) || schedule.drivers[0];
+  const selectedDriver = activeSchedule.drivers.find((driver) => driver.id === selectedDriverId) || activeSchedule.drivers[0];
   const previewDocument = useMemo(
-    () => getExportDocument(schedule, previewView, { selectedDriverId: selectedDriver?.id }),
-    [schedule, previewView, selectedDriver?.id],
+    () => getExportDocument(activeSchedule, previewView, { selectedDriverId: selectedDriver?.id }),
+    [activeSchedule, previewView, selectedDriver?.id],
   );
   const previewSrcDoc = useMemo(
     () => `<!doctype html><html><head><meta charset="utf-8"><title>${previewDocument.title}</title><style>${previewDocument.styles}</style></head><body>${previewDocument.bodyHtml}</body></html>`,
     [previewDocument],
   );
+
+  if (!schedule) return <StorageGate startup={startup} onRetry={retryStartup} onResolved={applyStartupResult} onVolatile={useVolatileState} />;
 
   function updateDraft(nextDraft) {
     setDraft((current) => {
@@ -667,32 +796,23 @@ export default function ScheduleItApp() {
   }
 
   function handleResetAll() {
-    if (!window.confirm("Clear the current schedule and reset all fields?")) return;
+    const counts = `${schedule.scheduleDays.length} days, ${schedule.movements.length} movements, ${(schedule.vehicleHandoverNotes || []).length} handovers, and ${(schedule.importantInfoItems || []).length} information items`;
+    if (!window.confirm(`Clear Schedule Data? This will clear ${counts}. Profile resets to its existing default behavior; drivers and vehicles are retained.`)) return;
 
-    const nextSchedule = {
-      ...schedule,
-      profile: defaultProfile,
-      scheduleDays: [],
-      movements: [],
-      vehicleHandoverNotes: [],
-      importantInfoItems: [],
-      routeNotes: [],
-    };
-    setSchedule(nextSchedule);
-    resetDraft(nextSchedule.profile);
+    const nextSchedule = createClearCandidate(schedule);
+    performReplacement(nextSchedule, "clear", "Schedule data cleared. Drivers and vehicles were retained.");
   }
 
   function handleLoadMondayDemo() {
-    if (!window.confirm("Load the Monday demo schedule? This will replace the current schedule data.")) return;
+    if (!window.confirm("Replace with Demo Schedule? A verified snapshot of the current schedule will be retained.")) return;
 
     const nextSchedule = createMondayDemoState();
-    setSchedule(nextSchedule);
-    setSelectedDriverId("driver-greg");
-    resetDraft(nextSchedule.profile, nextSchedule.scheduleDays[0]);
+    const result = performReplacement(nextSchedule, "demo", "Demo schedule loaded.", nextSchedule.scheduleDays[0]);
+    if (result.ok) setSelectedDriverId("driver-greg");
   }
 
   function handleExportJson() {
-    downloadJson("mission-schedule-backup.json", schedule);
+    downloadJson(fullBackupFilename(), createFullBackup(schedule));
   }
 
   function printHtmlDocument(html) {
@@ -727,109 +847,37 @@ export default function ScheduleItApp() {
   }
 
   async function handleImportJson(file) {
-    let parsed;
-    try {
-      parsed = JSON.parse(await file.text());
-    } catch {
-      return "Import failed: invalid JSON file.";
-    }
+    if (file.size > 10 * 1024 * 1024) return { ok: false, code: "FILE_TOO_LARGE", message: "The backup exceeds the 10 MiB limit." };
+    return prepareBackupImport({ raw: await file.text(), size: file.size, currentState: schedule });
+  }
 
-    if (!validateScheduleState(parsed)) {
-      return "Import failed: file is not a valid ScheduleIt export.";
-    }
-
-    if (!window.confirm("Importing this file will replace the current ScheduleIt data. Continue?")) {
-      return "Import cancelled.";
-    }
-
-    const nextSchedule = normalizeState(parsed);
-    const firstDay = nextSchedule.scheduleDays[0];
-    const nextDriverId = nextSchedule.drivers.some((driver) => driver.id === selectedDriverId)
-      ? selectedDriverId
-      : nextSchedule.drivers[0]?.id || "";
-
-    setSchedule(nextSchedule);
-    setSelectedDriverId(nextDriverId);
-    setPreviewView("executive");
-    setIsPreviewOpen(false);
+  async function handleReplaceJson(prepared) {
+    if (!prepared?.ok) return "Backup preparation is invalid.";
+    if (prepared.preview.requiresEmptyConfirmation && !window.confirm("The imported schedule is empty while the current schedule contains data. Replace it anyway?")) return "Replacement cancelled.";
+    if (!window.confirm("Replace Current Schedule with this validated backup? A verified pre-import snapshot will be retained.")) return "Replacement cancelled.";
+    const result = performReplacement(prepared.candidate, "import", "Backup restored successfully.");
     setIsExportOpen(false);
-    resetDraft(nextSchedule.profile, firstDay);
-    return "Import complete. Current schedule data was replaced.";
+    if (!result.ok) return `${result.errorCode}: replacement failed.`;
+    setPreviewView("executive");
+    return "Backup restored. Rollback is available from the operation panel.";
   }
 
   function handleApplyHtmlImport(result, mode) {
     if (!result || result.errors?.length) return "Resolve parser errors before applying import.";
-    if (mode === "replace" && !window.confirm("Replace the current schedule with imported HTML data?")) {
+    if (mode === "replace" && !window.confirm("Replace Current Schedule using lossy HTML data? A verified snapshot will be retained.")) {
       return "HTML import cancelled.";
     }
-
-    const targetDay = {
-      id: createId("day"),
-      date: result.scheduleDayDraft.date || "",
-      title: result.scheduleDayDraft.title || "Imported HTML Schedule",
-    };
-    let nextSelectedDriverId = selectedDriver?.id || "";
-
-    setSchedule((current) => {
-      const vehicles = [...current.vehicles];
-      const drivers = [...current.drivers];
-      const vehicleByName = new Map(vehicles.map((vehicle) => [nameKey(vehicle.name), vehicle]));
-      const driverByName = new Map(drivers.map((driver) => [nameKey(driver.name), driver]));
-
-      result.vehiclesToAdd.forEach((vehicleName) => {
-        if (!vehicleByName.has(nameKey(vehicleName))) {
-          const vehicle = { id: createId("vehicle"), name: vehicleName };
-          vehicles.push(vehicle);
-          vehicleByName.set(nameKey(vehicleName), vehicle);
-        }
-      });
-
-      result.driversToAdd.forEach((driverName) => {
-        if (!driverByName.has(nameKey(driverName))) {
-          const firstVehicleName = result.movements.find((movement) => nameKey(movement.driverName) === nameKey(driverName))?.vehicleName;
-          const defaultVehicle = vehicleByName.get(nameKey(firstVehicleName))?.id || vehicles[0]?.id || "";
-          const driver = { id: createId("driver"), name: driverName, defaultVehicle };
-          drivers.push(driver);
-          driverByName.set(nameKey(driverName), driver);
-        }
-      });
-
-      const importedMovements = result.movements.map((movement, index) => {
-        const driver = driverByName.get(nameKey(movement.driverName)) || drivers[0];
-        const vehicle =
-          vehicleByName.get(nameKey(movement.vehicleName)) ||
-          vehicles.find((item) => item.id === driver?.defaultVehicle) ||
-          vehicles[0];
-        const movementFields = { ...movement };
-        delete movementFields.driverName;
-        delete movementFields.vehicleName;
-        if (!nextSelectedDriverId && driver?.id) nextSelectedDriverId = driver.id;
-
-        return {
-          ...movementFields,
-          id: createId("movement"),
-          scheduleDayId: targetDay.id,
-          sortOrder: (index + 1) * 10,
-          driverId: driver?.id || "",
-          vehicleId: vehicle?.id || "",
-        };
-      });
-
-      return {
-        ...current,
-        drivers,
-        vehicles,
-        scheduleDays: mode === "replace" ? [targetDay] : [...current.scheduleDays, targetDay],
-        movements: mode === "replace" ? importedMovements : [...current.movements, ...importedMovements],
-        vehicleHandoverNotes: mode === "replace" ? [] : current.vehicleHandoverNotes || [],
-        importantInfoItems: current.importantInfoItems || [],
-        routeNotes: current.routeNotes || [],
-      };
-    });
-
-    setSelectedDriverId(nextSelectedDriverId);
-    resetDraft(schedule.profile, targetDay);
-    return mode === "replace" ? "HTML import applied. Current schedule was replaced." : "HTML import applied to a new schedule day.";
+    const built = buildHtmlImportCandidate(schedule, result, mode);
+    if (!built.ok) return `${built.code}: ${built.message}`;
+    if (built.duplicate) return "This HTML import was already appended; no duplicate rows were added.";
+    if (mode === "replace") {
+      const transaction = performReplacement(built.candidate, "html-import", "HTML replacement completed.", built.targetDay);
+      setIsExportOpen(false);
+      return transaction.ok ? "HTML replacement completed. Rollback is available." : `${transaction.errorCode}: HTML replacement failed.`;
+    }
+    setSchedule(built.candidate);
+    resetDraft(schedule.profile, built.targetDay);
+    return "HTML import appended to a new schedule day.";
   }
 
   function printPreview() {
@@ -878,11 +926,20 @@ export default function ScheduleItApp() {
             </div>
           </div>
           <div className="mt-4 flex justify-end">
-            <button onClick={handleResetAll} className="text-xs text-neutral-400 hover:text-red-500 transition underline">
-              Clear All Data
-            </button>
+            <div className="flex flex-col items-end gap-2">
+              <PersistenceStatus persistence={persistence} onRetry={retrySave} onExport={handleExportJson} />
+              <button onClick={handleResetAll} className="text-xs text-neutral-400 hover:text-red-500 transition underline">Clear All Data</button>
+            </div>
           </div>
         </div>
+
+        <OperationResult
+          result={operationResult}
+          onRollback={handleRollback}
+          onRetry={operationResult?.retry}
+          onDownloadCurrent={handleExportJson}
+          onDownloadCandidate={() => operationResult?.candidate && downloadJson("schedule-it-candidate-backup.json", createFullBackup(operationResult.candidate))}
+        />
 
         {isExportOpen ? (
           <ExportPanel
@@ -893,6 +950,7 @@ export default function ScheduleItApp() {
             onCopyHtml={handleCopyHtml}
             onExportJson={handleExportJson}
             onImportJson={handleImportJson}
+            onReplaceJson={handleReplaceJson}
             onApplyHtmlImport={handleApplyHtmlImport}
           />
         ) : null}

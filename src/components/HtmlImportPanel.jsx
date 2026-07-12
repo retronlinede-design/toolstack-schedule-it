@@ -42,6 +42,7 @@ export default function HtmlImportPanel({ onBack, onApply }) {
         <div>
           <h2 className="text-xl font-semibold text-neutral-900">Import from HTML</h2>
           <p className="text-sm text-neutral-500">Paste an exported ScheduleIt table or compatible schedule HTML.</p>
+          <p className="mt-1 text-xs font-semibold text-amber-700">HTML import is not a full backup restore.</p>
         </div>
         <button onClick={onBack} className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-50">
           <ArrowLeft className="h-4 w-4" /> Back
@@ -75,7 +76,7 @@ export default function HtmlImportPanel({ onBack, onApply }) {
             disabled={!parseResult || parseResult.errors.length > 0}
             className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <Check className="h-4 w-4" /> Apply Import
+            <Check className="h-4 w-4" /> {mode === "replace" ? "Replace Current Schedule" : "Append Imported Day"}
           </button>
         </div>
 

@@ -1,174 +1,47 @@
 import { defaultScheduleState, STORAGE_KEY } from "../data/defaultData";
-import { createMovementFromDraft, createScheduleDayFromDraft, emptyDraft } from "../data/schema";
-import { parseTimeToMinutes } from "./time";
+import { migrateLegacyTransaction } from "../storage/migration";
+import { verifiedWriteSchedule } from "../storage/persistence";
+import { preserveRawRecovery } from "../storage/recovery";
+import { readStorageKey } from "../storage/storage";
+import { normalizeState, validateScheduleState } from "../storage/state";
 
-const APP_KEY = `${STORAGE_KEY}.app_v1`;
-const LEGACY_FORM_KEY = `${STORAGE_KEY}.form_v2`;
-const LEGACY_ENTRIES_KEY = `${STORAGE_KEY}.entries_v2`;
+export { normalizeState, validateScheduleState } from "../storage/state";
 
-function readJson(key) {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : null;
-  } catch (error) {
-    console.error(`Error reading ${key}`, error);
-    return null;
+export const APP_KEY = `${STORAGE_KEY}.app_v1`;
+export const LEGACY_FORM_KEY = `${STORAGE_KEY}.form_v2`;
+export const LEGACY_ENTRIES_KEY = `${STORAGE_KEY}.entries_v2`;
+export const MIGRATION_PENDING_KEY = `${APP_KEY}.migration-pending`;
+
+export function initializeScheduleStorage(storage = globalThis.localStorage) {
+  const primary = readStorageKey(storage, APP_KEY);
+  if (!primary.ok && primary.status === "unavailable") return { ok: false, status: "unavailable", error: primary.error };
+  if (!primary.ok && primary.status === "corrupt") {
+    const recovery = preserveRawRecovery(storage, APP_KEY, primary.raw);
+    return { ok: false, status: "recovery-required", raw: primary.raw, error: primary.error, recovery };
   }
-}
-
-function fallbackTime(movement) {
-  return parseTimeToMinutes(movement.driverStart || movement.departureTime || movement.arrivalTime || movement.endTime) ?? Number.MAX_SAFE_INTEGER;
-}
-
-function withSortOrders(scheduleDays, movements) {
-  const daysById = new Map(scheduleDays.map((day) => [day.id, day]));
-  const grouped = movements.reduce((acc, movement) => {
-    const key = movement.scheduleDayId || "unscheduled";
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(movement);
-    return acc;
-  }, {});
-
-  return Object.values(grouped).flatMap((dayMovements) =>
-    [...dayMovements]
-      .sort((a, b) => {
-        const dateCompare = (daysById.get(a.scheduleDayId)?.date || "").localeCompare(daysById.get(b.scheduleDayId)?.date || "");
-        if (dateCompare !== 0) return dateCompare;
-
-        const aHasSortOrder = Number.isFinite(a.sortOrder);
-        const bHasSortOrder = Number.isFinite(b.sortOrder);
-        if (aHasSortOrder && bHasSortOrder && a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
-
-        return fallbackTime(a) - fallbackTime(b);
-      })
-      .map((movement, index) => ({
-        ...movement,
-        sortOrder: (index + 1) * 10,
-      })),
-  );
-}
-
-function contextNoteForRoute(route, scheduleDays, drivers) {
-  const day = scheduleDays.find((item) => item.id === route.scheduleDayId);
-  const driver = drivers.find((item) => item.id === route.driverId);
-  const context = [day?.title || day?.date, driver?.name].filter(Boolean).join(" / ");
-  return context ? `Imported from legacy route note: ${context}` : "Imported from legacy route note.";
-}
-
-function migrateRouteNotesToImportantInfo(routeNotes, scheduleDays, drivers) {
-  return routeNotes.map((route, index) => {
-    const contextNote = contextNoteForRoute(route, scheduleDays, drivers);
-    const existingNotes = route.notes || "";
-
-    return {
-      id: route.id ? `info-${route.id}` : `info-route-${index + 1}`,
-      type: "Route",
-      title: route.from && route.to ? `${route.from} to ${route.to}` : route.from || route.to || "Route",
-      from: route.from || "",
-      to: route.to || "",
-      distance: route.distance || "",
-      estimatedTravelTime: route.estimatedTravelTime || "",
-      name: "",
-      phone: "",
-      email: "",
-      address: "",
-      notes: [contextNote, existingNotes].filter(Boolean).join("\n"),
-      sortOrder: Number.isFinite(route.sortOrder) ? route.sortOrder : (index + 1) * 10,
-    };
-  });
-}
-
-function normalizeVehicleHandoverNotes(notes) {
-  return notes.map((note) => ({
-    ...note,
-    visibleToDriverIds: Array.isArray(note.visibleToDriverIds)
-      ? note.visibleToDriverIds
-      : [note.fromDriverId, note.toDriverId].filter(Boolean),
-  }));
-}
-
-export function normalizeState(state) {
-  const scheduleDays = state?.scheduleDays || [];
-  const movements = withSortOrders(scheduleDays, state?.movements || []);
-  const routeNotes = Array.isArray(state?.routeNotes) ? state.routeNotes : [];
-  const drivers = state?.drivers?.length ? state.drivers : defaultScheduleState.drivers;
-  const importantInfoItems = Array.isArray(state?.importantInfoItems)
-    ? state.importantInfoItems
-    : migrateRouteNotesToImportantInfo(routeNotes, scheduleDays, drivers);
-  const vehicleHandoverNotes = normalizeVehicleHandoverNotes(Array.isArray(state?.vehicleHandoverNotes) ? state.vehicleHandoverNotes : []);
-
-  return {
-    ...defaultScheduleState,
-    ...state,
-    profile: {
-      ...defaultScheduleState.profile,
-      ...state?.profile,
-    },
-    drivers,
-    vehicles: state?.vehicles?.length ? state.vehicles : defaultScheduleState.vehicles,
-    scheduleDays,
-    movements,
-    vehicleHandoverNotes,
-    importantInfoItems,
-    routeNotes,
-  };
-}
-
-export function validateScheduleState(value) {
-  return Boolean(
-    value &&
-      typeof value === "object" &&
-      value.profile &&
-      typeof value.profile === "object" &&
-      Array.isArray(value.drivers) &&
-      Array.isArray(value.vehicles) &&
-      Array.isArray(value.scheduleDays) &&
-      Array.isArray(value.movements),
-  );
-}
-
-function migrateLegacyState() {
-  const legacyForm = readJson(LEGACY_FORM_KEY);
-  const legacyEntries = readJson(LEGACY_ENTRIES_KEY);
-  const entries = Array.isArray(legacyEntries) ? legacyEntries : [];
-
-  if (!legacyForm && entries.length === 0) {
-    return defaultScheduleState;
+  if (primary.status === "found") {
+    if (!validateScheduleState(primary.value)) {
+      const recovery = preserveRawRecovery(storage, APP_KEY, primary.raw);
+      return { ok: false, status: "recovery-required", raw: primary.raw, error: new Error("Primary data is not a valid Schedule-It state."), recovery };
+    }
+    const pending = readStorageKey(storage, MIGRATION_PENDING_KEY);
+    if (!pending.ok) return { ok: false, status: "migration-failed", code: "MIGRATION_MARKER_UNAVAILABLE", message: "Migration completion could not be determined.", error: pending.error };
+    if (pending.status === "missing") return { ok: true, status: "found", value: normalizeState(primary.value), raw: primary.raw };
   }
 
-  const profile = {
-    missionName: legacyForm?.missionName || defaultScheduleState.profile.missionName,
-    documentTitle: legacyForm?.documentTitle || defaultScheduleState.profile.documentTitle,
-  };
-
-  const scheduleDays = [];
-  const movements = [];
-
-  entries.forEach((entry) => {
-    const draft = { ...emptyDraft, ...entry };
-    const existingDay = scheduleDays.find((day) => day.date === draft.date);
-    const day = createScheduleDayFromDraft(draft, existingDay);
-
-    if (!existingDay) scheduleDays.push(day);
-    movements.push(createMovementFromDraft(draft, day.id));
-  });
-
-  return normalizeState({
-    profile,
-    scheduleDays,
-    movements,
-  });
+  const migration = migrateLegacyTransaction({ storage, primaryKey: APP_KEY, formKey: LEGACY_FORM_KEY, entriesKey: LEGACY_ENTRIES_KEY, pendingKey: MIGRATION_PENDING_KEY });
+  if (!migration.ok) return migration;
+  if (migration.status === "migrated") return { ok: true, status: "migrated", value: migration.value, migration, savedAt: migration.savedAt };
+  return { ok: true, status: "new", value: normalizeState(defaultScheduleState), needsInitialSave: true };
 }
 
-export function loadScheduleState() {
-  const savedState = readJson(APP_KEY);
-  if (savedState) return normalizeState(savedState);
-
-  return migrateLegacyState();
+export function saveScheduleState(state, storage = globalThis.localStorage) {
+  return verifiedWriteSchedule(storage, APP_KEY, state);
 }
 
-export function saveScheduleState(state) {
-  localStorage.setItem(APP_KEY, JSON.stringify(normalizeState(state)));
+export function loadScheduleState(storage = globalThis.localStorage) {
+  const result = initializeScheduleStorage(storage);
+  return result.ok ? result.value : null;
 }
 
 export function downloadJson(filename, data) {

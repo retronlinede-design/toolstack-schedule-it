@@ -40,10 +40,11 @@ function PanelButton({ icon, label, description, onClick, disabled = false }) {
   );
 }
 
-export default function ExportPanel({ selectedDriverName, hasDrivers, onClose, onPrintView, onCopyHtml, onExportJson, onImportJson, onApplyHtmlImport }) {
+export default function ExportPanel({ selectedDriverName, hasDrivers, onClose, onPrintView, onCopyHtml, onExportJson, onImportJson, onReplaceJson, onApplyHtmlImport }) {
   const inputRef = useRef(null);
   const [message, setMessage] = useState("");
   const [isHtmlImportOpen, setIsHtmlImportOpen] = useState(false);
+  const [jsonPreparation, setJsonPreparation] = useState(null);
 
   async function handleCopy(view) {
     const result = await onCopyHtml(view);
@@ -56,7 +57,8 @@ export default function ExportPanel({ selectedDriverName, hasDrivers, onClose, o
     if (!file) return;
 
     const result = await onImportJson(file);
-    setMessage(result);
+    setJsonPreparation(result);
+    setMessage(result.ok ? "Backup validated. Review replacement consequences below." : `${result.code}: ${result.message}`);
   }
 
   return (
@@ -75,17 +77,33 @@ export default function ExportPanel({ selectedDriverName, hasDrivers, onClose, o
 
         {message ? <div className="mb-4 rounded-2xl bg-neutral-50 px-4 py-3 text-sm text-neutral-700">{message}</div> : null}
 
+        {jsonPreparation?.ok ? (
+          <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+            <h3 className="font-bold">Replacement preview — {jsonPreparation.preview.backupType}</h3>
+            <p className="mt-1">Schema {jsonPreparation.preview.schemaVersion}{jsonPreparation.preview.exportedAt ? ` · Exported ${jsonPreparation.preview.exportedAt}` : ""}</p>
+            {jsonPreparation.preview.migrationRequired ? <p className="mt-2 font-semibold">Legacy backup: migration/normalization is required before storage.</p> : null}
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full min-w-[520px] text-left text-xs"><thead><tr><th>Records</th><th>Current</th><th>Imported</th></tr></thead><tbody>
+                {Object.keys(jsonPreparation.preview.current).map((key) => <tr key={key}><td className="py-1">{key}</td><td>{jsonPreparation.preview.current[key]}</td><td>{jsonPreparation.preview.imported[key]}</td></tr>)}
+              </tbody></table>
+            </div>
+            {jsonPreparation.preview.warnings.length ? <ul className="mt-3 list-disc pl-5">{jsonPreparation.preview.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul> : null}
+            <p className="mt-3 font-semibold">All current schedule data will be replaced.</p>
+            <button onClick={async () => setMessage(await onReplaceJson(jsonPreparation))} className="mt-3 rounded-xl bg-red-700 px-4 py-2 font-semibold text-white">Replace Current Schedule</button>
+          </div>
+        ) : null}
+
         <div className="grid gap-5 lg:grid-cols-2">
           <div>
             <h3 className="mb-2 text-xs font-black uppercase tracking-widest text-neutral-400">Print</h3>
             <div className="grid gap-3">
               {printActions.map(([view, label]) => (
-                <PanelButton key={view} icon={Printer} label={label} description="Open browser print for PDF output." onClick={() => onPrintView(view)} />
+                <PanelButton key={view} icon={Printer} label={label} description="Non-restorable report output for print/PDF." onClick={() => onPrintView(view)} />
               ))}
               <PanelButton
                 icon={Printer}
                 label={hasDrivers ? `Print Driver View: ${selectedDriverName}` : "Print Driver View"}
-                description={hasDrivers ? "Open browser print for the selected driver." : "No drivers available."}
+                description={hasDrivers ? "Non-restorable selected-driver report." : "No drivers available."}
                 onClick={() => onPrintView("driver")}
                 disabled={!hasDrivers}
               />
@@ -96,7 +114,7 @@ export default function ExportPanel({ selectedDriverName, hasDrivers, onClose, o
             <h3 className="mb-2 text-xs font-black uppercase tracking-widest text-neutral-400">Copy HTML</h3>
             <div className="grid gap-3">
               {copyActions.map(([view, label]) => (
-                <PanelButton key={view} icon={Clipboard} label={label} description="Copy a standalone HTML table." onClick={() => handleCopy(view)} />
+                <PanelButton key={view} icon={Clipboard} label={label} description="Copy non-restorable report HTML." onClick={() => handleCopy(view)} />
               ))}
               <PanelButton
                 icon={Clipboard}
@@ -110,8 +128,8 @@ export default function ExportPanel({ selectedDriverName, hasDrivers, onClose, o
         </div>
 
         <div className="mt-5 grid gap-3 lg:grid-cols-2">
-          <PanelButton icon={FileJson} label="Export Full JSON" description="Download the complete ScheduleIt state." onClick={onExportJson} />
-          <PanelButton icon={FileUp} label="Import Full JSON" description="Restore a previously exported ScheduleIt file." onClick={() => inputRef.current?.click()} />
+          <PanelButton icon={FileJson} label="Full Backup — restorable" description="Download a metadata-labelled Schedule-It backup." onClick={onExportJson} />
+          <PanelButton icon={FileUp} label="Select Full Backup" description="Validate and preview a restorable Schedule-It backup." onClick={() => inputRef.current?.click()} />
           <PanelButton icon={Code} label="Import from HTML" description="Paste schedule HTML and preview parsed rows." onClick={() => setIsHtmlImportOpen(true)} />
         </div>
 
