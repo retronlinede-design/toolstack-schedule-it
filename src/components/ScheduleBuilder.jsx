@@ -20,69 +20,52 @@ import { useState } from "react";
 import { sortMovementsByDateAndTime } from "../utils/calculations";
 import { getWeekday } from "../utils/time";
 import { AUDIENCE_PRESETS, applyAudiencePreset, getAudienceBadges, getAudienceSummary, getAudienceWarnings, normalizeMovementAudiences } from "../domain/audiences";
+import Card from "./ui/Card";
+import SectionHeader from "./ui/SectionHeader";
+import { Button } from "./ui/Button";
+import { Input as UiInput, Select as UiSelect, Textarea as UiTextarea } from "./ui/FormControls";
+import Badge from "./ui/Badge";
+import EmptyState from "./ui/EmptyState";
 
 function Field({ label, icon: Icon, error, children }) {
   return (
-    <label className="block">
-      <div className="mb-2 flex items-center gap-2 text-sm text-neutral-900">
+    <label className="ts-label">
+      <div className="ts-label-text">
         {Icon ? <Icon className="h-4 w-4" /> : null}
         <span>{label}</span>
       </div>
       {children}
-      {error ? <p className="mt-2 text-xs font-medium text-red-600">{error}</p> : null}
+      {error ? <p className="ts-field-error">{error}</p> : null}
     </label>
   );
 }
 
 function Input(props) {
-  return (
-    <input
-      {...props}
-      className={`min-w-0 w-full max-w-full rounded-2xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200 ${props.className || ""}`}
-    />
-  );
+  return <UiInput {...props} />;
 }
 
 function Textarea(props) {
-  return (
-    <textarea
-      {...props}
-      className={`min-h-[88px] min-w-0 w-full max-w-full rounded-2xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200 ${props.className || ""}`}
-    />
-  );
+  return <UiTextarea {...props} />;
 }
 
 function Select(props) {
-  return (
-    <select
-      {...props}
-      className={`min-w-0 w-full max-w-full rounded-2xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200 ${props.className || ""}`}
-    />
-  );
+  return <UiSelect {...props} />;
 }
 
 function SectionCard({ title, subtitle, children }) {
   return (
-    <section className="min-w-0 w-full max-w-full rounded-3xl bg-white p-4 shadow-sm md:p-5">
-      <div className="mb-3">
-        <h2 className="text-xl font-semibold text-neutral-900">{title}</h2>
-        {subtitle ? <p className="mt-1 text-sm text-neutral-700">{subtitle}</p> : null}
-      </div>
+    <Card className="w-full p-4 md:p-5">
+      <SectionHeader title={title} description={subtitle} />
       <div className="space-y-4">{children}</div>
-    </section>
+    </Card>
   );
 }
 
 function ActionButton({ children, onClick, variant = "secondary" }) {
-  const styles =
-    variant === "primary"
-      ? "bg-blue-600 text-white hover:bg-blue-700"
-      : "border border-neutral-300 bg-white text-neutral-900 hover:bg-neutral-50";
-
   return (
-    <button onClick={onClick} className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium shadow-sm transition ${styles}`}>
+    <Button onClick={onClick} variant={variant === "primary" ? "primary" : "secondary"}>
       {children}
-    </button>
+    </Button>
   );
 }
 
@@ -104,11 +87,11 @@ function AudienceEditor({ movement, drivers, vehicles, onChange, idPrefix }) {
   const toggleDriver = (driverId, checked) => update({ ...audiences, driverIds: checked ? [...audiences.driverIds, driverId] : audiences.driverIds.filter((id) => id !== driverId) });
 
   return (
-    <fieldset className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4" aria-describedby={warnings.length ? warningId : undefined}>
+    <fieldset className="ts-fieldset" aria-describedby={warnings.length ? warningId : undefined}>
       <legend className="px-2 text-sm font-semibold text-neutral-900">Audience</legend>
       <div className="mb-3 flex flex-wrap gap-2">
         {Object.entries(AUDIENCE_PRESETS).map(([id, preset]) => (
-          <button key={id} type="button" onClick={() => update(applyAudiencePreset(audiences, id))} className="rounded-lg border border-neutral-300 bg-white px-2 py-1 text-xs font-medium text-neutral-700">{preset.label}</button>
+            <Button key={id} onClick={() => update(applyAudiencePreset(audiences, id))} className="min-h-0 px-2 py-1 text-xs">{preset.label}</Button>
         ))}
       </div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -141,7 +124,7 @@ function ConflictIssues({ issues = [], movement, onChange }) {
     onChange({ ...movement, conflictOverrides: [...existing, { conflictKey: issue.conflictKey, reason, acknowledgedAt: new Date().toISOString() }] });
   }
   return (
-    <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-900" role="alert">
+    <div className="ts-alert ts-alert--danger" role="alert">
       <strong>Review movement conflicts</strong>
       <ul className="mt-2 space-y-3">
         {issues.map((issue, index) => {
@@ -611,9 +594,7 @@ export default function ScheduleBuilder({
 
       <SectionCard title="Selected Day Movements" subtitle="Edit, duplicate, or delete saved movements for the selected day">
         {selectedDayMovements.length === 0 ? (
-          <div className="rounded-3xl border-2 border-dashed py-8 text-center text-sm italic text-neutral-400">
-            No movements saved for this day yet.
-          </div>
+          <EmptyState title="No movements saved" description="Add a movement above to begin this schedule day." />
         ) : (
           <div className="min-w-0 max-w-full overflow-x-auto">
             <table className="min-w-[760px] w-full border-collapse border border-neutral-200 bg-white text-sm">
@@ -724,12 +705,12 @@ export default function ScheduleBuilder({
                           </td>
                           <td className="border border-neutral-200 p-3 text-neutral-900">
                             <div>{movement.engagementDetails || "-"}</div>
-                            <div className="mt-1 flex flex-wrap gap-1" aria-label={getAudienceSummary(movement)}>{getAudienceBadges(movement).map((badge) => <span key={badge} className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-semibold text-neutral-600">{badge}</span>)}</div>
+                            <div className="mt-1 flex flex-wrap gap-1" aria-label={getAudienceSummary(movement)}>{getAudienceBadges(movement).map((badge) => <Badge key={badge}>{badge}</Badge>)}</div>
                             <div className="mt-1 flex flex-wrap gap-1" aria-label="Schedule integrity indicators">
-                              {movementIssues.some((issue) => issue.severity === "error") ? <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">Conflict</span> : null}
-                              {movementIssues.some((issue) => issue.severity === "warning") ? <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">Warning</span> : null}
-                              {movement.continuesOvernight ? <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">Overnight</span> : null}
-                              {(movement.conflictOverrides || []).length ? <span className="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold text-purple-700">Override</span> : null}
+                              {movementIssues.some((issue) => issue.severity === "error") ? <Badge tone="danger">Conflict</Badge> : null}
+                              {movementIssues.some((issue) => issue.severity === "warning") ? <Badge tone="warning">Warning</Badge> : null}
+                              {movement.continuesOvernight ? <Badge tone="info">Overnight</Badge> : null}
+                              {(movement.conflictOverrides || []).length ? <Badge tone="accent">Override</Badge> : null}
                             </div>
                           </td>
                           <td className="border border-neutral-200 p-3 text-neutral-700">{movement.venue || movement.address || "-"}</td>
@@ -866,9 +847,7 @@ export default function ScheduleBuilder({
         </div>
 
         {selectedDayHandoverNotes.length === 0 ? (
-          <div className="rounded-3xl border-2 border-dashed py-8 text-center text-sm italic text-neutral-400">
-            No vehicle handover notes saved for this day yet.
-          </div>
+          <EmptyState title="No vehicle handovers" description="Handover and key-location notes for this day will appear here." />
         ) : (
           <div className="min-w-0 max-w-full overflow-x-auto">
             <table className="min-w-[1040px] w-full border-collapse border border-neutral-200 bg-white text-sm">
@@ -995,9 +974,7 @@ export default function ScheduleBuilder({
         </div>
 
         {sortedImportantInfoItems.length === 0 ? (
-          <div className="rounded-3xl border-2 border-dashed py-8 text-center text-sm italic text-neutral-400">
-            No important information saved yet.
-          </div>
+          <EmptyState title="No important information" description="Routes, contacts, addresses, and notes will appear here." />
         ) : (
           <div className="min-w-0 max-w-full overflow-x-auto">
             <table className="min-w-[1180px] w-full border-collapse border border-neutral-200 bg-white text-sm">

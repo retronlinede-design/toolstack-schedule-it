@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, Play, Printer, X } from "lucide-react";
+import { Download, Play, Printer } from "lucide-react";
 import ExportPanel from "./components/ExportPanel";
 import PersistenceStatus from "./components/PersistenceStatus";
 import OperationResult from "./components/OperationResult";
@@ -26,6 +26,10 @@ import { createClearCandidate } from "./import/operationCandidates";
 import { getVisibilityCounts } from "./domain/audiences";
 import { analyzeScheduleIntegrity, canProduceOfficialOutput, validateMovementCandidate } from "./domain/scheduleValidation";
 import { duplicateMovementForSchedule } from "./domain/schedulingMutations";
+import { Button } from "./components/ui/Button";
+import Card from "./components/ui/Card";
+import Badge from "./components/ui/Badge";
+import ModalShell from "./components/ui/ModalShell";
 
 function createId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -882,44 +886,43 @@ export default function ScheduleItApp() {
   }
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-neutral-100 text-neutral-900">
-      <div className="mx-auto w-full max-w-full px-3 py-4 md:max-w-7xl md:p-6">
-        <div className="no-print mb-6 rounded-3xl bg-white p-5 shadow-lg">
+    <div className="ts-app">
+      <div className="ts-container">
+        <Card className="ts-header no-print mb-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <h1 className="text-5xl md:text-6xl font-black tracking-tighter text-neutral-800 leading-none">Schedule-It</h1>
-              <p className="mt-3 max-w-3xl text-sm text-neutral-600 font-medium">
-                Basic mission schedule and driver brief builder. Enter the event details on the left and use the live preview on the
-                right as the starting point for your official template workflow.
+              <h1 className="ts-brand-title">Schedule-It</h1>
+              <p className="mt-2 max-w-2xl text-sm text-[var(--ts-text-muted)]">
+                Mission schedule and driver brief builder for official programme planning.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-              <button
+              <Button
                 onClick={handleLoadMondayDemo}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 shadow-sm transition hover:bg-blue-100"
+                variant="secondary"
               >
                 <Play className="h-4 w-4" /> Load Monday Demo
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => setIsPreviewOpen(true)}
                 disabled={!officialOutputAllowed}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-neutral-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
+                variant="primary"
               >
                 <Printer className="h-4 w-4" /> Preview
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => setIsExportOpen(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-900 shadow-sm transition hover:bg-neutral-50"
+                variant="secondary"
               >
                 <Download className="h-4 w-4" /> Export
-              </button>
+              </Button>
             </div>
           </div>
           <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 rounded-xl bg-neutral-50 px-3 py-2 text-xs text-neutral-600" aria-label="Programme visibility summary">
-            <span>Executive: {visibilityCounts.executive}</span><span>CG: {visibilityCounts.cg}</span><span>Marida: {visibilityCounts.marida}</span><span>Operational: {visibilityCounts.operational}</span>
-            <span className={visibilityCounts.hidden ? "font-bold text-amber-700" : ""}>Hidden: {visibilityCounts.hidden}</span>
+            <Badge>Executive {visibilityCounts.executive}</Badge><Badge>CG {visibilityCounts.cg}</Badge><Badge>Marida {visibilityCounts.marida}</Badge><Badge>Operational {visibilityCounts.operational}</Badge>
+            <Badge tone={visibilityCounts.hidden ? "warning" : "neutral"}>Hidden {visibilityCounts.hidden}</Badge>
           </div>
-          <div id="schedule-integrity" className={`mt-3 rounded-xl border p-3 text-sm ${integrity.errors.length ? "border-red-300 bg-red-50 text-red-900" : "border-neutral-200 bg-neutral-50 text-neutral-700"}`}>
+          <div id="schedule-integrity" className={`ts-alert mt-3 ${integrity.errors.length ? "ts-alert--danger" : "ts-alert--info"}`}>
             <div className="flex flex-wrap items-center justify-between gap-2"><strong>Schedule Integrity</strong><span>{integrity.errors.length} errors · {integrity.warnings.length} warnings</span></div>
             <div className="mt-1 flex flex-wrap gap-x-3 text-xs"><span>Chronology: {integrity.summary.chronologyErrors}</span><span>Driver: {integrity.summary.driverOverlaps}</span><span>Vehicle: {integrity.summary.vehicleOverlaps}</span><span>Handover: {integrity.summary.handoverConflicts}</span><span>Orphans: {integrity.summary.orphanReferences}</span></div>
             {(integrity.errors.length || integrity.warnings.length) ? <details className="mt-2"><summary className="cursor-pointer font-semibold">Review Schedule Issues</summary><ul className="mt-2 list-disc space-y-1 pl-5 text-xs">{[...integrity.errors, ...integrity.warnings].map((issue, index) => <li key={`${issue.type}-${issue.conflictKey || issue.handoverId || issue.movementIds?.join("-")}-${index}`}><strong>{issue.severity === "error" ? "Conflict" : "Warning"}:</strong> {issue.message}</li>)}</ul></details> : null}
@@ -927,10 +930,10 @@ export default function ScheduleItApp() {
           <div className="mt-4 flex justify-end">
             <div className="flex flex-col items-end gap-2">
               <PersistenceStatus persistence={persistence} onRetry={retrySave} onExport={handleExportJson} />
-              <button onClick={handleResetAll} className="text-xs text-neutral-400 hover:text-red-500 transition underline">Clear All Data</button>
+              <Button onClick={handleResetAll} variant="ghost" className="min-h-0 px-2 py-1 text-xs text-red-600">Clear Schedule Data</Button>
             </div>
           </div>
-        </div>
+        </Card>
 
         <OperationResult
           result={operationResult}
@@ -956,41 +959,18 @@ export default function ScheduleItApp() {
         ) : null}
 
         {isPreviewOpen ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4 no-print">
-            <div className="relative h-full w-full max-w-full overflow-y-auto rounded-3xl bg-white p-4 shadow-2xl sm:max-w-5xl sm:p-8">
-              <div className="sticky top-0 mb-6 flex items-center justify-between border-b border-neutral-200 bg-white pb-4 z-10">
-                <div>
-                  <h2 className="text-xl font-semibold text-neutral-900">Document Preview</h2>
-                  <p className="text-sm text-neutral-500">Review before printing</p>
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={printPreview}
-                    className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 transition"
-                  >
-                    <Printer className="h-4 w-4" /> Print
-                  </button>
-                  <button
-                    onClick={() => setIsPreviewOpen(false)}
-                    className="inline-flex items-center gap-2 rounded-xl border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 transition"
-                  >
-                    <X className="h-4 w-4" /> Close
-                  </button>
-                </div>
-              </div>
+          <ModalShell title="Document Preview" subtitle="Review before printing" onClose={() => setIsPreviewOpen(false)}>
+              <div className="mb-4 flex justify-end"><Button onClick={printPreview} variant="primary"><Printer className="h-4 w-4" /> Print</Button></div>
               <div className="mb-5 flex flex-wrap gap-2">
                 {documentPreviewTabs.map((tab) => (
-                  <button
+                  <Button
                     key={tab.id}
                     onClick={() => setPreviewView(tab.id)}
-                    className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
-                      previewView === tab.id
-                        ? "bg-neutral-900 text-white"
-                        : "border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
-                    }`}
+                    variant={previewView === tab.id ? "primary" : "secondary"}
+                    className="min-h-10 px-3 py-2 text-xs"
                   >
                     {tab.label}
-                  </button>
+                  </Button>
                 ))}
               </div>
               <iframe
@@ -999,8 +979,7 @@ export default function ScheduleItApp() {
                 srcDoc={previewSrcDoc}
                 className="h-[70vh] w-full rounded-2xl border border-neutral-100 bg-white"
               />
-            </div>
-          </div>
+          </ModalShell>
         ) : null}
 
         <div className="grid min-w-0 gap-6 xl:grid-cols-1">

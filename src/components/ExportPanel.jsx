@@ -1,6 +1,9 @@
-import { Clipboard, Code, FileJson, FileUp, Printer, X } from "lucide-react";
+import { Clipboard, Code, FileJson, FileUp, Printer } from "lucide-react";
 import { useRef, useState } from "react";
 import HtmlImportPanel from "./HtmlImportPanel";
+import ModalShell from "./ui/ModalShell";
+import AlertBanner from "./ui/AlertBanner";
+import { Button } from "./ui/Button";
 
 const printActions = [
   ["executive", "Print Full Executive Programme"],
@@ -27,7 +30,7 @@ function PanelButton({ icon, label, description, onClick, disabled = false }) {
     <button
       onClick={onClick}
       disabled={disabled}
-      className="flex items-center gap-4 w-full p-4 rounded-2xl border border-neutral-100 hover:border-neutral-200 hover:bg-neutral-50 transition text-left disabled:cursor-not-allowed disabled:opacity-50"
+      className="ts-card ts-card--interactive flex min-h-11 w-full items-center gap-4 p-4 text-left disabled:cursor-not-allowed disabled:opacity-50"
     >
       <div className="p-3 bg-neutral-50 rounded-xl text-neutral-700">
         <Icon className="h-5 w-5" />
@@ -62,21 +65,13 @@ export default function ExportPanel({ selectedDriverName, hasDrivers, hasBlockin
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4 no-print">
-      <div className="max-h-full min-w-0 w-full max-w-full overflow-y-auto rounded-3xl bg-white p-4 shadow-2xl sm:max-w-3xl sm:p-6">
+    <ModalShell title="Export Schedule" subtitle="Print reports, create backups, or restore validated data" onClose={onClose} maxWidth="max-w-3xl">
         {isHtmlImportOpen ? (
           <HtmlImportPanel onBack={() => setIsHtmlImportOpen(false)} onApply={onApplyHtmlImport} />
         ) : (
           <>
-        <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-neutral-900">Export Schedule</h2>
-          <button onClick={onClose} className="text-neutral-400 hover:text-neutral-600 transition">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        {message ? <div className="mb-4 rounded-2xl bg-neutral-50 px-4 py-3 text-sm text-neutral-700">{message}</div> : null}
-        {hasBlockingIssues ? <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800">Official output is disabled. Review Schedule Issues in the builder.</div> : null}
+        {message ? <AlertBanner tone="info" className="mb-4">{message}</AlertBanner> : null}
+        {hasBlockingIssues ? <AlertBanner tone="danger" className="mb-4"><strong>Official output is disabled.</strong> Review Schedule Issues in the builder.</AlertBanner> : null}
 
         {jsonPreparation?.ok ? (
           <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
@@ -90,7 +85,7 @@ export default function ExportPanel({ selectedDriverName, hasDrivers, hasBlockin
             </div>
             {jsonPreparation.preview.warnings.length ? <ul className="mt-3 list-disc pl-5">{jsonPreparation.preview.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul> : null}
             <p className="mt-3 font-semibold">All current schedule data will be replaced.</p>
-            <button onClick={async () => setMessage(await onReplaceJson(jsonPreparation))} className="mt-3 rounded-xl bg-red-700 px-4 py-2 font-semibold text-white">Replace Current Schedule</button>
+            <Button onClick={async () => setMessage(await onReplaceJson(jsonPreparation))} variant="danger-strong" className="mt-3">Replace Current Schedule</Button>
           </div>
         ) : null}
 
@@ -137,7 +132,6 @@ export default function ExportPanel({ selectedDriverName, hasDrivers, hasBlockin
         <input ref={inputRef} type="file" accept="application/json,.json" onChange={handleImport} className="hidden" />
           </>
         )}
-      </div>
-    </div>
+    </ModalShell>
   );
 }

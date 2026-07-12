@@ -1,24 +1,26 @@
 import { AlertTriangle, RotateCcw } from "lucide-react";
+import AlertBanner from "./ui/AlertBanner";
+import { Button } from "./ui/Button";
 
 export default function OperationResult({ result, onRollback, onRetry, onDownloadCurrent, onDownloadCandidate }) {
   if (!result) return null;
   if (result.ok) return (
-    <div className="mb-4 rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-900">
+    <AlertBanner tone="success" className="mb-4">
       <strong>{result.message || "Operation completed."}</strong>
       <p className="mt-1">A verified snapshot was retained. Rollback is available.</p>
-      <button onClick={onRollback} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-green-800 px-3 py-2 font-semibold text-white"><RotateCcw className="h-4 w-4" /> Restore Previous Schedule</button>
+      <Button onClick={onRollback} variant="secondary" className="mt-3"><RotateCcw className="h-4 w-4" /> Restore Previous Schedule</Button>
       <details className="mt-3 text-xs"><summary className="cursor-pointer font-semibold">Advanced details</summary><p className="mt-1 break-all">Snapshot: {result.snapshotKey}</p></details>
-    </div>
+    </AlertBanner>
   );
   return (
-    <div className="mb-4 rounded-2xl border border-red-300 bg-red-50 p-4 text-sm text-red-900" role="alert">
+    <AlertBanner tone="danger" className="mb-4">
       <div className="flex gap-2"><AlertTriangle className="h-5 w-5 shrink-0" /><strong>{result.message || "The replacement failed. Current application data was not changed."}</strong></div>
       <div className="mt-3 flex flex-wrap gap-2">
-        {onRetry ? <button onClick={onRetry} className="rounded-xl bg-red-700 px-3 py-2 font-semibold text-white">Retry</button> : null}
-        <button onClick={onDownloadCurrent} className="rounded-xl border border-red-300 px-3 py-2 font-semibold">Download Current</button>
-        {result.candidate && onDownloadCandidate ? <button onClick={onDownloadCandidate} className="rounded-xl border border-red-300 px-3 py-2 font-semibold">Download Candidate</button> : null}
+        {onRetry ? <Button onClick={onRetry} variant="danger-strong">Retry</Button> : null}
+        <Button onClick={onDownloadCurrent} variant="danger">Download Current</Button>
+        {result.candidate && onDownloadCandidate ? <Button onClick={onDownloadCandidate} variant="danger">Download Candidate</Button> : null}
       </div>
       <details className="mt-3 text-xs"><summary className="cursor-pointer font-semibold">Technical details</summary><pre className="mt-1 whitespace-pre-wrap">{result.errorCode}: {JSON.stringify(result.details, null, 2)}</pre></details>
-    </div>
+    </AlertBanner>
   );
 }
