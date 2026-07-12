@@ -19,6 +19,7 @@ import {
 import { useState } from "react";
 import { sortMovementsByDateAndTime } from "../utils/calculations";
 import { getWeekday } from "../utils/time";
+import { AUDIENCE_PRESETS, applyAudiencePreset, getAudienceBadges, getAudienceSummary, getAudienceWarnings, normalizeMovementAudiences } from "../domain/audiences";
 
 function Field({ label, icon: Icon, error, children }) {
   return (
@@ -93,6 +94,41 @@ function openInMaps(venue, address) {
   const query = encodeURIComponent(`${venue || ""} ${address || ""}`.trim());
   if (!query) return;
   window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, "_blank");
+}
+
+function AudienceEditor({ movement, drivers, vehicles, onChange, idPrefix }) {
+  const audiences = normalizeMovementAudiences(movement, drivers.map((driver) => driver.id));
+  const warnings = getAudienceWarnings({ ...movement, audiences });
+  const warningId = `${idPrefix}-audience-warnings`;
+  const update = (next) => onChange({ ...next, driverIds: next.driverIds.filter((id) => id !== movement.driverId) });
+  const toggleDriver = (driverId, checked) => update({ ...audiences, driverIds: checked ? [...audiences.driverIds, driverId] : audiences.driverIds.filter((id) => id !== driverId) });
+
+  return (
+    <fieldset className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4" aria-describedby={warnings.length ? warningId : undefined}>
+      <legend className="px-2 text-sm font-semibold text-neutral-900">Audience</legend>
+      <div className="mb-3 flex flex-wrap gap-2">
+        {Object.entries(AUDIENCE_PRESETS).map(([id, preset]) => (
+          <button key={id} type="button" onClick={() => update(applyAudiencePreset(audiences, id))} className="rounded-lg border border-neutral-300 bg-white px-2 py-1 text-xs font-medium text-neutral-700">{preset.label}</button>
+        ))}
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {[["executive", "Full Executive Programme"], ["operational", "Operational Programme"], ["cg", "CG Programme"], ["marida", "Marida Programme"]].map(([key, label]) => (
+          <label key={key} className="flex items-center gap-2 text-sm text-neutral-700"><input type="checkbox" checked={audiences[key]} onChange={(event) => update({ ...audiences, [key]: event.target.checked })} />{label}</label>
+        ))}
+      </div>
+      <div className="mt-4">
+        <p className="text-sm font-semibold text-neutral-900">Additional Driver Programmes</p>
+        <p className="text-xs text-neutral-500">The assigned driver is included automatically when Operational Programme is enabled.</p>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {drivers.filter((driver) => driver.id !== movement.driverId).map((driver) => {
+            const vehicle = vehicles.find((item) => item.id === driver.defaultVehicle);
+            return <label key={driver.id} className="flex items-center gap-2 text-sm text-neutral-700"><input type="checkbox" checked={audiences.driverIds.includes(driver.id)} onChange={(event) => toggleDriver(driver.id, event.target.checked)} />{driver.name}{vehicle ? ` / ${vehicle.name}` : ""}</label>;
+          })}
+        </div>
+      </div>
+      {warnings.length ? <ul id={warningId} className="mt-3 list-disc space-y-1 pl-5 text-xs font-medium text-amber-700">{warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul> : null}
+    </fieldset>
+  );
 }
 
 export default function ScheduleBuilder({
@@ -191,6 +227,7 @@ export default function ScheduleBuilder({
         ...current,
         driverId,
         vehicleId: shouldUseDefaultVehicle ? nextDriver?.defaultVehicle || current.vehicleId : current.vehicleId,
+        audiences: { ...normalizeMovementAudiences(current), driverIds: normalizeMovementAudiences(current).driverIds.filter((id) => id !== driverId) },
       };
     });
   }
@@ -235,6 +272,7 @@ export default function ScheduleBuilder({
         ...current,
         driverId,
         vehicleId: shouldUseDefaultVehicle ? nextDriver?.defaultVehicle || current.vehicleId : current.vehicleId,
+        audiences: { ...normalizeMovementAudiences(current), driverIds: normalizeMovementAudiences(current).driverIds.filter((id) => id !== driverId) },
       };
     });
   }
@@ -477,25 +515,9 @@ export default function ScheduleBuilder({
               ))}
             </Select>
           </Field>
-          <div className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-3 sm:grid-cols-2">
-            <label className="flex items-center gap-2 text-sm text-neutral-700">
-              <input
-                type="checkbox"
-                checked={draft.isExecutiveVisible}
-                onChange={(event) => updateField("isExecutiveVisible", event.target.checked)}
-              />
-              Executive
-            </label>
-            <label className="flex items-center gap-2 text-sm text-neutral-700">
-              <input
-                type="checkbox"
-                checked={draft.isOperationalVisible}
-                onChange={(event) => updateField("isOperationalVisible", event.target.checked)}
-              />
-              Operational
-            </label>
-          </div>
         </div>
+
+        <AudienceEditor movement={draft} drivers={drivers} vehicles={vehicles} idPrefix="main" onChange={(audiences) => onChange((current) => ({ ...current, audiences, isExecutiveVisible: audiences.executive, isOperationalVisible: audiences.operational }))} />
 
         <div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -633,25 +655,9 @@ export default function ScheduleBuilder({
                                 ))}
                               </Select>
                             </Field>
-                            <div className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-200 bg-white p-3 sm:grid-cols-2">
-                              <label className="flex items-center gap-2 text-sm text-neutral-700">
-                                <input
-                                  type="checkbox"
-                                  checked={inlineDraft.isExecutiveVisible}
-                                  onChange={(event) => updateInlineField("isExecutiveVisible", event.target.checked)}
-                                />
-                                Executive
-                              </label>
-                              <label className="flex items-center gap-2 text-sm text-neutral-700">
-                                <input
-                                  type="checkbox"
-                                  checked={inlineDraft.isOperationalVisible}
-                                  onChange={(event) => updateInlineField("isOperationalVisible", event.target.checked)}
-                                />
-                                Operational
-                              </label>
-                            </div>
                           </div>
+
+                          <div className="mt-3"><AudienceEditor movement={inlineDraft} drivers={drivers} vehicles={vehicles} idPrefix="inline" onChange={(audiences) => setInlineDraft((current) => ({ ...current, audiences, isExecutiveVisible: audiences.executive, isOperationalVisible: audiences.operational }))} /></div>
 
                           <div className="mt-3 grid gap-3 md:grid-cols-3">
                             <Field label="Location Notes">
@@ -680,7 +686,10 @@ export default function ScheduleBuilder({
                           <td className="border border-neutral-200 p-3 font-bold text-neutral-900">
                             {movement.driverStart || movement.departureTime || movement.arrivalTime || movement.endTime || "-"}
                           </td>
-                          <td className="border border-neutral-200 p-3 text-neutral-900">{movement.engagementDetails || "-"}</td>
+                          <td className="border border-neutral-200 p-3 text-neutral-900">
+                            <div>{movement.engagementDetails || "-"}</div>
+                            <div className="mt-1 flex flex-wrap gap-1" aria-label={getAudienceSummary(movement)}>{getAudienceBadges(movement).map((badge) => <span key={badge} className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-semibold text-neutral-600">{badge}</span>)}</div>
+                          </td>
                           <td className="border border-neutral-200 p-3 text-neutral-700">{movement.venue || movement.address || "-"}</td>
                           <td className="border border-neutral-200 p-3 text-neutral-700">{getName(drivers, movement.driverId)}</td>
                           <td className="border border-neutral-200 p-3 text-neutral-700">{getName(vehicles, movement.vehicleId)}</td>

@@ -35,11 +35,6 @@ function extractTimes(value) {
   return [...normalizeText(value).matchAll(TIME_PATTERN)].map((match) => `${match[1].padStart(2, "0")}:${match[2]}`);
 }
 
-function looksDriverOnly(text) {
-  const value = normalizeText(text).toLowerCase();
-  return value.includes("driver start") || value.includes("standby") || value.includes("end of duty");
-}
-
 function detectTableType(headers) {
   const headerSet = new Set(headers);
   if (headerSet.has("total duty time") || headerSet.has("overtime")) return "workingTime";
@@ -80,9 +75,9 @@ function parseOperationalRow(cells, indexes, sortOrder, warnings) {
     internalNotes: "",
     isExecutiveVisible: true,
     isOperationalVisible: true,
+    audiences: { executive: true, operational: true, cg: false, marida: false, driverIds: [] },
   };
 
-  if (looksDriverOnly(movement.engagementDetails)) movement.isExecutiveVisible = false;
   if (!driverName) warnings.push(`Row ${sortOrder / 10}: driver could not be detected.`);
   if (!vehicleName) warnings.push(`Row ${sortOrder / 10}: vehicle could not be detected.`);
   if (!movement.driverStart && !movement.departureTime && !movement.arrivalTime && !movement.endTime) {
@@ -101,7 +96,6 @@ function parseExecutiveRow(cells, indexes, sortOrder, warnings) {
   const movementLabel = getCell(cells, findIndex(indexes, ["movement"]));
   const details = getCell(cells, findIndex(indexes, ["details"]));
   const engagementDetails = details || movementLabel;
-  const isDriverOnly = looksDriverOnly(engagementDetails || movementLabel);
 
   warnings.push(`Row ${sortOrder / 10}: imported from Executive table; driver, vehicle, parking, and operational notes may be incomplete.`);
 
@@ -120,8 +114,9 @@ function parseExecutiveRow(cells, indexes, sortOrder, warnings) {
     parking: "",
     participants: "",
     internalNotes: "",
-    isExecutiveVisible: !isDriverOnly,
+    isExecutiveVisible: true,
     isOperationalVisible: true,
+    audiences: { executive: true, operational: true, cg: false, marida: false, driverIds: [] },
   };
 }
 
@@ -186,4 +181,3 @@ export function parseScheduleHtml(rawHtml) {
     errors,
   };
 }
-

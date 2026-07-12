@@ -1,6 +1,7 @@
 import { Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { sortMovementsByDateAndTime } from "../utils/calculations";
+import { selectMovementsForView } from "../domain/audiences";
 import { formatLongDate } from "../utils/time";
 
 const EMPTY = "-";
@@ -29,17 +30,6 @@ function movementLabel(value) {
   if (text.toLowerCase().includes("driver start")) return "Standby";
   if (text.toLowerCase().includes("end of duty")) return "End of Duty";
   return text || EMPTY;
-}
-
-function personMatches(entry, variant) {
-  if (variant === "executive") return true;
-
-  const participants = (entry.participants || "").toLowerCase();
-  if (variant === "executiveCg") {
-    return participants.includes("cg") || participants.includes("consul-general") || participants.includes("consul general");
-  }
-  if (variant === "executiveMarida") return participants.includes("marida");
-  return true;
 }
 
 function isTransfer(entry) {
@@ -103,10 +93,9 @@ export default function ExecutiveView({ entriesByMonth, profile, drivers = [], v
   const [variant, setVariant] = useState("executive");
   const driversById = buildLookup(drivers);
   const vehiclesById = buildLookup(vehicles);
-  const executiveEntries = Object.values(entriesByMonth)
-    .flat()
-    .filter((entry) => entry.isExecutiveVisible !== false);
-  const entries = sortMovementsByDateAndTime(executiveEntries.filter((entry) => personMatches(entry, variant)));
+  const allEntries = Object.values(entriesByMonth).flat();
+  const executiveEntries = selectMovementsForView(allEntries, "executive");
+  const entries = sortMovementsByDateAndTime(selectMovementsForView(allEntries, variant));
   const dayGroups = groupByDay(entries);
   const personFilteredEmpty = entries.length === 0 && executiveEntries.length > 0 && variant !== "executive";
 

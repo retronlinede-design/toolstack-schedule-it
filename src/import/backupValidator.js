@@ -23,7 +23,9 @@ const movementKeys = new Set([
   "eventStartTime", "eventEndTime", "engagementDetails", "venue", "address", "locationNotes", "participants", "parking",
   "internalNotes", "contactPerson", "contactPhone", "securityNotes", "protocolNotes", "dressCode", "documentsToCarry",
   "materialsOrGifts", "specialInstructions", "isExecutiveVisible", "isOperationalVisible",
+  "audiences",
 ]);
+const audienceKeys = new Set(["executive", "operational", "cg", "marida", "driverIds"]);
 const handoverKeys = new Set(["id", "scheduleDayId", "vehicleId", "fromDriverId", "toDriverId", "visibleToDriverIds", "location", "instruction", "keyLocation", "time", "notes", "sortOrder"]);
 const infoKeys = new Set(["id", "type", "title", "from", "to", "distance", "estimatedTravelTime", "name", "phone", "email", "address", "notes", "sortOrder"]);
 const routeKeys = new Set(["id", "scheduleDayId", "driverId", "from", "to", "distance", "estimatedTravelTime", "notes", "sortOrder"]);
@@ -139,9 +141,29 @@ export function validateScheduleBackupState(state) {
         if (typeof item[field] === "string" && item[field] && parseTimeToMinutes(item[field]) === null) errors.push({ code: "INVALID_SCHEMA", path: `${path}.${field}`, message: "Invalid time format." });
       }
     });
-    [...movementKeys].filter((field) => !["id", "scheduleDayId", "sortOrder", "driverId", "vehicleId", "driverStart", "departureTime", "arrivalTime", "endTime", "eventStartTime", "eventEndTime", "isExecutiveVisible", "isOperationalVisible"].includes(field))
+    [...movementKeys].filter((field) => !["id", "scheduleDayId", "sortOrder", "driverId", "vehicleId", "driverStart", "departureTime", "arrivalTime", "endTime", "eventStartTime", "eventEndTime", "isExecutiveVisible", "isOperationalVisible", "audiences"].includes(field))
       .forEach((field) => { if (item[field] !== undefined) stringField(item[field], `${path}.${field}`, errors); });
     ["isExecutiveVisible", "isOperationalVisible"].forEach((field) => { if (item[field] !== undefined && typeof item[field] !== "boolean") errors.push({ code: "INVALID_SCHEMA", path: `${path}.${field}`, message: `${field} must be boolean.` }); });
+    if (item.audiences !== undefined) {
+      if (!plain(item.audiences)) errors.push({ code: "INVALID_SCHEMA", path: `${path}.audiences`, message: "audiences must be a plain object." });
+      else {
+        const unknownAudienceKeys = Object.keys(item.audiences).filter((key) => !audienceKeys.has(key));
+        unknownAudienceKeys.forEach((key) => errors.push({ code: "INVALID_SCHEMA", path: `${path}.audiences.${key}`, message: "Unknown audience field." }));
+        ["executive", "operational", "cg", "marida"].forEach((field) => {
+          if (typeof item.audiences[field] !== "boolean") errors.push({ code: "INVALID_SCHEMA", path: `${path}.audiences.${field}`, message: `${field} must be boolean.` });
+        });
+        if (!Array.isArray(item.audiences.driverIds)) errors.push({ code: "INVALID_SCHEMA", path: `${path}.audiences.driverIds`, message: "driverIds must be an array." });
+        else {
+          const seenAudienceDrivers = new Set();
+          item.audiences.driverIds.forEach((id) => {
+            if (typeof id !== "string" || !driverIds.has(id)) errors.push({ code: "UNKNOWN_REFERENCE", path: `${path}.audiences.driverIds`, message: "Unknown audience driver." });
+            if (seenAudienceDrivers.has(id) || id === item.driverId) errors.push({ code: "DUPLICATE_ID", path: `${path}.audiences.driverIds`, message: "Additional driver IDs must be unique and exclude the assigned driver." });
+            seenAudienceDrivers.add(id);
+          });
+          if (item.audiences.driverIds.length > drivers.length) errors.push({ code: "EXCESSIVE_COUNT", path: `${path}.audiences.driverIds`, message: "Too many additional drivers." });
+        }
+      }
+    }
   });
 
   validateCollection(state, "vehicleHandoverNotes", handoverKeys, errors, warnings, (item, path) => {

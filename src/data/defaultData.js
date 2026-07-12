@@ -29,6 +29,9 @@ export const defaultProfile = {
   documentTitle: "Programme",
 };
 
+const demoOperationalAudiences = { executive: false, operational: true, cg: false, marida: false, driverIds: [] };
+const demoExecutiveAudiences = { executive: true, operational: true, cg: false, marida: false, driverIds: [] };
+
 export const defaultScheduleState = {
   version: 1,
   profile: defaultProfile,
@@ -77,6 +80,7 @@ export function createMondayDemoState() {
         internalNotes: "",
         isExecutiveVisible: false,
         isOperationalVisible: true,
+        audiences: demoOperationalAudiences,
       },
       {
         id: "demo-greg-transfer-staatskanzlei",
@@ -97,6 +101,7 @@ export function createMondayDemoState() {
         internalNotes: "",
         isExecutiveVisible: true,
         isOperationalVisible: true,
+        audiences: demoExecutiveAudiences,
       },
       {
         id: "demo-greg-official-meeting",
@@ -117,6 +122,7 @@ export function createMondayDemoState() {
         internalNotes: "",
         isExecutiveVisible: true,
         isOperationalVisible: true,
+        audiences: demoExecutiveAudiences,
       },
       {
         id: "demo-greg-transfer-bbw",
@@ -137,6 +143,7 @@ export function createMondayDemoState() {
         internalNotes: "",
         isExecutiveVisible: true,
         isOperationalVisible: true,
+        audiences: demoExecutiveAudiences,
       },
       {
         id: "demo-greg-bbw-meeting",
@@ -157,6 +164,7 @@ export function createMondayDemoState() {
         internalNotes: "",
         isExecutiveVisible: true,
         isOperationalVisible: true,
+        audiences: demoExecutiveAudiences,
       },
       {
         id: "demo-greg-end-duty",
@@ -177,6 +185,7 @@ export function createMondayDemoState() {
         internalNotes: "",
         isExecutiveVisible: false,
         isOperationalVisible: true,
+        audiences: demoOperationalAudiences,
       },
     ],
   };

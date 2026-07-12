@@ -1,4 +1,5 @@
 import { defaultDrivers, defaultProfile, defaultVehicles } from "./defaultData";
+import { DEFAULT_MOVEMENT_AUDIENCES, normalizeMovementAudiences } from "../domain/audiences";
 
 export const emptyDraft = {
   id: null,
@@ -33,6 +34,7 @@ export const emptyDraft = {
   generalNotes: "",
   isExecutiveVisible: true,
   isOperationalVisible: true,
+  audiences: { ...DEFAULT_MOVEMENT_AUDIENCES, driverIds: [] },
 };
 
 export function createScheduleDayFromDraft(draft, existingDay) {
@@ -44,6 +46,7 @@ export function createScheduleDayFromDraft(draft, existingDay) {
 }
 
 export function createMovementFromDraft(draft, scheduleDayId) {
+  const audiences = normalizeMovementAudiences(draft);
   return {
     id: draft.id || `movement-${Date.now()}`,
     scheduleDayId,
@@ -63,6 +66,7 @@ export function createMovementFromDraft(draft, scheduleDayId) {
     internalNotes: draft.internalNotes || draft.generalNotes,
     isExecutiveVisible: draft.isExecutiveVisible,
     isOperationalVisible: draft.isOperationalVisible,
+    audiences,
     eventStartTime: draft.eventStartTime ?? "",
     eventEndTime: draft.eventEndTime ?? "",
     contactPerson: draft.contactPerson || "",
@@ -77,6 +81,7 @@ export function createMovementFromDraft(draft, scheduleDayId) {
 }
 
 export function createDraftFromMovement(movement, day, profile) {
+  const audiences = normalizeMovementAudiences(movement);
   return {
     ...emptyDraft,
     id: movement.id,
@@ -108,7 +113,8 @@ export function createDraftFromMovement(movement, day, profile) {
     materialsOrGifts: movement.materialsOrGifts || "",
     specialInstructions: movement.specialInstructions || "",
     generalNotes: movement.internalNotes || "",
-    isExecutiveVisible: movement.isExecutiveVisible !== false,
-    isOperationalVisible: movement.isOperationalVisible !== false,
+    isExecutiveVisible: audiences.executive,
+    isOperationalVisible: audiences.operational,
+    audiences,
   };
 }

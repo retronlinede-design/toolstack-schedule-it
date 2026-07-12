@@ -23,6 +23,7 @@ import { prepareBackupImport } from "./import/prepareBackup";
 import { replaceScheduleTransaction, rollbackScheduleTransaction } from "./import/importTransaction";
 import { buildHtmlImportCandidate } from "./import/htmlCandidate";
 import { createClearCandidate } from "./import/operationCandidates";
+import { getVisibilityCounts } from "./domain/audiences";
 
 function createId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -237,6 +238,7 @@ export default function ScheduleItApp() {
     () => `<!doctype html><html><head><meta charset="utf-8"><title>${previewDocument.title}</title><style>${previewDocument.styles}</style></head><body>${previewDocument.bodyHtml}</body></html>`,
     [previewDocument],
   );
+  const visibilityCounts = useMemo(() => getVisibilityCounts(activeSchedule.movements), [activeSchedule.movements]);
 
   if (!schedule) return <StorageGate startup={startup} onRetry={retryStartup} onResolved={applyStartupResult} onVolatile={useVolatileState} />;
 
@@ -924,6 +926,10 @@ export default function ScheduleItApp() {
                 <Download className="h-4 w-4" /> Export
               </button>
             </div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 rounded-xl bg-neutral-50 px-3 py-2 text-xs text-neutral-600" aria-label="Programme visibility summary">
+            <span>Executive: {visibilityCounts.executive}</span><span>CG: {visibilityCounts.cg}</span><span>Marida: {visibilityCounts.marida}</span><span>Operational: {visibilityCounts.operational}</span>
+            <span className={visibilityCounts.hidden ? "font-bold text-amber-700" : ""}>Hidden: {visibilityCounts.hidden}</span>
           </div>
           <div className="mt-4 flex justify-end">
             <div className="flex flex-col items-end gap-2">

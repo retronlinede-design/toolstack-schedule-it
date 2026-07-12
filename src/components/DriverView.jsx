@@ -1,4 +1,5 @@
 import OperationalView from "./OperationalView";
+import { selectMovementsForView } from "../domain/audiences";
 
 export default function DriverView({
   entriesByMonth,
@@ -14,7 +15,7 @@ export default function DriverView({
   const selectedDriver = drivers.find((driver) => driver.id === selectedDriverId) || drivers[0];
   const selectedVehicle = vehicles.find((vehicle) => vehicle.id === selectedDriver?.defaultVehicle);
   const filteredEntriesByMonth = Object.entries(entriesByMonth).reduce((acc, [month, entries]) => {
-    const driverEntries = entries.filter((entry) => entry.driverId === selectedDriver?.id && entry.isOperationalVisible !== false);
+    const driverEntries = selectMovementsForView(entries, "driver", { selectedDriverId: selectedDriver?.id });
     if (driverEntries.length > 0) acc[month] = driverEntries;
     return acc;
   }, {});

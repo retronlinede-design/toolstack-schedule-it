@@ -17,6 +17,7 @@ describe("HTML candidates", () => {
     const current = validState();
     const built = buildHtmlImportCandidate(current, parsedHtml(), "replace");
     expect(built.ok).toBe(true);
+    expect(built.candidate.movements[0].audiences).toEqual({ executive: true, operational: true, cg: false, marida: false, driverIds: [] });
     const storage = memoryStorage();
     const replacement = replaceScheduleTransaction({ currentState: current, candidateState: built.candidate, operationType: "html-import", storage, primaryKey: "primary" });
     expect(replacement.ok).toBe(true);

@@ -24,6 +24,7 @@ export function buildLegacyCandidate(legacyForm, legacyEntries) {
 
   entries.forEach((entry, index) => {
     const draft = { ...emptyDraft, ...entry };
+    if (!("audiences" in entry)) delete draft.audiences;
     const existingDay = scheduleDays.find((day) => day.date === draft.date);
     const day = createScheduleDayFromDraft(draft, existingDay);
     if (!existingDay) scheduleDays.push({ ...day, id: `legacy-day-${stablePart(draft.date || "undated")}-${scheduleDays.length + 1}` });

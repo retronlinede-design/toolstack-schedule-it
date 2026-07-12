@@ -1,6 +1,7 @@
 import { GripVertical, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { sortMovementsByDateAndTime } from "../utils/calculations";
+import { selectMovementsForView } from "../domain/audiences";
 import { formatLongDate } from "../utils/time";
 
 const EMPTY = "-";
@@ -308,9 +309,7 @@ export default function OperationalView({
   const driversById = buildLookup(drivers);
   const vehiclesById = buildLookup(vehicles);
   const entries = sortMovementsByDateAndTime(
-    Object.values(entriesByMonth)
-      .flat()
-      .filter((entry) => entry.isOperationalVisible !== false),
+    selectMovementsForView(Object.values(entriesByMonth).flat(), selectedDriverId ? "driver" : "operational", { selectedDriverId }),
   );
   const dayGroups = ensureHandoverDayGroups(groupEntries(entries, driversById, vehiclesById, groupByDriver), vehicleHandoverNotes, scheduleDays, selectedDriverId);
   const visibleHandoverNotes = vehicleHandoverNotes.filter(

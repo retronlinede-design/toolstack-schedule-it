@@ -1,6 +1,7 @@
 import { defaultScheduleState } from "../data/defaultData";
 import { parseTimeToMinutes } from "../utils/time";
 import { migrateRouteNotesToImportantInfo } from "./routeMigration";
+import { withNormalizedAudiences } from "../domain/audiences";
 
 function fallbackTime(movement) {
   return parseTimeToMinutes(movement.driverStart || movement.departureTime || movement.arrivalTime || movement.endTime) ?? Number.MAX_SAFE_INTEGER;
@@ -33,7 +34,7 @@ export function normalizeState(state) {
     drivers,
     vehicles: state?.vehicles?.length ? state.vehicles : defaultScheduleState.vehicles,
     scheduleDays,
-    movements: withSortOrders(scheduleDays, state?.movements || []),
+    movements: withSortOrders(scheduleDays, state?.movements || []).map((movement) => withNormalizedAudiences(movement, drivers.map((driver) => driver.id))),
     vehicleHandoverNotes: (Array.isArray(state?.vehicleHandoverNotes) ? state.vehicleHandoverNotes : []).map((note) => ({
       ...note,
       visibleToDriverIds: Array.isArray(note.visibleToDriverIds) ? note.visibleToDriverIds : [note.fromDriverId, note.toDriverId].filter(Boolean),

@@ -1,5 +1,6 @@
 import { calculateWorkingTimeSummary, sortMovementsByDateAndTime } from "./calculations";
 import { formatLongDate } from "./time";
+import { selectMovementsForView } from "../domain/audiences";
 
 const EMPTY = "-";
 
@@ -92,17 +93,6 @@ function isExecutiveView(view) {
   return view === "executive" || view === "executiveCg" || view === "executiveMarida";
 }
 
-function personMatches(movement, view) {
-  if (view === "executive") return true;
-
-  const participants = (movement.participants || "").toLowerCase();
-  if (view === "executiveCg") {
-    return participants.includes("cg") || participants.includes("consul-general") || participants.includes("consul general");
-  }
-  if (view === "executiveMarida") return participants.includes("marida");
-  return true;
-}
-
 function isTransfer(movement) {
   const text = `${movement.engagementDetails || ""} ${movementLabel(movement.engagementDetails)}`.toLowerCase();
   return text.includes("transfer");
@@ -169,8 +159,9 @@ function executiveEmptyMessage(view, hasExecutiveRows) {
 function executiveTable(schedule, view = "executive") {
   const driversById = lookup(schedule.drivers);
   const vehiclesById = lookup(schedule.vehicles);
-  const executiveMovements = movementsWithDays(schedule).filter((movement) => movement.isExecutiveVisible !== false);
-  const movements = sortMovementsByDateAndTime(executiveMovements.filter((movement) => personMatches(movement, view)));
+  const allMovements = movementsWithDays(schedule);
+  const executiveMovements = selectMovementsForView(allMovements, "executive");
+  const movements = sortMovementsByDateAndTime(selectMovementsForView(allMovements, view));
 
   if (movements.length === 0) return `<p class="empty">${escapeHtml(executiveEmptyMessage(view, executiveMovements.length > 0))}</p>`;
 
@@ -329,7 +320,7 @@ function operationalSections(schedule, driverId, groupByDriver) {
   const driversById = lookup(schedule.drivers);
   const vehiclesById = lookup(schedule.vehicles);
   const movements = sortMovementsByDateAndTime(
-    movementsWithDays(schedule).filter((movement) => movement.isOperationalVisible !== false && (!driverId || movement.driverId === driverId)),
+    selectMovementsForView(movementsWithDays(schedule), driverId ? "driver" : "operational", { selectedDriverId: driverId }),
   );
 
   const visibleHandovers = (schedule.vehicleHandoverNotes || []).filter(
