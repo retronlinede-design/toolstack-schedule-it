@@ -16,9 +16,12 @@ function builderProps() {
 
 describe("Tools navigation", () => {
   it("renders semantic tool choices, counts, conflicts, and accessible modal structure", () => {
-    const html = renderToStaticMarkup(<ToolsWorkspace onClose={noop} builderProps={builderProps()} importantInfoCount={1} handoverCount={2} handoverConflictCount={1} />);
+    const props = builderProps();
+    const html = renderToStaticMarkup(<ToolsWorkspace onClose={noop} builderProps={props} schedule={{ drivers: props.drivers, vehicles: props.vehicles }} importantInfoCount={1} handoverCount={2} handoverConflictCount={1} />);
     expect(html).toContain('role="dialog"');
     expect(html).toContain("Important Information");
+    expect(html).toContain("Driver Manager");
+    expect(html).toContain("Vehicle Manager");
     expect(html).toContain("1 record");
     expect(html).toContain("2 handovers");
     expect(html).toContain("1 unresolved conflict");

@@ -30,7 +30,7 @@ export function buildHtmlImportCandidate(current, result, mode) {
   const driverByName = new Map(drivers.map((driver) => [nameKey(driver.name), driver]));
   (result.vehiclesToAdd || []).forEach((vehicleName) => {
     if (!vehicleByName.has(nameKey(vehicleName))) {
-      const vehicle = { id: `html-vehicle-${hash(nameKey(vehicleName))}`, name: vehicleName };
+      const vehicle = { id: `html-vehicle-${hash(nameKey(vehicleName))}`, name: vehicleName, registration: "", make: "", model: "", capacity: null, isActive: true, notes: "" };
       if (vehicles.some((item) => item.id === vehicle.id)) vehicle.id = `${vehicle.id}-${vehicles.length + 1}`;
       vehicles.push(vehicle);
       vehicleByName.set(nameKey(vehicleName), vehicle);
@@ -39,7 +39,7 @@ export function buildHtmlImportCandidate(current, result, mode) {
   (result.driversToAdd || []).forEach((driverName) => {
     if (!driverByName.has(nameKey(driverName))) {
       const firstVehicleName = result.movements.find((movement) => nameKey(movement.driverName) === nameKey(driverName))?.vehicleName;
-      const driver = { id: `html-driver-${hash(nameKey(driverName))}`, name: driverName, defaultVehicle: vehicleByName.get(nameKey(firstVehicleName))?.id || vehicles[0]?.id || "" };
+      const driver = { id: `html-driver-${hash(nameKey(driverName))}`, name: driverName, defaultVehicle: vehicleByName.get(nameKey(firstVehicleName))?.id || vehicles[0]?.id || "", isActive: true, phone: "", email: "", notes: "" };
       if (drivers.some((item) => item.id === driver.id)) driver.id = `${driver.id}-${drivers.length + 1}`;
       drivers.push(driver);
       driverByName.set(nameKey(driverName), driver);

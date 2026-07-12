@@ -43,16 +43,27 @@ function PanelButton({ icon, label, description, onClick, disabled = false }) {
   );
 }
 
-export default function ExportPanel({ selectedDriverName, hasDrivers, hasBlockingIssues = false, onClose, onPrintView, onCopyHtml, onExportJson, onImportJson, onReplaceJson, onApplyHtmlImport }) {
+export default function ExportPanel({ selectedDriverName, hasDrivers, hasBlockingIssues = false, onClose, onPrintView, onCopyHtml, onReviewIssues, onExportJson, onImportJson, onReplaceJson, onApplyHtmlImport }) {
   const inputRef = useRef(null);
   const [message, setMessage] = useState("");
   const [isHtmlImportOpen, setIsHtmlImportOpen] = useState(false);
   const [jsonPreparation, setJsonPreparation] = useState(null);
   const [selectedFileName, setSelectedFileName] = useState("");
+  const [pendingOutput, setPendingOutput] = useState(null);
 
-  async function handleCopy(view) {
-    const result = await onCopyHtml(view);
+  async function handleCopy(view, skipIntegrityConfirmation = false) {
+    const result = await onCopyHtml(view, { skipIntegrityConfirmation });
     setMessage(result);
+  }
+  function requestOutput(kind, view) {
+    if (hasBlockingIssues) setPendingOutput({ kind, view });
+    else if (kind === "print") onPrintView(view);
+    else handleCopy(view);
+  }
+  function continueOutput() {
+    const output = pendingOutput; setPendingOutput(null);
+    if (output.kind === "print") onPrintView(output.view, { skipIntegrityConfirmation: true });
+    else handleCopy(output.view, true);
   }
 
   async function handleImport(event) {
@@ -73,7 +84,8 @@ export default function ExportPanel({ selectedDriverName, hasDrivers, hasBlockin
         ) : (
           <>
         {message ? <AlertBanner tone="info" className="mb-4">{message}</AlertBanner> : null}
-        {hasBlockingIssues ? <AlertBanner tone="danger" className="mb-4"><strong>Official output is disabled.</strong> Review Schedule Issues in the builder.</AlertBanner> : null}
+        {hasBlockingIssues ? <AlertBanner tone="warning" className="mb-4"><strong>Unresolved integrity errors.</strong> Output is available with a review warning.</AlertBanner> : null}
+        {pendingOutput ? <AlertBanner tone="warning" className="mb-4"><strong>This schedule contains unresolved integrity issues.</strong><p className="mt-1">You can continue, but the output may contain timing, driver, vehicle, or handover conflicts.</p><div className="mt-3 flex flex-wrap gap-2"><Button variant="primary" onClick={continueOutput}>Continue</Button><Button onClick={() => setPendingOutput(null)}>Cancel</Button><Button onClick={onReviewIssues}>Review Issues</Button></div></AlertBanner> : null}
 
         {jsonPreparation?.ok ? (
           <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
@@ -100,14 +112,14 @@ export default function ExportPanel({ selectedDriverName, hasDrivers, hasBlockin
             <h4 className="mb-2 text-sm font-semibold text-neutral-700">Print / Save PDF</h4>
             <div className="grid gap-3">
               {printActions.map(([view, label]) => (
-                <PanelButton key={view} icon={Printer} label={label} description="Non-restorable report output for print/PDF." onClick={() => onPrintView(view)} disabled={hasBlockingIssues} />
+                <PanelButton key={view} icon={Printer} label={label} description="Non-restorable report output for print/PDF." onClick={() => requestOutput("print", view)} />
               ))}
               <PanelButton
                 icon={Printer}
                 label={hasDrivers ? `Print Driver View: ${selectedDriverName}` : "Print Driver View"}
                 description={hasDrivers ? "Non-restorable selected-driver report." : "No drivers available."}
-                onClick={() => onPrintView("driver")}
-                disabled={!hasDrivers || hasBlockingIssues}
+                onClick={() => requestOutput("print", "driver")}
+                disabled={!hasDrivers}
               />
             </div>
           </div>
@@ -116,14 +128,14 @@ export default function ExportPanel({ selectedDriverName, hasDrivers, hasBlockin
             <h4 className="mb-2 text-sm font-semibold text-neutral-700">Copy programme · Not restorable</h4>
             <div className="grid gap-3">
               {copyActions.map(([view, label]) => (
-                <PanelButton key={view} icon={Clipboard} label={label} description="Copy non-restorable report HTML." onClick={() => handleCopy(view)} disabled={hasBlockingIssues} />
+                <PanelButton key={view} icon={Clipboard} label={label} description="Copy non-restorable report HTML." onClick={() => requestOutput("copy", view)} />
               ))}
               <PanelButton
                 icon={Clipboard}
                 label={hasDrivers ? `Copy Driver HTML: ${selectedDriverName}` : "Copy Driver HTML"}
                 description={hasDrivers ? "Copy selected driver HTML." : "No drivers available."}
-                onClick={() => handleCopy("driver")}
-                disabled={!hasDrivers || hasBlockingIssues}
+                onClick={() => requestOutput("copy", "driver")}
+                disabled={!hasDrivers}
               />
             </div>
           </div>

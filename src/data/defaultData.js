@@ -5,11 +5,13 @@ export const defaultDrivers = [
     id: "driver-greg",
     name: "Greg",
     defaultVehicle: "vehicle-vito",
+    isActive: true, phone: "", email: "", notes: "",
   },
   {
     id: "driver-rory",
     name: "Rory",
     defaultVehicle: "vehicle-bmw",
+    isActive: true, phone: "", email: "", notes: "",
   },
 ];
 
@@ -17,10 +19,12 @@ export const defaultVehicles = [
   {
     id: "vehicle-vito",
     name: "Vito",
+    registration: "", make: "", model: "", capacity: null, isActive: true, notes: "",
   },
   {
     id: "vehicle-bmw",
     name: "BMW",
+    registration: "", make: "", model: "", capacity: null, isActive: true, notes: "",
   },
 ];
 

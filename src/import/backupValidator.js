@@ -1,5 +1,6 @@
 import { parseStrictTime } from "../domain/timeIntervals";
 import { WORK_CLASSIFICATIONS, validateWorkingTimePolicy } from "../domain/workingTimePolicy";
+import { duplicateVehicleRegistrations } from "../domain/resourceValidation";
 
 export const VALIDATION_LIMITS = {
   maxDepth: 20,
@@ -16,8 +17,8 @@ export const VALIDATION_LIMITS = {
 const forbiddenKeys = new Set(["__proto__", "proto", "constructor", "prototype"]);
 const rootKeys = new Set(["version", "profile", "drivers", "vehicles", "scheduleDays", "movements", "vehicleHandoverNotes", "importantInfoItems", "routeNotes", "workingTimePolicy"]);
 const profileKeys = new Set(["missionName", "documentTitle"]);
-const driverKeys = new Set(["id", "name", "defaultVehicle"]);
-const vehicleKeys = new Set(["id", "name"]);
+const driverKeys = new Set(["id", "name", "defaultVehicle", "isActive", "phone", "email", "notes"]);
+const vehicleKeys = new Set(["id", "name", "registration", "make", "model", "capacity", "isActive", "notes"]);
 const dayKeys = new Set(["id", "date", "title"]);
 const movementKeys = new Set([
   "id", "scheduleDayId", "sortOrder", "driverId", "vehicleId", "driverStart", "departureTime", "arrivalTime", "endTime",
@@ -58,6 +59,11 @@ function addUnknownWarnings(value, allowed, path, warnings) {
 function stringField(value, name, errors, { required = false } = {}) {
   if (typeof value !== "string" || (required && !value.trim())) errors.push({ code: "INVALID_SCHEMA", path: name, message: `${name} must be ${required ? "a nonempty" : "a"} string.` });
   else if (value.length > VALIDATION_LIMITS.text) errors.push({ code: "STRING_TOO_LARGE", path: name, message: `${name} exceeds the text limit.` });
+}
+
+function boundedString(value, name, maximum, errors, required = false) {
+  stringField(value, name, errors, { required });
+  if (typeof value === "string" && value.length > maximum) errors.push({ code: "STRING_TOO_LARGE", path: name, message: `${name} exceeds ${maximum} characters.` });
 }
 
 function finiteOptional(value, name, errors) {
@@ -116,10 +122,18 @@ export function validateScheduleBackupState(state) {
     stringField(state.profile.documentTitle, "profile.documentTitle", errors);
   }
 
-  const vehicles = validateCollection(state, "vehicles", vehicleKeys, errors, warnings, (item, path) => stringField(item.name, `${path}.name`, errors, { required: true }));
+  const vehicles = validateCollection(state, "vehicles", vehicleKeys, errors, warnings, (item, path) => {
+    boundedString(item.name, `${path}.name`, 150, errors, true);
+    [["registration", 50], ["make", 100], ["model", 100], ["notes", 10_000]].forEach(([field, max]) => { if (item[field] !== undefined) boundedString(item[field], `${path}.${field}`, max, errors); });
+    if (item.isActive !== undefined && typeof item.isActive !== "boolean") errors.push({ code: "INVALID_SCHEMA", path: `${path}.isActive`, message: "isActive must be boolean." });
+    if (item.capacity !== undefined && item.capacity !== null && (!Number.isInteger(item.capacity) || item.capacity < 1 || item.capacity > 100)) errors.push({ code: "INVALID_SCHEMA", path: `${path}.capacity`, message: "capacity must be null or an integer from 1 to 100." });
+  });
+  duplicateVehicleRegistrations(vehicles).forEach((registration) => errors.push({ code: "DUPLICATE_ID", path: "vehicles.registration", message: `Duplicate vehicle registration ${registration}.` }));
   const vehicleIds = new Set(vehicles.map((item) => item.id));
   const drivers = validateCollection(state, "drivers", driverKeys, errors, warnings, (item, path) => {
-    stringField(item.name, `${path}.name`, errors, { required: true });
+    boundedString(item.name, `${path}.name`, 150, errors, true);
+    [["phone", 100], ["email", 254], ["notes", 10_000]].forEach(([field, max]) => { if (item[field] !== undefined) boundedString(item[field], `${path}.${field}`, max, errors); });
+    if (item.isActive !== undefined && typeof item.isActive !== "boolean") errors.push({ code: "INVALID_SCHEMA", path: `${path}.isActive`, message: "isActive must be boolean." });
     if (item.defaultVehicle !== undefined) {
       stringField(item.defaultVehicle, `${path}.defaultVehicle`, errors);
       if (item.defaultVehicle && !vehicleIds.has(item.defaultVehicle)) errors.push({ code: "UNKNOWN_REFERENCE", path: `${path}.defaultVehicle`, message: "Unknown default vehicle." });

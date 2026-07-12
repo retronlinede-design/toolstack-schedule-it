@@ -78,6 +78,11 @@ function getName(items, id) {
   return items.find((item) => item.id === id)?.name || "-";
 }
 
+function selectableResources(items, selectedIds = []) {
+  const selected = new Set(selectedIds.filter(Boolean));
+  return items.filter((item) => item.isActive !== false || selected.has(item.id));
+}
+
 function openInMaps(venue, address) {
   const query = encodeURIComponent(`${venue || ""} ${address || ""}`.trim());
   if (!query) return;
@@ -108,7 +113,7 @@ function AudienceEditor({ movement, drivers, vehicles, onChange, idPrefix }) {
         <p className="text-sm font-semibold text-neutral-900">Additional Driver Programmes</p>
         <p className="text-xs text-neutral-500">The assigned driver is included automatically when Operational Programme is enabled.</p>
         <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {drivers.filter((driver) => driver.id !== movement.driverId).map((driver) => {
+          {drivers.filter((driver) => driver.id !== movement.driverId && (driver.isActive !== false || audiences.driverIds.includes(driver.id))).map((driver) => {
             const vehicle = vehicles.find((item) => item.id === driver.defaultVehicle);
             return <label key={driver.id} className="flex items-center gap-2 text-sm text-neutral-700"><input type="checkbox" checked={audiences.driverIds.includes(driver.id)} onChange={(event) => toggleDriver(driver.id, event.target.checked)} />{driver.name}{vehicle ? ` / ${vehicle.name}` : ""}</label>;
           })}
@@ -515,9 +520,9 @@ export default function ScheduleBuilder({
           <Field label="Driver" icon={Users} error={errors.driverId}>
             <Select value={draft.driverId || ""} onChange={(event) => updateDriver(event.target.value)}>
               <option value="">Select driver...</option>
-              {drivers.map((driver) => (
+              {selectableResources(drivers, [draft.driverId]).map((driver) => (
                 <option key={driver.id} value={driver.id}>
-                  {driver.name}
+                  {driver.name}{driver.isActive === false ? " — Inactive" : ""}
                 </option>
               ))}
             </Select>
@@ -525,9 +530,9 @@ export default function ScheduleBuilder({
           <Field label="Vehicle" icon={Car} error={errors.vehicleId}>
             <Select value={draft.vehicleId || ""} onChange={(event) => updateField("vehicleId", event.target.value)}>
               <option value="">Select vehicle...</option>
-              {vehicles.map((vehicle) => (
+              {selectableResources(vehicles, [draft.vehicleId]).map((vehicle) => (
                 <option key={vehicle.id} value={vehicle.id}>
-                  {vehicle.name}
+                  {vehicle.name}{vehicle.isActive === false ? " — Inactive" : ""}
                 </option>
               ))}
             </Select>
@@ -632,8 +637,8 @@ export default function ScheduleBuilder({
                 <div className="space-y-4">
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     <Field label="Engagement Details" error={inlineErrors.engagementDetails}><Input value={inlineDraft?.engagementDetails || ""} onChange={(event) => updateInlineField("engagementDetails", event.target.value)} /></Field>
-                    <Field label="Driver"><Select value={inlineDraft?.driverId || ""} onChange={(event) => updateInlineDriver(event.target.value)}>{drivers.map((driver) => <option key={driver.id} value={driver.id}>{driver.name}</option>)}</Select></Field>
-                    <Field label="Vehicle"><Select value={inlineDraft?.vehicleId || ""} onChange={(event) => updateInlineField("vehicleId", event.target.value)}>{vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.name}</option>)}</Select></Field>
+                    <Field label="Driver"><Select value={inlineDraft?.driverId || ""} onChange={(event) => updateInlineDriver(event.target.value)}>{selectableResources(drivers, [inlineDraft?.driverId]).map((driver) => <option key={driver.id} value={driver.id}>{driver.name}{driver.isActive === false ? " — Inactive" : ""}</option>)}</Select></Field>
+                    <Field label="Vehicle"><Select value={inlineDraft?.vehicleId || ""} onChange={(event) => updateInlineField("vehicleId", event.target.value)}>{selectableResources(vehicles, [inlineDraft?.vehicleId]).map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.name}{vehicle.isActive === false ? " — Inactive" : ""}</option>)}</Select></Field>
                   </div>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
                     {[["driverStart", "Driver Start"], ["departureTime", "Departure"], ["arrivalTime", "Arrival"], ["eventStartTime", "Event Start"], ["eventEndTime", "Event End"], ["endTime", "Duty End"]].map(([field, label]) => <Field key={field} label={label}><Input type="time" value={inlineDraft?.[field] || ""} onChange={(event) => updateInlineField(field, event.target.value)} /></Field>)}
@@ -831,7 +836,7 @@ export default function ScheduleBuilder({
           <Field label="Vehicle" error={handoverErrors.vehicleId}>
             <Select value={handoverDraft.vehicleId || draft.vehicleId || ""} onChange={(event) => updateHandoverField("vehicleId", event.target.value)}>
               <option value="">Select vehicle...</option>
-              {vehicles.map((vehicle) => (
+              {selectableResources(vehicles, [handoverDraft.vehicleId]).map((vehicle) => (
                 <option key={vehicle.id} value={vehicle.id}>
                   {vehicle.name}
                 </option>
@@ -841,7 +846,7 @@ export default function ScheduleBuilder({
           <Field label="From Driver">
             <Select value={handoverDraft.fromDriverId || ""} onChange={(event) => updateHandoverField("fromDriverId", event.target.value)}>
               <option value="">Unknown / none</option>
-              {drivers.map((driver) => (
+              {selectableResources(drivers, [handoverDraft.fromDriverId]).map((driver) => (
                 <option key={driver.id} value={driver.id}>
                   {driver.name}
                 </option>
@@ -851,7 +856,7 @@ export default function ScheduleBuilder({
           <Field label="To Driver">
             <Select value={handoverDraft.toDriverId || ""} onChange={(event) => updateHandoverField("toDriverId", event.target.value)}>
               <option value="">Unknown / none</option>
-              {drivers.map((driver) => (
+              {selectableResources(drivers, [handoverDraft.toDriverId]).map((driver) => (
                 <option key={driver.id} value={driver.id}>
                   {driver.name}
                 </option>
@@ -864,7 +869,7 @@ export default function ScheduleBuilder({
           <Field label="Show on driver sheet">
             <Select value={handoverVisibilityValue()} onChange={(event) => updateHandoverVisibility(event.target.value)}>
               <option value="none">Operational only</option>
-              {drivers.map((driver) => (
+              {selectableResources(drivers, handoverDraft.visibleToDriverIds).map((driver) => (
                 <option key={driver.id} value={driver.id}>
                   {driver.name}
                 </option>

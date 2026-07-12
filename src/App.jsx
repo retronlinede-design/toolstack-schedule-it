@@ -24,7 +24,7 @@ import { replaceScheduleTransaction, rollbackScheduleTransaction } from "./impor
 import { buildHtmlImportCandidate } from "./import/htmlCandidate";
 import { createClearCandidate } from "./import/operationCandidates";
 import { getVisibilityCounts } from "./domain/audiences";
-import { analyzeScheduleIntegrity, canProduceOfficialOutput, validateMovementCandidate } from "./domain/scheduleValidation";
+import { analyzeScheduleIntegrity, validateMovementCandidate } from "./domain/scheduleValidation";
 import { duplicateMovementForSchedule } from "./domain/schedulingMutations";
 import { Button } from "./components/ui/Button";
 import Card from "./components/ui/Card";
@@ -34,6 +34,9 @@ import IntegrityPanel from "./components/integrity/IntegrityPanel";
 import ToolsWorkspace from "./components/tools/ToolsWorkspace";
 import PreviewUnavailable from "./components/preview/PreviewUnavailable";
 import { preparePreviewDocument } from "./components/preview/previewPreparation";
+import { createStorageId } from "./storage/storage";
+import { deleteDriverCandidate, deleteVehicleCandidate, reassignDriverReferences, reassignVehicleReferences } from "./domain/resourceMutations";
+import { getDriverUsage, getVehicleUsage, totalUsage } from "./domain/resourceUsage";
 
 function createId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -249,7 +252,6 @@ export default function ScheduleItApp() {
   const previewSrcDoc = previewPreparation.ok ? previewPreparation.srcDoc : "";
   const visibilityCounts = useMemo(() => getVisibilityCounts(activeSchedule.movements), [activeSchedule.movements]);
   const integrity = useMemo(() => analyzeScheduleIntegrity(activeSchedule), [activeSchedule]);
-  const officialOutputAllowed = canProduceOfficialOutput(integrity);
 
   if (!schedule) return <StorageGate startup={startup} onRetry={retryStartup} onResolved={applyStartupResult} onVolatile={useVolatileState} />;
 
@@ -794,6 +796,31 @@ export default function ScheduleItApp() {
     performReplacement(nextSchedule, "clear", "Schedule data cleared. Drivers and vehicles were retained.");
   }
 
+  function saveDriver(driver) {
+    const next = { ...driver, id: driver.id || createStorageId("driver") };
+    setSchedule((current) => ({ ...current, drivers: [...current.drivers.filter((item) => item.id !== next.id), next] }));
+  }
+  function saveVehicle(vehicle) {
+    const next = { ...vehicle, id: vehicle.id || createStorageId("vehicle") };
+    setSchedule((current) => ({ ...current, vehicles: [...current.vehicles.filter((item) => item.id !== next.id), next] }));
+  }
+  function deleteDriver(id) {
+    if (totalUsage(getDriverUsage(schedule, id))) return;
+    if (!window.confirm("Permanently delete this unreferenced driver? A verified rollback snapshot will be retained.")) return;
+    performReplacement(deleteDriverCandidate(schedule, id), "resource-change", "Driver permanently deleted.");
+  }
+  function deleteVehicle(id) {
+    if (totalUsage(getVehicleUsage(schedule, id))) return;
+    if (!window.confirm("Permanently delete this unreferenced vehicle? A verified rollback snapshot will be retained.")) return;
+    performReplacement(deleteVehicleCandidate(schedule, id), "resource-change", "Vehicle permanently deleted.");
+  }
+  function reassignDriver(sourceId, replacementId) {
+    performReplacement(reassignDriverReferences(schedule, sourceId, replacementId), "resource-change", "Driver references reassigned. Rollback is available.");
+  }
+  function reassignVehicle(sourceId, replacementId) {
+    performReplacement(reassignVehicleReferences(schedule, sourceId, replacementId), "resource-change", "Vehicle references reassigned. Rollback is available.");
+  }
+
   function handleExportJson() {
     downloadJson(fullBackupFilename(), createFullBackup(schedule));
   }
@@ -812,20 +839,16 @@ export default function ScheduleItApp() {
     return true;
   }
 
-  function handlePrintView(view) {
-    if (!officialOutputAllowed) {
-      document.getElementById("schedule-integrity")?.scrollIntoView({ behavior: "smooth" });
-      window.alert("Review Schedule Issues before producing official output.");
-      return;
-    }
+  function handlePrintView(view, { skipIntegrityConfirmation = false } = {}) {
+    if (!skipIntegrityConfirmation && integrity.errors.length && !window.confirm("This schedule contains unresolved integrity issues.\n\nYou can continue, but the output may contain timing, driver, vehicle, or handover conflicts.")) return;
     const { fullHtml } = getExportDocument(schedule, view, { selectedDriverId: selectedDriver?.id });
     const didOpen = printHtmlDocument(fullHtml);
     setIsExportOpen(false);
     if (!didOpen) window.alert("Could not open print window. Check your browser popup settings.");
   }
 
-  async function handleCopyHtml(view) {
-    if (!officialOutputAllowed) return "Review Schedule Issues before producing official output.";
+  async function handleCopyHtml(view, { skipIntegrityConfirmation = false } = {}) {
+    if (!skipIntegrityConfirmation && integrity.errors.length && !window.confirm("This schedule contains unresolved integrity issues.\n\nYou can continue, but the output may contain timing, driver, vehicle, or handover conflicts.")) return "Copy cancelled.";
     const { fullHtml } = getExportDocument(schedule, view, { selectedDriverId: selectedDriver?.id });
     try {
       await navigator.clipboard.writeText(fullHtml);
@@ -889,6 +912,8 @@ export default function ScheduleItApp() {
 
   function reviewPreviewIssues() {
     setIsPreviewOpen(false);
+    setIsExportOpen(false);
+    setIsToolsOpen(false);
     window.requestAnimationFrame(() => {
       document.getElementById("schedule-integrity")?.scrollIntoView({ behavior: "smooth" });
       const toggle = document.getElementById("schedule-integrity-toggle");
@@ -958,9 +983,10 @@ export default function ScheduleItApp() {
             onClose={() => setIsExportOpen(false)}
             selectedDriverName={selectedDriver?.name || ""}
             hasDrivers={schedule.drivers.length > 0}
-            hasBlockingIssues={!officialOutputAllowed}
+            hasBlockingIssues={integrity.errors.length > 0}
             onPrintView={handlePrintView}
             onCopyHtml={handleCopyHtml}
+            onReviewIssues={reviewPreviewIssues}
             onExportJson={handleExportJson}
             onImportJson={handleImportJson}
             onReplaceJson={handleReplaceJson}
@@ -968,14 +994,21 @@ export default function ScheduleItApp() {
           />
         ) : null}
 
-        {isPreviewOpen && officialOutputAllowed && previewPreparation.ok ? (
-          <PreviewWorkspace tabs={documentPreviewTabs} selectedView={previewView} onViewChange={setPreviewView} scheduleDays={schedule.scheduleDays} integrity={integrity} selectedDriverName={selectedDriver?.name || ""} documentTitle={previewDocument.title} srcDoc={previewSrcDoc} frameRef={previewFrameRef} onPrint={printPreview} onCopy={handleCopyHtml} onClose={() => setIsPreviewOpen(false)} />
+        {isPreviewOpen && previewPreparation.ok ? (
+          <PreviewWorkspace tabs={documentPreviewTabs} selectedView={previewView} onViewChange={setPreviewView} scheduleDays={schedule.scheduleDays} integrity={integrity} selectedDriverName={selectedDriver?.name || ""} documentTitle={previewDocument.title} srcDoc={previewSrcDoc} frameRef={previewFrameRef} onPrint={printPreview} onCopy={(view) => handleCopyHtml(view, { skipIntegrityConfirmation: true })} onReviewIssues={reviewPreviewIssues} onClose={() => setIsPreviewOpen(false)} />
         ) : null}
 
-        {isPreviewOpen && (!officialOutputAllowed || !previewPreparation.ok) ? <PreviewUnavailable blocked={!officialOutputAllowed} error={previewPreparation.ok ? null : previewPreparation.error} onReview={reviewPreviewIssues} onClose={() => setIsPreviewOpen(false)} /> : null}
+        {isPreviewOpen && !previewPreparation.ok ? <PreviewUnavailable error={previewPreparation.error} onClose={() => setIsPreviewOpen(false)} /> : null}
 
         {isToolsOpen ? <ToolsWorkspace
           onClose={() => setIsToolsOpen(false)}
+          schedule={schedule}
+          onSaveDriver={saveDriver}
+          onDeleteDriver={deleteDriver}
+          onReassignDriver={reassignDriver}
+          onSaveVehicle={saveVehicle}
+          onDeleteVehicle={deleteVehicle}
+          onReassignVehicle={reassignVehicle}
           importantInfoCount={(schedule.importantInfoItems || []).length}
           handoverCount={(schedule.vehicleHandoverNotes || []).length}
           handoverConflictCount={Object.values(integrity.conflictsByHandoverId).filter((issues) => issues.some((issue) => issue.severity === "error")).length}

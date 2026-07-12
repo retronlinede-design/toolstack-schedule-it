@@ -3,6 +3,7 @@ import { parseTimeToMinutes } from "../utils/time";
 import { migrateRouteNotesToImportantInfo } from "./routeMigration";
 import { withNormalizedAudiences } from "../domain/audiences";
 import { normalizeWorkClassification, normalizeWorkingTimePolicy } from "../domain/workingTimePolicy";
+import { normalizeDriver, normalizeVehicle } from "../domain/resourceValidation";
 
 function fallbackTime(movement) {
   return parseTimeToMinutes(movement.driverStart || movement.departureTime || movement.arrivalTime || movement.endTime) ?? Number.MAX_SAFE_INTEGER;
@@ -27,14 +28,14 @@ function withSortOrders(scheduleDays, movements) {
 export function normalizeState(state) {
   const scheduleDays = state?.scheduleDays || [];
   const routeNotes = Array.isArray(state?.routeNotes) ? state.routeNotes : [];
-  const drivers = Array.isArray(state?.drivers) ? state.drivers : defaultScheduleState.drivers;
+  const drivers = (Array.isArray(state?.drivers) ? state.drivers : defaultScheduleState.drivers).map(normalizeDriver);
   return {
     ...defaultScheduleState,
     ...state,
     profile: { ...defaultScheduleState.profile, ...state?.profile },
     workingTimePolicy: normalizeWorkingTimePolicy(state?.workingTimePolicy),
     drivers,
-    vehicles: Array.isArray(state?.vehicles) ? state.vehicles : defaultScheduleState.vehicles,
+    vehicles: (Array.isArray(state?.vehicles) ? state.vehicles : defaultScheduleState.vehicles).map(normalizeVehicle),
     scheduleDays,
     movements: withSortOrders(scheduleDays, state?.movements || []).map((movement) => ({
       ...withNormalizedAudiences(movement, drivers.map((driver) => driver.id)),
