@@ -1,4 +1,4 @@
-import { parseTimeToMinutes } from "../utils/time";
+import { parseStrictTime } from "../domain/timeIntervals";
 
 export const VALIDATION_LIMITS = {
   maxDepth: 20,
@@ -24,8 +24,10 @@ const movementKeys = new Set([
   "internalNotes", "contactPerson", "contactPhone", "securityNotes", "protocolNotes", "dressCode", "documentsToCarry",
   "materialsOrGifts", "specialInstructions", "isExecutiveVisible", "isOperationalVisible",
   "audiences",
+  "continuesOvernight", "conflictOverrides",
 ]);
 const audienceKeys = new Set(["executive", "operational", "cg", "marida", "driverIds"]);
+const overrideKeys = new Set(["conflictKey", "reason", "acknowledgedAt"]);
 const handoverKeys = new Set(["id", "scheduleDayId", "vehicleId", "fromDriverId", "toDriverId", "visibleToDriverIds", "location", "instruction", "keyLocation", "time", "notes", "sortOrder"]);
 const infoKeys = new Set(["id", "type", "title", "from", "to", "distance", "estimatedTravelTime", "name", "phone", "email", "address", "notes", "sortOrder"]);
 const routeKeys = new Set(["id", "scheduleDayId", "driverId", "from", "to", "distance", "estimatedTravelTime", "notes", "sortOrder"]);
@@ -138,10 +140,10 @@ export function validateScheduleBackupState(state) {
     ["driverStart", "departureTime", "arrivalTime", "endTime", "eventStartTime", "eventEndTime"].forEach((field) => {
       if (item[field] !== undefined) {
         stringField(item[field], `${path}.${field}`, errors);
-        if (typeof item[field] === "string" && item[field] && parseTimeToMinutes(item[field]) === null) errors.push({ code: "INVALID_SCHEMA", path: `${path}.${field}`, message: "Invalid time format." });
+        if (typeof item[field] === "string" && item[field] && !parseStrictTime(item[field]).ok) errors.push({ code: "INVALID_SCHEMA", path: `${path}.${field}`, message: "Invalid time format." });
       }
     });
-    [...movementKeys].filter((field) => !["id", "scheduleDayId", "sortOrder", "driverId", "vehicleId", "driverStart", "departureTime", "arrivalTime", "endTime", "eventStartTime", "eventEndTime", "isExecutiveVisible", "isOperationalVisible", "audiences"].includes(field))
+    [...movementKeys].filter((field) => !["id", "scheduleDayId", "sortOrder", "driverId", "vehicleId", "driverStart", "departureTime", "arrivalTime", "endTime", "eventStartTime", "eventEndTime", "isExecutiveVisible", "isOperationalVisible", "audiences", "continuesOvernight", "conflictOverrides"].includes(field))
       .forEach((field) => { if (item[field] !== undefined) stringField(item[field], `${path}.${field}`, errors); });
     ["isExecutiveVisible", "isOperationalVisible"].forEach((field) => { if (item[field] !== undefined && typeof item[field] !== "boolean") errors.push({ code: "INVALID_SCHEMA", path: `${path}.${field}`, message: `${field} must be boolean.` }); });
     if (item.audiences !== undefined) {
@@ -164,6 +166,25 @@ export function validateScheduleBackupState(state) {
         }
       }
     }
+    if (item.continuesOvernight !== undefined && typeof item.continuesOvernight !== "boolean") errors.push({ code: "INVALID_SCHEMA", path: `${path}.continuesOvernight`, message: "continuesOvernight must be boolean." });
+    if (item.conflictOverrides !== undefined) {
+      if (!Array.isArray(item.conflictOverrides)) errors.push({ code: "INVALID_SCHEMA", path: `${path}.conflictOverrides`, message: "conflictOverrides must be an array." });
+      else {
+        if (item.conflictOverrides.length > 100) errors.push({ code: "EXCESSIVE_COUNT", path: `${path}.conflictOverrides`, message: "Too many conflict overrides." });
+        const overrideKeysSeen = new Set();
+        item.conflictOverrides.forEach((override, overrideIndex) => {
+          const overridePath = `${path}.conflictOverrides[${overrideIndex}]`;
+          if (!plain(override)) return errors.push({ code: "INVALID_SCHEMA", path: overridePath, message: "Conflict override must be a plain object." });
+          Object.keys(override).filter((key) => !overrideKeys.has(key)).forEach((key) => errors.push({ code: "INVALID_SCHEMA", path: `${overridePath}.${key}`, message: "Unknown conflict override field." }));
+          stringField(override.conflictKey, `${overridePath}.conflictKey`, errors, { required: true });
+          stringField(override.reason, `${overridePath}.reason`, errors, { required: true });
+          if (typeof override.reason === "string" && override.reason.trim().length < 10) errors.push({ code: "INVALID_SCHEMA", path: `${overridePath}.reason`, message: "Override reason must be at least 10 characters." });
+          if (override.acknowledgedAt !== undefined && (typeof override.acknowledgedAt !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(override.acknowledgedAt) || Number.isNaN(Date.parse(override.acknowledgedAt)))) errors.push({ code: "INVALID_SCHEMA", path: `${overridePath}.acknowledgedAt`, message: "acknowledgedAt must be an ISO timestamp." });
+          if (overrideKeysSeen.has(override.conflictKey)) errors.push({ code: "DUPLICATE_ID", path: `${overridePath}.conflictKey`, message: "Duplicate conflict override key." });
+          overrideKeysSeen.add(override.conflictKey);
+        });
+      }
+    }
   });
 
   validateCollection(state, "vehicleHandoverNotes", handoverKeys, errors, warnings, (item, path) => {
@@ -174,7 +195,7 @@ export function validateScheduleBackupState(state) {
     else item.visibleToDriverIds.forEach((id) => { if (!driverIds.has(id)) errors.push({ code: "UNKNOWN_REFERENCE", path: `${path}.visibleToDriverIds`, message: "Unknown visible driver." }); });
     finiteOptional(item.sortOrder, `${path}.sortOrder`, errors);
     ["scheduleDayId", "vehicleId", "fromDriverId", "toDriverId", "location", "instruction", "keyLocation", "time", "notes"].forEach((field) => { if (item[field] !== undefined) stringField(item[field], `${path}.${field}`, errors); });
-    if (typeof item.time === "string" && item.time && parseTimeToMinutes(item.time) === null) errors.push({ code: "INVALID_SCHEMA", path: `${path}.time`, message: "Invalid handover time." });
+    if (typeof item.time === "string" && item.time && !parseStrictTime(item.time).ok) errors.push({ code: "INVALID_SCHEMA", path: `${path}.time`, message: "Invalid handover time." });
   });
 
   validateCollection(state, "importantInfoItems", infoKeys, errors, warnings, (item, path) => {

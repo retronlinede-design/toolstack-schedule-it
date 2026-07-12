@@ -83,7 +83,7 @@ function MetricCard({ label, value, alert = false }) {
   );
 }
 
-export default function WorkingTimeSummary({ movements, drivers, vehicles, scheduleDays }) {
+export default function WorkingTimeSummary({ movements, drivers, vehicles, scheduleDays, integrity }) {
   const { driverDaySummaries, dailyTotals, overallDriverTotals } = calculateWorkingTimeSummary(movements, drivers, vehicles, scheduleDays);
   const driverGroups = [...groupDriverSummaries(driverDaySummaries, overallDriverTotals)];
   const dailyGroups = groupDailySummaries(driverDaySummaries, dailyTotals);
@@ -92,6 +92,7 @@ export default function WorkingTimeSummary({ movements, drivers, vehicles, sched
 
   return (
     <div className="space-y-8">
+      {integrity?.summary?.chronologyErrors > 0 ? <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800">Unresolved chronology conflicts make these working-time results unreliable.</div> : null}
       {driverGroups.map((group) => (
         <section key={group.driverId} className="min-w-0 max-w-full rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
           <div className="mb-4 border-b border-neutral-100 pb-3">

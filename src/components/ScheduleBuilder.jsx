@@ -131,6 +131,28 @@ function AudienceEditor({ movement, drivers, vehicles, onChange, idPrefix }) {
   );
 }
 
+function ConflictIssues({ issues = [], movement, onChange }) {
+  const [reasons, setReasons] = useState({});
+  if (!issues.length) return null;
+  function acknowledge(issue) {
+    const reason = (reasons[issue.conflictKey] || "").trim();
+    if (reason.length < 10 || !window.confirm("Acknowledge this overlap override with the supplied reason?")) return;
+    const existing = Array.isArray(movement.conflictOverrides) ? movement.conflictOverrides.filter((item) => item.conflictKey !== issue.conflictKey) : [];
+    onChange({ ...movement, conflictOverrides: [...existing, { conflictKey: issue.conflictKey, reason, acknowledgedAt: new Date().toISOString() }] });
+  }
+  return (
+    <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-900" role="alert">
+      <strong>Review movement conflicts</strong>
+      <ul className="mt-2 space-y-3">
+        {issues.map((issue, index) => {
+          const eligible = ["DRIVER_OVERLAP", "VEHICLE_OVERLAP"].includes(issue.type) && issue.severity === "error";
+          return <li key={`${issue.type}-${issue.conflictKey || index}`}><p>{issue.field ? `${issue.field}: ` : ""}{issue.message}</p>{eligible ? <div className="mt-2 flex flex-wrap gap-2"><input aria-label="Override reason" value={reasons[issue.conflictKey] || ""} onChange={(event) => setReasons((current) => ({ ...current, [issue.conflictKey]: event.target.value }))} placeholder="Override reason (minimum 10 characters)" className="min-w-64 flex-1 rounded-lg border border-red-300 px-2 py-1 text-sm" /><button type="button" onClick={() => acknowledge(issue)} className="rounded-lg bg-red-700 px-3 py-1 font-semibold text-white">Acknowledge override</button></div> : null}</li>;
+        })}
+      </ul>
+    </div>
+  );
+}
+
 export default function ScheduleBuilder({
   draft,
   drivers,
@@ -161,6 +183,7 @@ export default function ScheduleBuilder({
   onDuplicateImportantInfoItem,
   onMoveImportantInfoItem,
   onDeleteImportantInfoItem,
+  integrity,
 }) {
   const [editingMovementId, setEditingMovementId] = useState(null);
   const [inlineDraft, setInlineDraft] = useState(null);
@@ -282,7 +305,11 @@ export default function ScheduleBuilder({
     setInlineErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
-    onUpdateMovement(inlineDraft);
+    const result = onUpdateMovement(inlineDraft);
+    if (result?.ok === false) {
+      setInlineErrors({ integrityIssues: result.issues });
+      return;
+    }
     setEditingMovementId(null);
     setInlineDraft(null);
     setInlineErrors({});
@@ -353,7 +380,11 @@ export default function ScheduleBuilder({
     setHandoverErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
-    onSaveVehicleHandoverNote(resolvedNote);
+    const result = onSaveVehicleHandoverNote(resolvedNote);
+    if (result?.ok === false) {
+      setHandoverErrors({ integrityIssues: result.issues });
+      return;
+    }
     clearHandoverDraft();
   }
 
@@ -518,6 +549,8 @@ export default function ScheduleBuilder({
         </div>
 
         <AudienceEditor movement={draft} drivers={drivers} vehicles={vehicles} idPrefix="main" onChange={(audiences) => onChange((current) => ({ ...current, audiences, isExecutiveVisible: audiences.executive, isOperationalVisible: audiences.operational }))} />
+        <label className="flex items-center gap-2 text-sm font-medium text-neutral-700"><input type="checkbox" checked={draft.continuesOvernight === true} onChange={(event) => updateField("continuesOvernight", event.target.checked)} />Continues past midnight</label>
+        <ConflictIssues issues={errors.integrityIssues} movement={draft} onChange={onChange} />
 
         <div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -598,6 +631,7 @@ export default function ScheduleBuilder({
                 {selectedDayMovements.map((movement, index) => {
                   const isEditing = editingMovementId === movement.id;
                   const hasActiveInlineEdit = Boolean(editingMovementId);
+                  const movementIssues = integrity?.conflictsByMovementId?.[movement.id] || [];
 
                   return (
                     <tr key={movement.id} className="align-top">
@@ -658,6 +692,8 @@ export default function ScheduleBuilder({
                           </div>
 
                           <div className="mt-3"><AudienceEditor movement={inlineDraft} drivers={drivers} vehicles={vehicles} idPrefix="inline" onChange={(audiences) => setInlineDraft((current) => ({ ...current, audiences, isExecutiveVisible: audiences.executive, isOperationalVisible: audiences.operational }))} /></div>
+                          <label className="mt-3 flex items-center gap-2 text-sm font-medium text-neutral-700"><input type="checkbox" checked={inlineDraft.continuesOvernight === true} onChange={(event) => updateInlineField("continuesOvernight", event.target.checked)} />Continues past midnight</label>
+                          <div className="mt-3"><ConflictIssues issues={inlineErrors.integrityIssues} movement={inlineDraft} onChange={setInlineDraft} /></div>
 
                           <div className="mt-3 grid gap-3 md:grid-cols-3">
                             <Field label="Location Notes">
@@ -689,6 +725,12 @@ export default function ScheduleBuilder({
                           <td className="border border-neutral-200 p-3 text-neutral-900">
                             <div>{movement.engagementDetails || "-"}</div>
                             <div className="mt-1 flex flex-wrap gap-1" aria-label={getAudienceSummary(movement)}>{getAudienceBadges(movement).map((badge) => <span key={badge} className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-semibold text-neutral-600">{badge}</span>)}</div>
+                            <div className="mt-1 flex flex-wrap gap-1" aria-label="Schedule integrity indicators">
+                              {movementIssues.some((issue) => issue.severity === "error") ? <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">Conflict</span> : null}
+                              {movementIssues.some((issue) => issue.severity === "warning") ? <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">Warning</span> : null}
+                              {movement.continuesOvernight ? <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">Overnight</span> : null}
+                              {(movement.conflictOverrides || []).length ? <span className="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold text-purple-700">Override</span> : null}
+                            </div>
                           </td>
                           <td className="border border-neutral-200 p-3 text-neutral-700">{movement.venue || movement.address || "-"}</td>
                           <td className="border border-neutral-200 p-3 text-neutral-700">{getName(drivers, movement.driverId)}</td>
@@ -813,6 +855,7 @@ export default function ScheduleBuilder({
           <Textarea value={handoverDraft.notes} onChange={(event) => updateHandoverField("notes", event.target.value)} placeholder="Rory collects BMW from airport parking P20." />
         </Field>
         {handoverErrors.scheduleDayId ? <p className="text-xs font-medium text-red-600">{handoverErrors.scheduleDayId}</p> : null}
+        {handoverErrors.integrityIssues?.length ? <ul className="list-disc pl-5 text-xs font-medium text-red-700">{handoverErrors.integrityIssues.map((issue, index) => <li key={`${issue.type}-${index}`}>{issue.message}</li>)}</ul> : null}
         <div className="flex flex-wrap gap-2">
           <button onClick={saveHandover} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white">
             <Save className="h-4 w-4" /> {handoverDraft.id ? "Update Handover" : "Add Handover"}

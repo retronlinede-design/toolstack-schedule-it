@@ -76,6 +76,8 @@ function parseOperationalRow(cells, indexes, sortOrder, warnings) {
     isExecutiveVisible: true,
     isOperationalVisible: true,
     audiences: { executive: true, operational: true, cg: false, marida: false, driverIds: [] },
+    continuesOvernight: false,
+    conflictOverrides: [],
   };
 
   if (!driverName) warnings.push(`Row ${sortOrder / 10}: driver could not be detected.`);
@@ -117,6 +119,8 @@ function parseExecutiveRow(cells, indexes, sortOrder, warnings) {
     isExecutiveVisible: true,
     isOperationalVisible: true,
     audiences: { executive: true, operational: true, cg: false, marida: false, driverIds: [] },
+    continuesOvernight: false,
+    conflictOverrides: [],
   };
 }
 

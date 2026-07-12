@@ -35,6 +35,8 @@ export const emptyDraft = {
   isExecutiveVisible: true,
   isOperationalVisible: true,
   audiences: { ...DEFAULT_MOVEMENT_AUDIENCES, driverIds: [] },
+  continuesOvernight: false,
+  conflictOverrides: [],
 };
 
 export function createScheduleDayFromDraft(draft, existingDay) {
@@ -67,6 +69,8 @@ export function createMovementFromDraft(draft, scheduleDayId) {
     isExecutiveVisible: draft.isExecutiveVisible,
     isOperationalVisible: draft.isOperationalVisible,
     audiences,
+    continuesOvernight: draft.continuesOvernight === true,
+    conflictOverrides: Array.isArray(draft.conflictOverrides) ? draft.conflictOverrides : [],
     eventStartTime: draft.eventStartTime ?? "",
     eventEndTime: draft.eventEndTime ?? "",
     contactPerson: draft.contactPerson || "",
@@ -116,5 +120,7 @@ export function createDraftFromMovement(movement, day, profile) {
     isExecutiveVisible: audiences.executive,
     isOperationalVisible: audiences.operational,
     audiences,
+    continuesOvernight: movement.continuesOvernight === true,
+    conflictOverrides: Array.isArray(movement.conflictOverrides) ? movement.conflictOverrides : [],
   };
 }

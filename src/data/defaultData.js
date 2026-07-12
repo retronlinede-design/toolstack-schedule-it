@@ -81,6 +81,8 @@ export function createMondayDemoState() {
         isExecutiveVisible: false,
         isOperationalVisible: true,
         audiences: demoOperationalAudiences,
+        continuesOvernight: false,
+        conflictOverrides: [],
       },
       {
         id: "demo-greg-transfer-staatskanzlei",
@@ -102,6 +104,8 @@ export function createMondayDemoState() {
         isExecutiveVisible: true,
         isOperationalVisible: true,
         audiences: demoExecutiveAudiences,
+        continuesOvernight: false,
+        conflictOverrides: [],
       },
       {
         id: "demo-greg-official-meeting",
@@ -123,6 +127,8 @@ export function createMondayDemoState() {
         isExecutiveVisible: true,
         isOperationalVisible: true,
         audiences: demoExecutiveAudiences,
+        continuesOvernight: false,
+        conflictOverrides: [],
       },
       {
         id: "demo-greg-transfer-bbw",
@@ -144,6 +150,8 @@ export function createMondayDemoState() {
         isExecutiveVisible: true,
         isOperationalVisible: true,
         audiences: demoExecutiveAudiences,
+        continuesOvernight: false,
+        conflictOverrides: [],
       },
       {
         id: "demo-greg-bbw-meeting",
@@ -165,6 +173,8 @@ export function createMondayDemoState() {
         isExecutiveVisible: true,
         isOperationalVisible: true,
         audiences: demoExecutiveAudiences,
+        continuesOvernight: false,
+        conflictOverrides: [],
       },
       {
         id: "demo-greg-end-duty",
@@ -186,6 +196,8 @@ export function createMondayDemoState() {
         isExecutiveVisible: false,
         isOperationalVisible: true,
         audiences: demoOperationalAudiences,
+        continuesOvernight: false,
+        conflictOverrides: [],
       },
     ],
   };

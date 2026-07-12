@@ -40,7 +40,7 @@ function PanelButton({ icon, label, description, onClick, disabled = false }) {
   );
 }
 
-export default function ExportPanel({ selectedDriverName, hasDrivers, onClose, onPrintView, onCopyHtml, onExportJson, onImportJson, onReplaceJson, onApplyHtmlImport }) {
+export default function ExportPanel({ selectedDriverName, hasDrivers, hasBlockingIssues = false, onClose, onPrintView, onCopyHtml, onExportJson, onImportJson, onReplaceJson, onApplyHtmlImport }) {
   const inputRef = useRef(null);
   const [message, setMessage] = useState("");
   const [isHtmlImportOpen, setIsHtmlImportOpen] = useState(false);
@@ -76,6 +76,7 @@ export default function ExportPanel({ selectedDriverName, hasDrivers, onClose, o
         </div>
 
         {message ? <div className="mb-4 rounded-2xl bg-neutral-50 px-4 py-3 text-sm text-neutral-700">{message}</div> : null}
+        {hasBlockingIssues ? <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800">Official output is disabled. Review Schedule Issues in the builder.</div> : null}
 
         {jsonPreparation?.ok ? (
           <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
@@ -98,14 +99,14 @@ export default function ExportPanel({ selectedDriverName, hasDrivers, onClose, o
             <h3 className="mb-2 text-xs font-black uppercase tracking-widest text-neutral-400">Print</h3>
             <div className="grid gap-3">
               {printActions.map(([view, label]) => (
-                <PanelButton key={view} icon={Printer} label={label} description="Non-restorable report output for print/PDF." onClick={() => onPrintView(view)} />
+                <PanelButton key={view} icon={Printer} label={label} description="Non-restorable report output for print/PDF." onClick={() => onPrintView(view)} disabled={hasBlockingIssues} />
               ))}
               <PanelButton
                 icon={Printer}
                 label={hasDrivers ? `Print Driver View: ${selectedDriverName}` : "Print Driver View"}
                 description={hasDrivers ? "Non-restorable selected-driver report." : "No drivers available."}
                 onClick={() => onPrintView("driver")}
-                disabled={!hasDrivers}
+                disabled={!hasDrivers || hasBlockingIssues}
               />
             </div>
           </div>
@@ -114,14 +115,14 @@ export default function ExportPanel({ selectedDriverName, hasDrivers, onClose, o
             <h3 className="mb-2 text-xs font-black uppercase tracking-widest text-neutral-400">Copy HTML</h3>
             <div className="grid gap-3">
               {copyActions.map(([view, label]) => (
-                <PanelButton key={view} icon={Clipboard} label={label} description="Copy non-restorable report HTML." onClick={() => handleCopy(view)} />
+                <PanelButton key={view} icon={Clipboard} label={label} description="Copy non-restorable report HTML." onClick={() => handleCopy(view)} disabled={hasBlockingIssues} />
               ))}
               <PanelButton
                 icon={Clipboard}
                 label={hasDrivers ? `Copy Driver HTML: ${selectedDriverName}` : "Copy Driver HTML"}
                 description={hasDrivers ? "Copy selected driver HTML." : "No drivers available."}
                 onClick={() => handleCopy("driver")}
-                disabled={!hasDrivers}
+                disabled={!hasDrivers || hasBlockingIssues}
               />
             </div>
           </div>

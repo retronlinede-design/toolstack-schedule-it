@@ -26,15 +26,19 @@ function withSortOrders(scheduleDays, movements) {
 export function normalizeState(state) {
   const scheduleDays = state?.scheduleDays || [];
   const routeNotes = Array.isArray(state?.routeNotes) ? state.routeNotes : [];
-  const drivers = state?.drivers?.length ? state.drivers : defaultScheduleState.drivers;
+  const drivers = Array.isArray(state?.drivers) ? state.drivers : defaultScheduleState.drivers;
   return {
     ...defaultScheduleState,
     ...state,
     profile: { ...defaultScheduleState.profile, ...state?.profile },
     drivers,
-    vehicles: state?.vehicles?.length ? state.vehicles : defaultScheduleState.vehicles,
+    vehicles: Array.isArray(state?.vehicles) ? state.vehicles : defaultScheduleState.vehicles,
     scheduleDays,
-    movements: withSortOrders(scheduleDays, state?.movements || []).map((movement) => withNormalizedAudiences(movement, drivers.map((driver) => driver.id))),
+    movements: withSortOrders(scheduleDays, state?.movements || []).map((movement) => ({
+      ...withNormalizedAudiences(movement, drivers.map((driver) => driver.id)),
+      continuesOvernight: movement.continuesOvernight === true,
+      conflictOverrides: Array.isArray(movement.conflictOverrides) ? movement.conflictOverrides : [],
+    })),
     vehicleHandoverNotes: (Array.isArray(state?.vehicleHandoverNotes) ? state.vehicleHandoverNotes : []).map((note) => ({
       ...note,
       visibleToDriverIds: Array.isArray(note.visibleToDriverIds) ? note.visibleToDriverIds : [note.fromDriverId, note.toDriverId].filter(Boolean),

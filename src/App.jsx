@@ -24,6 +24,8 @@ import { replaceScheduleTransaction, rollbackScheduleTransaction } from "./impor
 import { buildHtmlImportCandidate } from "./import/htmlCandidate";
 import { createClearCandidate } from "./import/operationCandidates";
 import { getVisibilityCounts } from "./domain/audiences";
+import { analyzeScheduleIntegrity, canProduceOfficialOutput, validateMovementCandidate } from "./domain/scheduleValidation";
+import { duplicateMovementForSchedule } from "./domain/schedulingMutations";
 
 function createId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -239,6 +241,8 @@ export default function ScheduleItApp() {
     [previewDocument],
   );
   const visibilityCounts = useMemo(() => getVisibilityCounts(activeSchedule.movements), [activeSchedule.movements]);
+  const integrity = useMemo(() => analyzeScheduleIntegrity(activeSchedule), [activeSchedule]);
+  const officialOutputAllowed = canProduceOfficialOutput(integrity);
 
   if (!schedule) return <StorageGate startup={startup} onRetry={retryStartup} onResolved={applyStartupResult} onVolatile={useVolatileState} />;
 
@@ -278,33 +282,22 @@ export default function ScheduleItApp() {
   }
 
   function handleSubmit() {
-    const errors = validateDraft(draft);
+    const workingDraft = draft.id ? draft : { ...draft, id: createId("movement") };
+    const errors = validateDraft(workingDraft);
     setValidationErrors(errors);
     if (Object.keys(errors).length > 0) return;
-
-    setSchedule((current) => {
-      const profile = {
-        missionName: draft.missionName || defaultProfile.missionName,
-        documentTitle: draft.documentTitle || defaultProfile.documentTitle,
-      };
-      const existingDay = findOrCreateDay(current.scheduleDays, draft);
-      const day = createScheduleDayFromDraft(draft, existingDay);
-      const movement = {
-        ...createMovementFromDraft(draft, day.id),
-        sortOrder: Number.isFinite(draft.sortOrder) ? draft.sortOrder : nextSortOrder(current.movements, day.id),
-      };
-      const scheduleDays = existingDay
-        ? current.scheduleDays.map((item) => (item.id === day.id ? day : item))
-        : [...current.scheduleDays, day];
-      const movements = [...current.movements.filter((item) => item.id !== movement.id), movement];
-
-      return {
-        ...current,
-        profile,
-        scheduleDays,
-        movements,
-      };
-    });
+    const profile = { missionName: workingDraft.missionName || defaultProfile.missionName, documentTitle: workingDraft.documentTitle || defaultProfile.documentTitle };
+    const existingDay = findOrCreateDay(schedule.scheduleDays, workingDraft);
+    const day = createScheduleDayFromDraft(workingDraft, existingDay);
+    const movement = { ...createMovementFromDraft(workingDraft, day.id), sortOrder: Number.isFinite(workingDraft.sortOrder) ? workingDraft.sortOrder : nextSortOrder(schedule.movements, day.id) };
+    const scheduleDays = existingDay ? schedule.scheduleDays.map((item) => (item.id === day.id ? day : item)) : [...schedule.scheduleDays, day];
+    const validation = validateMovementCandidate({ ...schedule, scheduleDays }, movement, workingDraft.id);
+    if (validation.blocking.length > 0) {
+      setDraft(workingDraft);
+      setValidationErrors({ integrityIssues: validation.issues });
+      return;
+    }
+    setSchedule({ ...schedule, profile, scheduleDays, movements: [...schedule.movements.filter((item) => item.id !== movement.id), movement] });
 
     resetDraft(
       {
@@ -435,11 +428,7 @@ export default function ScheduleItApp() {
   }
 
   function handleDuplicateMovement(movement) {
-    const nextMovement = {
-      ...movement,
-      id: createId("movement"),
-      sortOrder: nextSortOrder(schedule.movements, movement.scheduleDayId),
-    };
+    const nextMovement = duplicateMovementForSchedule(movement, createId("movement"), nextSortOrder(schedule.movements, movement.scheduleDayId));
 
     setSchedule((current) => ({
       ...current,
@@ -448,12 +437,15 @@ export default function ScheduleItApp() {
   }
 
   function handleUpdateMovement(updatedMovement) {
+    const validation = validateMovementCandidate(schedule, updatedMovement, updatedMovement.id);
+    if (validation.blocking.length > 0) return { ok: false, issues: validation.issues };
     setSchedule((current) => ({
       ...current,
       movements: current.movements.map((movement) =>
         movement.id === updatedMovement.id ? preserveClearedTimeFields(updatedMovement, movement) : movement,
       ),
     }));
+    return { ok: true, issues: validation.issues };
   }
 
   function handleMoveMovement(id, direction) {
@@ -553,32 +545,21 @@ export default function ScheduleItApp() {
 
   function handleSaveVehicleHandoverNote(noteDraft) {
     if (!noteDraft.scheduleDayId || !noteDraft.vehicleId || (!noteDraft.location && !noteDraft.instruction && !noteDraft.keyLocation && !noteDraft.notes)) {
-      return;
+      return { ok: false, issues: [{ message: "Complete the required handover fields." }] };
     }
-
-    setSchedule((current) => {
-      const note = {
-        id: noteDraft.id || createId("handover"),
-        scheduleDayId: noteDraft.scheduleDayId,
-        vehicleId: noteDraft.vehicleId,
-        fromDriverId: noteDraft.fromDriverId || "",
-        toDriverId: noteDraft.toDriverId || "",
-        visibleToDriverIds: Array.isArray(noteDraft.visibleToDriverIds) ? noteDraft.visibleToDriverIds : [],
-        location: noteDraft.location || "",
-        instruction: noteDraft.instruction || "",
-        keyLocation: noteDraft.keyLocation || "",
-        time: noteDraft.time || "",
-        notes: noteDraft.notes || "",
-        sortOrder: Number.isFinite(noteDraft.sortOrder)
-          ? noteDraft.sortOrder
-          : nextVehicleHandoverSortOrder(current.vehicleHandoverNotes || [], noteDraft.scheduleDayId),
-      };
-
-      return {
-        ...current,
-        vehicleHandoverNotes: [...(current.vehicleHandoverNotes || []).filter((item) => item.id !== note.id), note],
-      };
-    });
+    const note = {
+      id: noteDraft.id || createId("handover"), scheduleDayId: noteDraft.scheduleDayId, vehicleId: noteDraft.vehicleId,
+      fromDriverId: noteDraft.fromDriverId || "", toDriverId: noteDraft.toDriverId || "",
+      visibleToDriverIds: Array.isArray(noteDraft.visibleToDriverIds) ? noteDraft.visibleToDriverIds : [], location: noteDraft.location || "",
+      instruction: noteDraft.instruction || "", keyLocation: noteDraft.keyLocation || "", time: noteDraft.time || "", notes: noteDraft.notes || "",
+      sortOrder: Number.isFinite(noteDraft.sortOrder) ? noteDraft.sortOrder : nextVehicleHandoverSortOrder(schedule.vehicleHandoverNotes || [], noteDraft.scheduleDayId),
+    };
+    const nextSchedule = { ...schedule, vehicleHandoverNotes: [...(schedule.vehicleHandoverNotes || []).filter((item) => item.id !== note.id), note] };
+    const analysis = analyzeScheduleIntegrity(nextSchedule);
+    const blocking = (analysis.conflictsByHandoverId[note.id] || []).filter((issue) => issue.severity === "error");
+    if (blocking.length) return { ok: false, issues: analysis.conflictsByHandoverId[note.id] };
+    setSchedule(nextSchedule);
+    return { ok: true, issues: analysis.conflictsByHandoverId[note.id] || [] };
   }
 
   function handleDuplicateVehicleHandoverNote(note) {
@@ -832,6 +813,11 @@ export default function ScheduleItApp() {
   }
 
   function handlePrintView(view) {
+    if (!officialOutputAllowed) {
+      document.getElementById("schedule-integrity")?.scrollIntoView({ behavior: "smooth" });
+      window.alert("Review Schedule Issues before producing official output.");
+      return;
+    }
     const { fullHtml } = getExportDocument(schedule, view, { selectedDriverId: selectedDriver?.id });
     const didOpen = printHtmlDocument(fullHtml);
     setIsExportOpen(false);
@@ -839,6 +825,7 @@ export default function ScheduleItApp() {
   }
 
   async function handleCopyHtml(view) {
+    if (!officialOutputAllowed) return "Review Schedule Issues before producing official output.";
     const { fullHtml } = getExportDocument(schedule, view, { selectedDriverId: selectedDriver?.id });
     try {
       await navigator.clipboard.writeText(fullHtml);
@@ -915,7 +902,8 @@ export default function ScheduleItApp() {
               </button>
               <button
                 onClick={() => setIsPreviewOpen(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-neutral-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-neutral-800"
+                disabled={!officialOutputAllowed}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-neutral-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <Printer className="h-4 w-4" /> Preview
               </button>
@@ -930,6 +918,11 @@ export default function ScheduleItApp() {
           <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 rounded-xl bg-neutral-50 px-3 py-2 text-xs text-neutral-600" aria-label="Programme visibility summary">
             <span>Executive: {visibilityCounts.executive}</span><span>CG: {visibilityCounts.cg}</span><span>Marida: {visibilityCounts.marida}</span><span>Operational: {visibilityCounts.operational}</span>
             <span className={visibilityCounts.hidden ? "font-bold text-amber-700" : ""}>Hidden: {visibilityCounts.hidden}</span>
+          </div>
+          <div id="schedule-integrity" className={`mt-3 rounded-xl border p-3 text-sm ${integrity.errors.length ? "border-red-300 bg-red-50 text-red-900" : "border-neutral-200 bg-neutral-50 text-neutral-700"}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2"><strong>Schedule Integrity</strong><span>{integrity.errors.length} errors · {integrity.warnings.length} warnings</span></div>
+            <div className="mt-1 flex flex-wrap gap-x-3 text-xs"><span>Chronology: {integrity.summary.chronologyErrors}</span><span>Driver: {integrity.summary.driverOverlaps}</span><span>Vehicle: {integrity.summary.vehicleOverlaps}</span><span>Handover: {integrity.summary.handoverConflicts}</span><span>Orphans: {integrity.summary.orphanReferences}</span></div>
+            {(integrity.errors.length || integrity.warnings.length) ? <details className="mt-2"><summary className="cursor-pointer font-semibold">Review Schedule Issues</summary><ul className="mt-2 list-disc space-y-1 pl-5 text-xs">{[...integrity.errors, ...integrity.warnings].map((issue, index) => <li key={`${issue.type}-${issue.conflictKey || issue.handoverId || issue.movementIds?.join("-")}-${index}`}><strong>{issue.severity === "error" ? "Conflict" : "Warning"}:</strong> {issue.message}</li>)}</ul></details> : null}
           </div>
           <div className="mt-4 flex justify-end">
             <div className="flex flex-col items-end gap-2">
@@ -952,6 +945,7 @@ export default function ScheduleItApp() {
             onClose={() => setIsExportOpen(false)}
             selectedDriverName={selectedDriver?.name || ""}
             hasDrivers={schedule.drivers.length > 0}
+            hasBlockingIssues={!officialOutputAllowed}
             onPrintView={handlePrintView}
             onCopyHtml={handleCopyHtml}
             onExportJson={handleExportJson}
@@ -1018,6 +1012,7 @@ export default function ScheduleItApp() {
             movements={schedule.movements}
             vehicleHandoverNotes={schedule.vehicleHandoverNotes || []}
             importantInfoItems={schedule.importantInfoItems || []}
+            integrity={integrity}
             errors={validationErrors}
             onChange={updateDraft}
             onSubmit={handleSubmit}
@@ -1045,6 +1040,7 @@ export default function ScheduleItApp() {
             entriesByMonth={entriesByMonth}
             profile={schedule.profile}
             movements={schedule.movements}
+            integrity={integrity}
             vehicleHandoverNotes={schedule.vehicleHandoverNotes || []}
             importantInfoItems={schedule.importantInfoItems || []}
             drivers={schedule.drivers}
