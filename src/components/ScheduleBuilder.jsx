@@ -440,7 +440,7 @@ export default function ScheduleBuilder({
   return (
     <div className="no-print space-y-5">
       {mode === "builder" ? <>
-      <div className="grid gap-5 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2">
         <SectionCard title="Profile Details" subtitle="Details on the mission">
           <div className="space-y-4">
             <Field label="Mission Name" icon={FileText}>
@@ -471,7 +471,7 @@ export default function ScheduleBuilder({
 
       <SectionCard title="Schedule Day" subtitle="Create, select, duplicate, or update the day being edited">
         <DayNavigator days={scheduleDays} selectedDayId={draft.scheduleDayId} movements={movements} integrity={integrity} onSelect={onSelectDay} />
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <Field label="Select Schedule Day" icon={CalendarDays} error={errors.scheduleDayId}>
             <Select value={draft.scheduleDayId || ""} onChange={(event) => onSelectDay(event.target.value)}>
               <option value="">Select a day...</option>
@@ -506,9 +506,9 @@ export default function ScheduleBuilder({
       </SectionCard>
 
       <SectionCard title="Movement Editor" subtitle="Fields used by Executive, Operational, Driver, and Working Time views">
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3">
         <div className="order-2"><h3 className="mb-3 text-base font-semibold">Assignment</h3>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <Field label="Schedule Day ID">
             <Input value={draft.scheduleDayId || ""} readOnly className="border-none bg-neutral-50 font-mono text-xs text-neutral-500" />
           </Field>
@@ -541,7 +541,7 @@ export default function ScheduleBuilder({
 
         <div className="order-3">
           <h3 className="mb-3 text-base font-semibold">Timing</h3>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <Field label="Driver Start" icon={Clock3}>
               <Input type="time" value={draft.driverStart} onChange={(event) => updateField("driverStart", event.target.value)} />
             </Field>
@@ -568,7 +568,7 @@ export default function ScheduleBuilder({
         </div>
 
         <div className="order-1"><h3 className="mb-3 text-base font-semibold">Core details</h3>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-3 md:grid-cols-2">
           <Field label="Engagement Details" icon={FileText} error={errors.engagementDetails}>
             <Input value={draft.engagementDetails} onChange={(event) => updateField("engagementDetails", event.target.value)} />
           </Field>
@@ -599,7 +599,7 @@ export default function ScheduleBuilder({
         </div>
 
         <DisclosureSection className="order-5" title="Operational details" summary={[draft.contactPerson && "Contact added", draft.parking && "Parking added", draft.securityNotes && "Security notes", draft.protocolNotes && "Protocol notes", draft.internalNotes && "Internal notes"].filter(Boolean).join(" · ") || "No additional operational details"}>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           <Field label="Contact Person"><Input value={draft.contactPerson || ""} onChange={(event) => updateField("contactPerson", event.target.value)} /></Field>
           <Field label="Contact Phone"><Input type="tel" value={draft.contactPhone || ""} onChange={(event) => updateField("contactPhone", event.target.value)} /></Field>
           <Field label="Location Notes" icon={FileText}>
@@ -635,7 +635,7 @@ export default function ScheduleBuilder({
                     <Field label="Driver"><Select value={inlineDraft?.driverId || ""} onChange={(event) => updateInlineDriver(event.target.value)}>{drivers.map((driver) => <option key={driver.id} value={driver.id}>{driver.name}</option>)}</Select></Field>
                     <Field label="Vehicle"><Select value={inlineDraft?.vehicleId || ""} onChange={(event) => updateInlineField("vehicleId", event.target.value)}>{vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.name}</option>)}</Select></Field>
                   </div>
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
                     {[["driverStart", "Driver Start"], ["departureTime", "Departure"], ["arrivalTime", "Arrival"], ["eventStartTime", "Event Start"], ["eventEndTime", "Event End"], ["endTime", "Duty End"]].map(([field, label]) => <Field key={field} label={label}><Input type="time" value={inlineDraft?.[field] || ""} onChange={(event) => updateInlineField(field, event.target.value)} /></Field>)}
                   </div>
                   <Field label="Working-time classification"><Select value={inlineDraft?.workClassification || "active"} onChange={(event) => updateInlineField("workClassification", event.target.value)}><option value="active">Active duty</option><option value="travel">Travel / driving</option><option value="standby">Standby</option><option value="break">Break</option><option value="nonWorking">Do not count</option></Select></Field>
@@ -827,7 +827,7 @@ export default function ScheduleBuilder({
 
       {mode === "handover" ? <SectionCard title="Vehicle Handover" subtitle="Manage vehicle transfers, keys, instructions, and driver visibility">
         <div className="max-w-md"><Field label="Schedule Day" error={handoverErrors.scheduleDayId}><Select value={draft.scheduleDayId || ""} onChange={(event) => { onSelectDay(event.target.value); updateHandoverField("scheduleDayId", event.target.value); }}><option value="">Select a day...</option>{scheduleDays.map((day) => <option key={day.id} value={day.id}>{day.date} · {day.title}</option>)}</Select></Field></div>
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <Field label="Vehicle" error={handoverErrors.vehicleId}>
             <Select value={handoverDraft.vehicleId || draft.vehicleId || ""} onChange={(event) => updateHandoverField("vehicleId", event.target.value)}>
               <option value="">Select vehicle...</option>
@@ -912,7 +912,7 @@ export default function ScheduleBuilder({
       </SectionCard> : null}
 
       {mode === "importantInfo" ? <SectionCard title="Important Information" subtitle="Manage routes, contacts, addresses, and programme notes">
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-6">
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           <Field label="Type" error={importantInfoErrors.type}>
             <Select value={importantInfoDraft.type} onChange={(event) => updateImportantInfoField("type", event.target.value)}>
               <option value="Route">Route</option>
@@ -937,7 +937,7 @@ export default function ScheduleBuilder({
             <Input value={importantInfoDraft.estimatedTravelTime} onChange={(event) => updateImportantInfoField("estimatedTravelTime", event.target.value)} placeholder="35-45 min" />
           </Field>
         </div>
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <Field label="Name">
             <Input value={importantInfoDraft.name} onChange={(event) => updateImportantInfoField("name", event.target.value)} placeholder="Contact name" />
           </Field>

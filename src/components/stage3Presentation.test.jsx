@@ -24,9 +24,9 @@ describe("stage 3 presentation", () => {
 
   it("groups integrity issues and communicates export blocking without colour alone", () => {
     const html = renderToStaticMarkup(<IntegrityPanel integrity={{ errors: [{ type: "DRIVER_OVERLAP", severity: "error", message: "Driver overlaps", driverId: "d", movementIds: ["a", "b"] }], warnings: [{ type: "VEHICLE_SHORT_TURNAROUND", severity: "warning", message: "Short turnaround" }] }} />);
-    expect(html).toContain("Driver conflicts");
-    expect(html).toContain("Warnings");
+    expect(html).toContain("1 errors");
+    expect(html).toContain("1 warnings");
     expect(html).toContain("Official export blocked");
-    expect(html).toContain('aria-pressed="true"');
+    expect(html).toContain('aria-expanded="false"');
   });
 });

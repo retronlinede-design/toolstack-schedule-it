@@ -17,30 +17,27 @@ describe("integrity disclosure", () => {
     expect(warnings).not.toContain("Short turnaround");
   });
 
-  it("defaults blocking errors to expanded and keeps export blocking visible", () => {
+  it("defaults blocking errors to collapsed and keeps export blocking visible", () => {
     const html = renderToStaticMarkup(<IntegrityPanel integrity={{ errors: [error], warnings: [] }} />);
-    expect(html).toContain('aria-expanded="true"');
+    expect(html).toContain('aria-expanded="false"');
     expect(html).toContain("Official export blocked");
-    expect(html).toContain("Integrity issue filters");
-    expect(html).toContain("Driver overlaps");
+    expect(html).not.toContain("Integrity issue filters");
+    expect(html).not.toContain("Driver overlaps");
   });
 
   it("handles manual disclosure and preserves it during the same blocking state", () => {
     let state = createIntegrityDisclosureState(true);
+    state = integrityDisclosureReducer(state, { type: "show" });
     state = integrityDisclosureReducer(state, { type: "toggle" });
     expect(state.expanded).toBe(false);
-    expect(state.manuallyCollapsed).toBe(true);
     state = integrityDisclosureReducer(state, { type: "sync", hasBlockingErrors: true });
     expect(state.expanded).toBe(false);
     state = integrityDisclosureReducer(state, { type: "show" });
     expect(state.expanded).toBe(true);
   });
 
-  it("expands once when blocking errors first appear", () => {
+  it("does not expand when blocking errors first appear", () => {
     let state = createIntegrityDisclosureState(false);
-    state = integrityDisclosureReducer(state, { type: "sync", hasBlockingErrors: true });
-    expect(state.expanded).toBe(true);
-    state = integrityDisclosureReducer(state, { type: "toggle" });
     state = integrityDisclosureReducer(state, { type: "sync", hasBlockingErrors: true });
     expect(state.expanded).toBe(false);
   });

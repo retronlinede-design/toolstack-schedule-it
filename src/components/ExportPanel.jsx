@@ -35,7 +35,7 @@ function PanelButton({ icon, label, description, onClick, disabled = false }) {
       <div className="p-3 bg-neutral-50 rounded-xl text-neutral-700">
         <Icon className="h-5 w-5" />
       </div>
-      <div>
+      <div className="min-w-0">
         <p className="font-semibold text-neutral-900">{label}</p>
         {description ? <p className="text-xs text-neutral-500">{description}</p> : null}
       </div>

@@ -33,7 +33,6 @@ export default function IntegrityPanel({ integrity, onReviewIssue }) {
   const issues = useMemo(() => [...integrity.errors, ...integrity.warnings], [integrity]);
   const groups = groupIntegrityIssues(filterIntegrityIssues(issues, filter));
 
-  useEffect(() => { dispatch({ type: "sync", hasBlockingErrors: integrity.errors.length > 0 }); }, [integrity.errors.length]);
   useEffect(() => {
     if (!disclosure.expanded || !focusIssuesRef.current) return;
     focusIssuesRef.current = false;
@@ -48,7 +47,7 @@ export default function IntegrityPanel({ integrity, onReviewIssue }) {
   return <section id="schedule-integrity" className="ts-card p-4" aria-labelledby="integrity-title">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="min-w-0"><h2 id="integrity-title" className="ts-card-title">Schedule Integrity</h2><div className="mt-1 flex flex-wrap items-center gap-2" aria-live="polite">{issues.length ? <><Badge tone={integrity.errors.length ? "danger" : "neutral"}>{integrity.errors.length} errors</Badge><Badge tone={integrity.warnings.length ? "warning" : "neutral"}>{integrity.warnings.length} warnings</Badge></> : <span className="text-sm text-[var(--ts-text-muted)]">No issues found</span>}{integrity.errors.length ? <Badge tone="danger">Official export blocked</Badge> : null}</div></div>
-      <Button variant="ghost" className="min-h-11 shrink-0" aria-expanded={disclosure.expanded} aria-controls="schedule-integrity-content" aria-label={disclosure.expanded ? "Hide schedule issues" : "Show schedule issues"} onClick={disclosure.expanded ? () => dispatch({ type: "toggle" }) : reviewIssues}>{disclosure.expanded ? "Hide Issues" : "Review Issues"}<ChevronDown className={`h-4 w-4 transition-transform ${disclosure.expanded ? "rotate-180" : ""}`} aria-hidden="true" /></Button>
+      <Button id="schedule-integrity-toggle" variant="ghost" className="min-h-11 shrink-0" aria-expanded={disclosure.expanded} aria-controls="schedule-integrity-content" aria-label={disclosure.expanded ? "Hide schedule issues" : "Show schedule issues"} onClick={disclosure.expanded ? () => dispatch({ type: "toggle" }) : reviewIssues}>{disclosure.expanded ? "Hide Issues" : "Review Issues"}<ChevronDown className={`h-4 w-4 transition-transform ${disclosure.expanded ? "rotate-180" : ""}`} aria-hidden="true" /></Button>
     </div>
     {disclosure.expanded ? <div ref={contentRef} id="schedule-integrity-content" role="region" aria-labelledby="integrity-title">
       <div className="mt-4 flex flex-wrap gap-2" aria-label="Integrity issue filters">{FILTERS.map((item) => <Button key={item} variant={filter === item ? "primary" : "secondary"} className="min-h-10" aria-pressed={filter === item} onClick={() => setFilter(item)}>{item}</Button>)}</div>

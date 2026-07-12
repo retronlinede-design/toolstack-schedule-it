@@ -32,6 +32,8 @@ import Badge from "./components/ui/Badge";
 import PreviewWorkspace from "./components/preview/PreviewWorkspace";
 import IntegrityPanel from "./components/integrity/IntegrityPanel";
 import ToolsWorkspace from "./components/tools/ToolsWorkspace";
+import PreviewUnavailable from "./components/preview/PreviewUnavailable";
+import { preparePreviewDocument } from "./components/preview/previewPreparation";
 
 function createId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -239,14 +241,12 @@ export default function ScheduleItApp() {
     [activeSchedule.scheduleDays, activeSchedule.movements],
   );
   const selectedDriver = activeSchedule.drivers.find((driver) => driver.id === selectedDriverId) || activeSchedule.drivers[0];
-  const previewDocument = useMemo(
-    () => getExportDocument(activeSchedule, previewView, { selectedDriverId: selectedDriver?.id }),
+  const previewPreparation = useMemo(
+    () => preparePreviewDocument(() => getExportDocument(activeSchedule, previewView, { selectedDriverId: selectedDriver?.id })),
     [activeSchedule, previewView, selectedDriver?.id],
   );
-  const previewSrcDoc = useMemo(
-    () => `<!doctype html><html><head><meta charset="utf-8"><title>${previewDocument.title}</title><style>${previewDocument.styles}</style></head><body>${previewDocument.bodyHtml}</body></html>`,
-    [previewDocument],
-  );
+  const previewDocument = previewPreparation.ok ? previewPreparation.document : { title: "Preview" };
+  const previewSrcDoc = previewPreparation.ok ? previewPreparation.srcDoc : "";
   const visibilityCounts = useMemo(() => getVisibilityCounts(activeSchedule.movements), [activeSchedule.movements]);
   const integrity = useMemo(() => analyzeScheduleIntegrity(activeSchedule), [activeSchedule]);
   const officialOutputAllowed = canProduceOfficialOutput(integrity);
@@ -881,30 +881,45 @@ export default function ScheduleItApp() {
     if (!didOpen) window.alert("Could not open print window. Check your browser popup settings.");
   }
 
+  function openPreview() {
+    setIsToolsOpen(false);
+    setIsExportOpen(false);
+    setIsPreviewOpen(true);
+  }
+
+  function reviewPreviewIssues() {
+    setIsPreviewOpen(false);
+    window.requestAnimationFrame(() => {
+      document.getElementById("schedule-integrity")?.scrollIntoView({ behavior: "smooth" });
+      const toggle = document.getElementById("schedule-integrity-toggle");
+      if (toggle?.getAttribute("aria-expanded") === "false") toggle.click();
+      else document.querySelector("[data-integrity-issue]")?.focus();
+    });
+  }
+
   return (
     <div className="ts-app">
       <div className="ts-container">
         <Card className="ts-header no-print mb-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-            <div>
+          <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0">
               <h1 className="ts-brand-title">Schedule-It</h1>
               <p className="mt-2 max-w-2xl text-sm text-[var(--ts-text-muted)]">
                 Mission schedule and driver brief builder for official programme planning.
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-              <Button onClick={() => setIsToolsOpen(true)} variant="secondary">
+            <div className="grid w-full grid-cols-3 gap-2 sm:w-auto">
+              <Button onClick={() => { setIsPreviewOpen(false); setIsExportOpen(false); setIsToolsOpen(true); }} variant="secondary">
                 <Wrench className="h-4 w-4" /> Tools
               </Button>
               <Button
-                onClick={() => setIsPreviewOpen(true)}
-                disabled={!officialOutputAllowed}
+                onClick={openPreview}
                 variant="primary"
               >
                 <Printer className="h-4 w-4" /> Preview
               </Button>
               <Button
-                onClick={() => setIsExportOpen(true)}
+                onClick={() => { setIsPreviewOpen(false); setIsToolsOpen(false); setIsExportOpen(true); }}
                 variant="secondary"
               >
                 <Download className="h-4 w-4" /> Export
@@ -953,9 +968,11 @@ export default function ScheduleItApp() {
           />
         ) : null}
 
-        {isPreviewOpen ? (
+        {isPreviewOpen && officialOutputAllowed && previewPreparation.ok ? (
           <PreviewWorkspace tabs={documentPreviewTabs} selectedView={previewView} onViewChange={setPreviewView} scheduleDays={schedule.scheduleDays} integrity={integrity} selectedDriverName={selectedDriver?.name || ""} documentTitle={previewDocument.title} srcDoc={previewSrcDoc} frameRef={previewFrameRef} onPrint={printPreview} onCopy={handleCopyHtml} onClose={() => setIsPreviewOpen(false)} />
         ) : null}
+
+        {isPreviewOpen && (!officialOutputAllowed || !previewPreparation.ok) ? <PreviewUnavailable blocked={!officialOutputAllowed} error={previewPreparation.ok ? null : previewPreparation.error} onReview={reviewPreviewIssues} onClose={() => setIsPreviewOpen(false)} /> : null}
 
         {isToolsOpen ? <ToolsWorkspace
           onClose={() => setIsToolsOpen(false)}
