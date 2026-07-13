@@ -70,4 +70,9 @@ describe("daily working-time engine", () => {
     expect(second).toEqual(first);
     expect(records[0].driverStart).toBe("18:00");
   });
+  it("uses the first pickup as interval start while preserving movement classification", () => {
+    const record = movement("pickup", "day", "", "08:00", "standby", { pickups: [{ id: "p", time: "06:45", location: "Hotel", address: "", person: "", contactPhone: "", notes: "", sortOrder: 10 }], departureTime: "07:30" });
+    const summary = calculateWorkingTime(schedule([record])).dailySummaries[0];
+    expect(summary).toMatchObject({ dutyStartTime: "06:45", standbyMinutes: 75, countedWorkingMinutes: 75 });
+  });
 });

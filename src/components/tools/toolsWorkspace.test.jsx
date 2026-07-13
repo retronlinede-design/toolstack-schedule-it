@@ -80,4 +80,32 @@ describe("tool presentation modes", () => {
     expect(source).not.toContain("Load Monday Demo");
     expect(source).not.toContain("handleLoadMondayDemo");
   });
+
+  it("renders the optional pickup disclosure, summary, timeline, and accessible ordering controls", () => {
+    const props = builderProps();
+    props.draft = { ...props.draft, pickups: [{ id: "p", time: "06:45", location: "Hotel", address: "", person: "Ambassador", contactPhone: "", notes: "", sortOrder: 10 }], departureTime: "07:30" };
+    const html = renderToStaticMarkup(<ScheduleBuilder {...props} mode="builder" />);
+    expect(html).toContain("Pre-departure pickups");
+    expect(html).toContain("1 pickup · First at 06:45");
+    expect(html).toContain('aria-expanded="true"');
+    expect(html).toContain("Pickup timeline");
+    expect(html).toContain('aria-label="Move pickup 1 up"');
+    expect(html).toContain("More pickup details");
+    expect(html).toContain("Official Departure 07:30");
+  });
+
+  it("keeps empty pickups collapsed, expands pickup errors, and identifies a fresh default assignment", () => {
+    const props = builderProps();
+    props.drivers = [{ id: "driver-rory", name: "Rory", defaultVehicle: "vehicle-bmw", isActive: true }];
+    props.vehicles = [{ id: "vehicle-bmw", name: "BMW", isActive: true }];
+    props.draft = { ...props.draft, id: null, driverId: "driver-rory", vehicleId: "vehicle-bmw", pickups: [] };
+    const collapsed = renderToStaticMarkup(<ScheduleBuilder {...props} mode="builder" />);
+    expect(collapsed).toContain("No pickups");
+    expect(collapsed).toContain('aria-expanded="false"');
+    expect(collapsed).toContain("Default assignment: Rory · BMW");
+    props.errors = { integrityIssues: [{ type: "PICKUP_VALIDATION", severity: "error", field: "pickups", message: "Pickup location is required." }] };
+    const expanded = renderToStaticMarkup(<ScheduleBuilder {...props} mode="builder" />);
+    expect(expanded).toContain('aria-expanded="true"');
+    expect(expanded).toContain("Add Pickup");
+  });
 });

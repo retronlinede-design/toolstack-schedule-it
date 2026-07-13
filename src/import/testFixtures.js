@@ -12,6 +12,7 @@ export function validState() {
       continuesOvernight: false,
       workClassification: "active",
       conflictOverrides: [],
+      pickups: [],
     }],
     vehicleHandoverNotes: [{ id: "handover-1", scheduleDayId: "day-1", vehicleId: "vehicle-vito", fromDriverId: "driver-greg", toDriverId: "driver-rory", visibleToDriverIds: ["driver-greg"], location: "Garage", instruction: "", keyLocation: "", time: "09:00", notes: "", sortOrder: 10 }],
     importantInfoItems: [{ id: "info-1", type: "Note", title: "Info", from: "", to: "", distance: "", estimatedTravelTime: "", name: "", phone: "", email: "", address: "", notes: "Text", sortOrder: 10 }],

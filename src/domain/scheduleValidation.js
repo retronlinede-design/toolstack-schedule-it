@@ -3,6 +3,7 @@ import { calculateWorkingTime } from "./workingTime";
 import { detectResourceConflicts } from "./resourceConflicts";
 import { buildMovementInterval, buildMovementTimeline } from "./timeIntervals";
 import { duplicateDriverNames, duplicateVehicleRegistrations } from "./resourceValidation";
+import { validatePickups } from "./pickups";
 
 function duplicateIssues(items, entity) {
   const seen = new Set();
@@ -52,6 +53,7 @@ export function analyzeScheduleIntegrity(schedule, { today = new Date().toISOStr
     if (movementDate >= today && assignedDriver && !assignedDriver.isActive) allIssues.push({ type: "INACTIVE_DRIVER_ASSIGNMENT", severity: "warning", movementIds: [movement.id], driverId: assignedDriver.id, message: `${assignedDriver.name} is inactive but assigned to a current or future movement.` });
     if (movementDate >= today && assignedVehicle && !assignedVehicle.isActive) allIssues.push({ type: "INACTIVE_VEHICLE_ASSIGNMENT", severity: "warning", movementIds: [movement.id], vehicleId: assignedVehicle.id, message: `${assignedVehicle.name} is inactive but assigned to a current or future movement.` });
     const timeline = buildMovementTimeline(movement);
+    allIssues.push(...validatePickups(movement.pickups || []).map((issue) => ({ ...issue, movementIds: [movement.id], dayIds: [movement.scheduleDayId] })));
     timeline.issues.forEach((issue) => allIssues.push({ ...issue, movementIds: [movement.id], dayIds: [movement.scheduleDayId] }));
     const built = buildMovementInterval(movement, day);
     if (built.interval) intervalsById.set(movement.id, built.interval);

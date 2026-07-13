@@ -26,8 +26,9 @@ const movementKeys = new Set([
   "internalNotes", "contactPerson", "contactPhone", "securityNotes", "protocolNotes", "dressCode", "documentsToCarry",
   "materialsOrGifts", "specialInstructions", "isExecutiveVisible", "isOperationalVisible",
   "audiences",
-  "continuesOvernight", "conflictOverrides", "workClassification",
+  "continuesOvernight", "conflictOverrides", "workClassification", "pickups",
 ]);
+const pickupKeys = new Set(["id", "time", "location", "address", "person", "contactPhone", "notes", "sortOrder"]);
 const audienceKeys = new Set(["executive", "operational", "cg", "marida", "driverIds"]);
 const overrideKeys = new Set(["conflictKey", "reason", "acknowledgedAt"]);
 const handoverKeys = new Set(["id", "scheduleDayId", "vehicleId", "fromDriverId", "toDriverId", "visibleToDriverIds", "location", "instruction", "keyLocation", "time", "notes", "sortOrder"]);
@@ -162,7 +163,7 @@ export function validateScheduleBackupState(state) {
         if (typeof item[field] === "string" && item[field] && !parseStrictTime(item[field]).ok) errors.push({ code: "INVALID_SCHEMA", path: `${path}.${field}`, message: "Invalid time format." });
       }
     });
-    [...movementKeys].filter((field) => !["id", "scheduleDayId", "sortOrder", "driverId", "vehicleId", "driverStart", "departureTime", "arrivalTime", "endTime", "eventStartTime", "eventEndTime", "isExecutiveVisible", "isOperationalVisible", "audiences", "continuesOvernight", "conflictOverrides", "workClassification"].includes(field))
+    [...movementKeys].filter((field) => !["id", "scheduleDayId", "sortOrder", "driverId", "vehicleId", "driverStart", "departureTime", "arrivalTime", "endTime", "eventStartTime", "eventEndTime", "isExecutiveVisible", "isOperationalVisible", "audiences", "continuesOvernight", "conflictOverrides", "workClassification", "pickups"].includes(field))
       .forEach((field) => { if (item[field] !== undefined) stringField(item[field], `${path}.${field}`, errors); });
     ["isExecutiveVisible", "isOperationalVisible"].forEach((field) => { if (item[field] !== undefined && typeof item[field] !== "boolean") errors.push({ code: "INVALID_SCHEMA", path: `${path}.${field}`, message: `${field} must be boolean.` }); });
     if (item.audiences !== undefined) {
@@ -187,6 +188,29 @@ export function validateScheduleBackupState(state) {
     }
     if (item.continuesOvernight !== undefined && typeof item.continuesOvernight !== "boolean") errors.push({ code: "INVALID_SCHEMA", path: `${path}.continuesOvernight`, message: "continuesOvernight must be boolean." });
     if (item.workClassification !== undefined && !WORK_CLASSIFICATIONS.includes(item.workClassification)) errors.push({ code: "INVALID_SCHEMA", path: `${path}.workClassification`, message: "Unsupported work classification." });
+    if (item.pickups !== undefined) {
+      if (!Array.isArray(item.pickups)) errors.push({ code: "INVALID_SCHEMA", path: `${path}.pickups`, message: "pickups must be an array." });
+      else {
+        if (item.pickups.length > 50) errors.push({ code: "EXCESSIVE_COUNT", path: `${path}.pickups`, message: "A movement may contain at most 50 pickups." });
+        const pickupIds = new Set();
+        item.pickups.forEach((pickup, pickupIndex) => {
+          const pickupPath = `${path}.pickups[${pickupIndex}]`;
+          if (!plain(pickup)) return errors.push({ code: "INVALID_SCHEMA", path: pickupPath, message: "Pickup must be a plain object." });
+          Object.keys(pickup).filter((key) => !pickupKeys.has(key)).forEach((key) => errors.push({ code: "INVALID_SCHEMA", path: `${pickupPath}.${key}`, message: "Unknown pickup field." }));
+          stringField(pickup.id, `${pickupPath}.id`, errors, { required: true });
+          if (pickupIds.has(pickup.id)) errors.push({ code: "DUPLICATE_ID", path: `${pickupPath}.id`, message: "Pickup IDs must be unique within a movement." });
+          pickupIds.add(pickup.id);
+          boundedString(pickup.time, `${pickupPath}.time`, 5, errors);
+          if (pickup.time && !parseStrictTime(pickup.time).ok) errors.push({ code: "INVALID_SCHEMA", path: `${pickupPath}.time`, message: "Pickup time must use HH:mm." });
+          boundedString(pickup.location, `${pickupPath}.location`, 300, errors, true);
+          boundedString(pickup.address, `${pickupPath}.address`, 1000, errors);
+          boundedString(pickup.person, `${pickupPath}.person`, 300, errors);
+          boundedString(pickup.contactPhone, `${pickupPath}.contactPhone`, 100, errors);
+          boundedString(pickup.notes, `${pickupPath}.notes`, 5000, errors);
+          if (!Number.isFinite(pickup.sortOrder)) errors.push({ code: "INVALID_SCHEMA", path: `${pickupPath}.sortOrder`, message: "Pickup sortOrder must be finite." });
+        });
+      }
+    }
     if (item.conflictOverrides !== undefined) {
       if (!Array.isArray(item.conflictOverrides)) errors.push({ code: "INVALID_SCHEMA", path: `${path}.conflictOverrides`, message: "conflictOverrides must be an array." });
       else {

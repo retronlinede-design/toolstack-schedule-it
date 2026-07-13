@@ -3,6 +3,7 @@ import { useState } from "react";
 import { sortMovementsByDateAndTime } from "../utils/calculations";
 import { selectMovementsForView } from "../domain/audiences";
 import { formatLongDate } from "../utils/time";
+import { executivePickupText } from "../domain/pickupPresentation";
 
 const EMPTY = "-";
 
@@ -69,7 +70,7 @@ function executiveTimeDisplay(entry) {
 }
 
 function executiveNotes(entry, needsConfirmation) {
-  return [entry.locationNotes, needsConfirmation ? "Timing to confirm" : ""].filter(Boolean).join("\n");
+  return [executivePickupText(entry), entry.locationNotes, needsConfirmation ? "Timing to confirm" : ""].filter(Boolean).join("\n");
 }
 
 function groupByDay(entries) {

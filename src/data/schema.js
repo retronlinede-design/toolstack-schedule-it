@@ -1,5 +1,7 @@
-import { defaultDrivers, defaultProfile, defaultVehicles } from "./defaultData";
+import { defaultProfile } from "./defaultData";
 import { DEFAULT_MOVEMENT_AUDIENCES, normalizeMovementAudiences } from "../domain/audiences";
+import { normalizePickups } from "../domain/pickups";
+import { createDefaultMovementAssignment } from "../domain/resourceDefaults";
 
 export const emptyDraft = {
   id: null,
@@ -10,8 +12,8 @@ export const emptyDraft = {
   documentTitle: defaultProfile.documentTitle,
   date: "",
   weekday: "",
-  driverId: defaultDrivers[0].id,
-  vehicleId: defaultVehicles[0].id,
+  driverId: "",
+  vehicleId: "",
   driverStart: "",
   departureTime: "",
   arrivalTime: "",
@@ -38,7 +40,17 @@ export const emptyDraft = {
   continuesOvernight: false,
   conflictOverrides: [],
   workClassification: "active",
+  pickups: [],
 };
+
+export function createFreshMovementDraft(schedule) {
+  return {
+    ...emptyDraft,
+    ...createDefaultMovementAssignment(schedule),
+    missionName: schedule.profile.missionName,
+    documentTitle: schedule.profile.documentTitle,
+  };
+}
 
 export function createScheduleDayFromDraft(draft, existingDay) {
   return {
@@ -73,6 +85,7 @@ export function createMovementFromDraft(draft, scheduleDayId) {
     continuesOvernight: draft.continuesOvernight === true,
     conflictOverrides: Array.isArray(draft.conflictOverrides) ? draft.conflictOverrides : [],
     workClassification: draft.workClassification || "active",
+    pickups: normalizePickups(draft.pickups, draft.id || "draft-movement"),
     eventStartTime: draft.eventStartTime ?? "",
     eventEndTime: draft.eventEndTime ?? "",
     contactPerson: draft.contactPerson || "",
@@ -97,8 +110,8 @@ export function createDraftFromMovement(movement, day, profile) {
     missionName: profile.missionName,
     documentTitle: profile.documentTitle,
     date: day?.date || "",
-    driverId: movement.driverId || emptyDraft.driverId,
-    vehicleId: movement.vehicleId || emptyDraft.vehicleId,
+    driverId: movement.driverId || "",
+    vehicleId: movement.vehicleId || "",
     driverStart: movement.driverStart || "",
     departureTime: movement.departureTime || "",
     arrivalTime: movement.arrivalTime || "",
@@ -125,5 +138,6 @@ export function createDraftFromMovement(movement, day, profile) {
     continuesOvernight: movement.continuesOvernight === true,
     conflictOverrides: Array.isArray(movement.conflictOverrides) ? movement.conflictOverrides : [],
     workClassification: movement.workClassification || "active",
+    pickups: normalizePickups(movement.pickups, movement.id),
   };
 }

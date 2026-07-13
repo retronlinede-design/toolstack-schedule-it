@@ -30,6 +30,7 @@ describe("backup identification", () => {
       workClassification: "standby",
       audiences: { executive: true, operational: true, cg: true, marida: false, driverIds: [] },
       conflictOverrides: [{ conflictKey: "DRIVER_OVERLAP|stable", reason: "Approved shared standby record", acknowledgedAt: "2026-07-12T09:00:00.000Z" }],
+      pickups: [{ id: "pickup-backup", time: "06:45", location: "Hotel", address: "Street 1", person: "Delegation", contactPhone: "+49", notes: "Side entrance", sortOrder: 10 }],
     };
     const backup = createFullBackup(state, { now: () => new Date("2026-07-12T10:00:00.000Z"), appVersion: "1.2.3" });
     expect(backup.metadata).toEqual({ appId: "scheduleit", exportType: "full-backup", schemaVersion: 1, exportedAt: "2026-07-12T10:00:00.000Z", appVersion: "1.2.3" });
@@ -42,6 +43,7 @@ describe("backup identification", () => {
       workClassification: "standby",
       audiences: state.movements[0].audiences,
       conflictOverrides: state.movements[0].conflictOverrides,
+      pickups: state.movements[0].pickups,
     });
   });
 });

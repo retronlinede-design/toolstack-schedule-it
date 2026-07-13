@@ -43,10 +43,27 @@ describe("runtime integrity", () => {
   });
 
   it("requires an override reason and clears overrides on duplicate", () => {
-    const source = { ...cleanState().movements[0], conflictOverrides: [{ conflictKey: "key", reason: "short" }] };
+    const source = { ...cleanState().movements[0], pickups: [{ id: "pickup-source", time: "07:30", location: "Hotel", address: "", person: "", contactPhone: "", notes: "", sortOrder: 10 }], conflictOverrides: [{ conflictKey: "key", reason: "short" }] };
     const state = cleanState(); state.movements.push(source);
     expect(analyzeScheduleIntegrity(state).errors.some((issue) => issue.type === "DRIVER_OVERLAP")).toBe(true);
-    expect(duplicateMovementForSchedule(source, "copy", 20).conflictOverrides).toEqual([]);
+    const copy = duplicateMovementForSchedule(source, "copy", 20);
+    expect(copy.conflictOverrides).toEqual([]);
+    expect(copy).toMatchObject({ driverId: source.driverId, vehicleId: source.vehicleId, pickups: [{ time: "07:30", location: "Hotel" }] });
+    expect(copy.pickups[0].id).not.toBe(source.pickups[0].id);
+  });
+
+  it("detects occupancy during pickup time and invalidates overrides when pickup timing changes", () => {
+    const state = cleanState();
+    state.movements[0] = { ...state.movements[0], driverStart: "", pickups: [{ id: "p", time: "06:45", location: "Hotel", address: "", person: "", contactPhone: "", notes: "", sortOrder: 10 }], departureTime: "07:30", endTime: "08:00" };
+    state.movements.push({ ...state.movements[0], id: "during-pickup", pickups: [], driverStart: "07:00", departureTime: "", endTime: "07:15" });
+    const first = analyzeScheduleIntegrity(state);
+    const conflict = first.errors.find((issue) => issue.type === "DRIVER_OVERLAP");
+    expect(conflict).toBeTruthy();
+    expect(first.errors.some((issue) => issue.type === "VEHICLE_OVERLAP")).toBe(true);
+    state.movements[0].conflictOverrides = [{ conflictKey: conflict.conflictKey, reason: "Approved shared pickup duty" }];
+    expect(analyzeScheduleIntegrity(state).warnings.some((issue) => issue.type === "DRIVER_OVERLAP" && issue.overridden)).toBe(true);
+    state.movements[0].pickups[0].time = "06:40";
+    expect(analyzeScheduleIntegrity(state).errors.some((issue) => issue.type === "DRIVER_OVERLAP" && !issue.overridden)).toBe(true);
   });
 
   it("enforces official-output safeguards for errors but allows warnings and overrides", () => {

@@ -32,4 +32,29 @@ describe("strict time parsing and timelines", () => {
     expect(buildMovementInterval(movement, { id: "d", date: "2026-01-01" })).toEqual(first);
     expect(buildMovementInterval({ id: "empty" }, { id: "d", date: "2026-01-01" }).issues.some((issue) => issue.type === "INCOMPLETE_TIMING")).toBe(true);
   });
+
+  it("integrates ordered pickups into chronology and interval start", () => {
+    const pickups = [
+      { id: "p1", time: "06:45", location: "Hotel", sortOrder: 10 },
+      { id: "p2", time: "07:00", location: "Residence", sortOrder: 20 },
+    ];
+    const movement = { id: "m", driverStart: "06:30", pickups, departureTime: "07:30", arrivalTime: "08:00", continuesOvernight: false };
+    expect(buildMovementTimeline(movement).ok).toBe(true);
+    const fallback = buildMovementInterval({ ...movement, driverStart: "" }, { id: "d", date: "2026-01-01" });
+    expect(fallback.interval).toMatchObject({ startField: "pickups.p1.time" });
+    expect(buildMovementTimeline({ ...movement, driverStart: "07:00" }).issues.some((issue) => issue.pickupId === "p1" && issue.severity === "error")).toBe(true);
+    expect(buildMovementTimeline({ ...movement, pickups: [{ ...pickups[1], sortOrder: 10 }, { ...pickups[0], sortOrder: 20 }] }).issues.some((issue) => issue.pickupId === "p1" && issue.severity === "error")).toBe(true);
+    expect(buildMovementTimeline({ ...movement, departureTime: "06:55" }).issues.some((issue) => issue.field === "departureTime" && issue.severity === "error")).toBe(true);
+  });
+
+  it("supports one overnight rollover across pickups and warns on partial pickup timing", () => {
+    const valid = buildMovementTimeline({ driverStart: "23:30", pickups: [{ id: "a", time: "23:45", sortOrder: 10 }, { id: "b", time: "00:10", sortOrder: 20 }], departureTime: "00:25", arrivalTime: "01:00", continuesOvernight: true });
+    expect(valid).toMatchObject({ ok: true, rolloverCount: 1 });
+    expect(buildMovementTimeline({ driverStart: "23:30", pickups: [{ id: "a", time: "00:10", sortOrder: 10 }], continuesOvernight: false }).ok).toBe(false);
+    const multiple = buildMovementTimeline({ driverStart: "23:30", pickups: [{ id: "a", time: "00:10", sortOrder: 10 }], departureTime: "23:00", arrivalTime: "00:30", continuesOvernight: true });
+    expect(multiple.issues.some((issue) => issue.type === "MULTIPLE_ROLLOVERS")).toBe(true);
+    const partial = buildMovementTimeline({ pickups: [{ id: "a", time: "", sortOrder: 10 }], departureTime: "08:00", continuesOvernight: false });
+    expect(partial.issues.some((issue) => issue.message.includes("no planned time"))).toBe(true);
+    expect(partial.issues.some((issue) => issue.message.includes("no recorded Driver Start"))).toBe(true);
+  });
 });

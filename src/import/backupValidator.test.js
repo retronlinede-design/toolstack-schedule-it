@@ -52,4 +52,22 @@ describe("strict schedule validation", () => {
     expect(result.ok).toBe(true);
     expect(result.warnings.some((warning) => warning.includes("Duplicate schedule date"))).toBe(true);
   });
+
+  it("strictly validates movement-owned pickups while accepting legacy absence", () => {
+    const legacy = validState(); delete legacy.movements[0].pickups;
+    expect(validateScheduleBackupState(legacy).ok).toBe(true);
+    const state = validState();
+    state.movements[0].pickups = [{ id: "pickup-1", time: "06:45", location: "Hotel", address: "Address", person: "Delegation", contactPhone: "+49", notes: "Wait", sortOrder: 10 }];
+    expect(validateScheduleBackupState(state).ok).toBe(true);
+    const mutations = [
+      (pickups) => { pickups[0].location = ""; },
+      (pickups) => { pickups[0].time = "6:45"; },
+      (pickups) => { pickups.push({ ...pickups[0] }); },
+      (pickups) => { pickups[0].sortOrder = Infinity; },
+      (pickups) => { pickups[0].unknown = true; },
+    ];
+    mutations.forEach((mutate) => { const invalid = structuredClone(state); mutate(invalid.movements[0].pickups); expect(validateScheduleBackupState(invalid).ok).toBe(false); });
+    const forbidden = JSON.parse(JSON.stringify(state).replace('"location":"Hotel"', '"__proto__":{},"location":"Hotel"'));
+    expect(hasCode(validateScheduleBackupState(forbidden), "FORBIDDEN_KEY")).toBe(true);
+  });
 });

@@ -27,13 +27,14 @@ describe("scheduling backup compatibility", () => {
   it("defaults legacy movements safely", () => {
     const state = validState(); delete state.movements[0].continuesOvernight; delete state.movements[0].conflictOverrides;
     expect(validateScheduleBackupState(state).ok).toBe(true);
-    expect(normalizeState(state).movements[0]).toMatchObject({ continuesOvernight: false, conflictOverrides: [] });
+    delete state.movements[0].pickups;
+    expect(normalizeState(state).movements[0]).toMatchObject({ continuesOvernight: false, conflictOverrides: [], pickups: [] });
   });
 
   it("gives HTML and demo movements explicit defaults", () => {
     const current = validState();
     const parsed = { scheduleDayDraft: { date: "2026-02-01", title: "HTML" }, driversToAdd: [], vehiclesToAdd: [], errors: [], movements: [{ driverName: "Greg", vehicleName: "Vito", driverStart: "08:00", departureTime: "", arrivalTime: "", endTime: "09:00", engagementDetails: "HTML", venue: "", address: "", locationNotes: "", parking: "", participants: "", internalNotes: "", isExecutiveVisible: true, isOperationalVisible: true, audiences: { executive: true, operational: true, cg: false, marida: false, driverIds: [] } }] };
-    expect(buildHtmlImportCandidate(current, parsed, "appendNewDay").candidate.movements.at(-1)).toMatchObject({ continuesOvernight: false, conflictOverrides: [] });
-    createMondayDemoState().movements.forEach((movement) => expect(movement).toMatchObject({ continuesOvernight: false, conflictOverrides: [] }));
+    expect(buildHtmlImportCandidate(current, parsed, "appendNewDay").candidate.movements.at(-1)).toMatchObject({ continuesOvernight: false, conflictOverrides: [], pickups: [] });
+    createMondayDemoState().movements.forEach((movement) => expect(movement).toMatchObject({ continuesOvernight: false, conflictOverrides: [], pickups: [] }));
   });
 });

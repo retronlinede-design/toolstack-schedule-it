@@ -1,6 +1,7 @@
 import { calculateWorkingTimeSummary, sortMovementsByDateAndTime } from "./calculations";
 import { formatLongDate, minutesToDuration } from "./time";
 import { selectMovementsForView } from "../domain/audiences";
+import { executivePickupText, operationalPickupText } from "../domain/pickupPresentation";
 
 const EMPTY = "-";
 
@@ -86,7 +87,7 @@ function cell(value, className = "") {
 }
 
 function operationalHeaders() {
-  return ["Driver Start", "Departure", "Arrival", "End", "Engagement", "Venue", "Address", "Location Notes", "Parking", "Participants", "Driver", "Vehicle"];
+  return ["Driver Start", "Official Departure", "Arrival", "Duty End", "Engagement", "Venue", "Address", "Location Notes", "Parking", "Participants", "Driver", "Vehicle"];
 }
 
 function isExecutiveView(view) {
@@ -130,7 +131,7 @@ function executiveTimeDisplay(movement) {
 }
 
 function executiveNotes(movement, needsConfirmation) {
-  return [movement.locationNotes, needsConfirmation ? "Timing to confirm" : ""].filter(Boolean).join("\n");
+  return [executivePickupText(movement), movement.locationNotes, needsConfirmation ? "Timing to confirm" : ""].filter(Boolean).join("\n");
 }
 
 function executiveRows(movements, driversById, vehiclesById) {
@@ -204,7 +205,7 @@ function operationalMovementRows(movements, driversById, vehiclesById) {
     cell(movement.departureTime, "time-cell"),
     cell(movement.arrivalTime, "time-cell"),
     cell(movement.endTime, "time-cell"),
-    cell(movement.engagementDetails, "details-cell"),
+    cell([movement.engagementDetails, operationalPickupText(movement)].filter(Boolean).join("\n\n"), "details-cell wrap-cell"),
     cell(movement.venue, "venue-cell"),
     cell(movement.address, "address-cell small-cell"),
     cell(movement.locationNotes, "wrap-cell"),
@@ -429,7 +430,7 @@ function workingTimeTable(schedule) {
         cell(`${summary.totalDuration} (span ${minutesToDuration(summary.totalSpanMinutes)}; active ${minutesToDuration(summary.activeMinutes)}; travel ${minutesToDuration(summary.travelMinutes)}; standby ${minutesToDuration(summary.standbyMinutes)}; breaks ${minutesToDuration(summary.effectiveBreakMinutes)}; segments ${summary.dutySegmentCount})`, "total-cell"),
         cell(summary.overtimeDuration, "total-cell"),
         cell(summary.restBeforeNextDutyMinutes == null ? "-" : minutesToDuration(summary.restBeforeNextDutyMinutes)),
-        cell(summary.notes?.join(", ") || "-"),
+        cell([summary.pickupCount ? `Includes ${summary.pickupCount} pre-departure pickup${summary.pickupCount === 1 ? "" : "s"}${summary.firstPickupTime ? `; first at ${summary.firstPickupTime}` : ""}` : "", summary.notes?.join(", ")].filter(Boolean).join("; ") || "-"),
       ]);
 
       return `

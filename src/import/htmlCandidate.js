@@ -49,7 +49,7 @@ export function buildHtmlImportCandidate(current, result, mode) {
     const driver = driverByName.get(nameKey(movement.driverName)) || drivers[0];
     const vehicle = vehicleByName.get(nameKey(movement.vehicleName)) || vehicles.find((item) => item.id === driver?.defaultVehicle) || vehicles[0];
     const { driverName: _driverName, vehicleName: _vehicleName, ...fields } = movement;
-    return { ...fields, audiences: fields.audiences || { ...DEFAULT_MOVEMENT_AUDIENCES, driverIds: [] }, continuesOvernight: false, conflictOverrides: [], workClassification: "active", id: `html-movement-${fingerprint}-${index + 1}`, scheduleDayId: targetDay.id, sortOrder: (index + 1) * 10, driverId: driver?.id || "", vehicleId: vehicle?.id || "" };
+    return { ...fields, audiences: fields.audiences || { ...DEFAULT_MOVEMENT_AUDIENCES, driverIds: [] }, continuesOvernight: false, conflictOverrides: [], workClassification: "active", pickups: [], id: `html-movement-${fingerprint}-${index + 1}`, scheduleDayId: targetDay.id, sortOrder: (index + 1) * 10, driverId: driver?.id || "", vehicleId: vehicle?.id || "" };
   });
   const candidate = {
     ...current,

@@ -15,6 +15,7 @@ import {
   Check,
   Users,
   X,
+  ChevronDown,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { sortMovementsByDateAndTime } from "../utils/calculations";
@@ -31,6 +32,9 @@ import MovementCard from "./builder/MovementCard";
 import HandoverCard from "./builder/HandoverCard";
 import ImportantInfoCard from "./builder/ImportantInfoCard";
 import DisclosureSection from "./builder/DisclosureSection";
+import { addPickup, deletePickup, duplicatePickup, movePickup, sortPickups, updatePickup, validatePickups } from "../domain/pickups";
+import { createDefaultMovementAssignment } from "../domain/resourceDefaults";
+import { pickupSummary } from "../domain/pickupPresentation";
 
 function Field({ label, icon: Icon, error, children }) {
   return (
@@ -146,6 +150,45 @@ function ConflictIssues({ issues = [], movement, onChange }) {
   );
 }
 
+function shiftedTime(value, delta) {
+  if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(value || "")) return "";
+  const [hours, minutes] = value.split(":").map(Number);
+  const next = (hours * 60 + minutes + delta + 1440) % 1440;
+  return `${String(Math.floor(next / 60)).padStart(2, "0")}:${String(next % 60).padStart(2, "0")}`;
+}
+
+function PickupSequenceEditor({ movement, issues = [], onChange }) {
+  const pickups = sortPickups(movement.pickups || []);
+  const pickupIssues = issues.filter((issue) => issue.pickupId || String(issue.field || "").startsWith("pickups"));
+  const [open, setOpen] = useState(pickups.length > 0);
+  const expanded = open || pickupIssues.length > 0;
+  const replace = (next) => onChange({ ...movement, pickups: next });
+  const update = (id, changes) => replace(updatePickup(pickups, id, changes));
+  const add = () => { setOpen(true); replace(addPickup(pickups)); };
+  const now = () => new Date().toTimeString().slice(0, 5);
+
+  return <section className="order-3 rounded-[14px] border border-[var(--ts-border)] bg-[var(--ts-surface-muted)]">
+    <button type="button" aria-expanded={expanded} aria-controls="pre-departure-pickups" onClick={() => setOpen((value) => !value)} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-[14px] px-4 py-3 text-left hover:bg-[var(--ts-accent-hover)]"><span><strong className="block text-sm">Pre-departure pickups</strong><span className="mt-0.5 block text-xs text-[var(--ts-text-muted)]">{pickupSummary(movement)}</span></span><ChevronDown className={`h-4 w-4 transition-transform ${expanded ? "rotate-180" : ""}`} aria-hidden="true" /></button>
+    {expanded ? <div id="pre-departure-pickups" className="space-y-4 border-t border-[var(--ts-border)] p-4">
+      <p className="text-sm text-[var(--ts-text-muted)]">Add one or more collections that take place before the official departure.</p>
+      {pickupIssues.some((issue) => !issue.pickupId) ? <ul className="list-disc pl-5 text-xs font-medium text-red-700">{pickupIssues.filter((issue) => !issue.pickupId).map((issue, index) => <li key={`${issue.type}-${index}`}>{issue.message}</li>)}</ul> : null}
+      {pickups.map((pickup, index) => {
+        const errorsForPickup = pickupIssues.filter((issue) => issue.pickupId === pickup.id || String(issue.field || "").includes(`pickups.${pickup.id}`));
+        const previous = pickups[index - 1];
+        return <article key={pickup.id} className="rounded-xl border border-[var(--ts-border)] bg-white p-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><strong>Pickup {index + 1}</strong><div className="flex flex-wrap gap-1"><Button onClick={() => replace(movePickup(pickups, pickup.id, "up"))} disabled={index === 0} aria-label={`Move pickup ${index + 1} up`}>Move up</Button><Button onClick={() => replace(movePickup(pickups, pickup.id, "down"))} disabled={index === pickups.length - 1} aria-label={`Move pickup ${index + 1} down`}>Move down</Button><Button onClick={() => replace(duplicatePickup(pickups, pickup.id))}>Duplicate</Button><Button variant="danger" onClick={() => replace(deletePickup(pickups, pickup.id))}>Delete</Button></div></div>
+          <div className="grid gap-3 sm:grid-cols-3"><Field label="Pickup time"><Input type="time" value={pickup.time} onChange={(event) => update(pickup.id, { time: event.target.value })} /></Field><Field label="Location"><Input value={pickup.location} maxLength={300} onChange={(event) => update(pickup.id, { location: event.target.value })} /></Field><Field label="Person / group"><Input value={pickup.person} maxLength={300} onChange={(event) => update(pickup.id, { person: event.target.value })} /></Field></div>
+          <div className="mt-2 flex flex-wrap gap-1"><Button onClick={() => update(pickup.id, { time: now() })}>Now</Button>{[-15, -5, 5, 15].map((delta) => <Button key={delta} onClick={() => update(pickup.id, { time: shiftedTime(pickup.time, delta) })}>{delta > 0 ? "+" : "−"}{Math.abs(delta)}</Button>)}{previous ? <><Button onClick={() => update(pickup.id, { address: previous.address })}>Copy previous address</Button><Button onClick={() => update(pickup.id, { contactPhone: previous.contactPhone })}>Copy previous contact</Button><Button onClick={() => update(pickup.id, { time: previous.time })}>Use previous pickup time</Button></> : null}</div>
+          <details className="mt-3"><summary className="cursor-pointer text-sm font-semibold">More pickup details</summary><div className="mt-3 grid gap-3 sm:grid-cols-2"><Field label="Address"><Input value={pickup.address} maxLength={1000} onChange={(event) => update(pickup.id, { address: event.target.value })} /></Field><Field label="Contact phone"><Input type="tel" value={pickup.contactPhone} maxLength={100} onChange={(event) => update(pickup.id, { contactPhone: event.target.value })} /></Field><div className="sm:col-span-2"><Field label="Notes"><Textarea value={pickup.notes} maxLength={5000} onChange={(event) => update(pickup.id, { notes: event.target.value })} /></Field></div></div></details>
+          {errorsForPickup.length ? <ul className="mt-3 list-disc pl-5 text-xs font-medium text-red-700">{errorsForPickup.map((issue, issueIndex) => <li key={`${issue.type}-${issueIndex}`}>{issue.message}</li>)}</ul> : null}
+        </article>;
+      })}
+      <Button variant="secondary" onClick={add}><Plus className="h-4 w-4" /> Add Pickup</Button>
+      {pickups.length ? <div className="rounded-xl bg-neutral-50 p-3 text-sm"><strong>Pickup timeline</strong><div className="mt-2 space-y-1 font-mono text-xs">{movement.driverStart ? <p>Driver Start {movement.driverStart}</p> : null}{pickups.map((pickup, index) => <p key={pickup.id} className={!pickup.time ? "text-red-700" : ""}>{index + 1}. {pickup.time || "Time missing"} — {pickup.location || "Location missing"}{pickup.person ? ` — ${pickup.person}` : ""}</p>)}{movement.departureTime ? <p>Official Departure {movement.departureTime}</p> : <p className="text-amber-700">Official Departure not recorded</p>}</div></div> : null}
+    </div> : null}
+  </section>;
+}
+
 export default function ScheduleBuilder({
   mode = "builder",
   onToolDirtyChange,
@@ -228,6 +271,7 @@ export default function ScheduleBuilder({
     .sort((a, b) => (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER));
   const handoverDirty = Boolean(handoverDraft.id || handoverDraft.fromDriverId || handoverDraft.toDriverId || handoverDraft.visibleToDriverIds.length || handoverDraft.location || handoverDraft.instruction || handoverDraft.keyLocation || handoverDraft.time || handoverDraft.notes);
   const importantInfoDirty = Boolean(importantInfoDraft.id || importantInfoDraft.title || importantInfoDraft.from || importantInfoDraft.to || importantInfoDraft.distance || importantInfoDraft.estimatedTravelTime || importantInfoDraft.name || importantInfoDraft.phone || importantInfoDraft.email || importantInfoDraft.address || importantInfoDraft.notes);
+  const defaultAssignment = createDefaultMovementAssignment({ drivers, vehicles });
   useEffect(() => {
     onToolDirtyChange?.(mode === "handover" ? handoverDirty : mode === "importantInfo" ? importantInfoDirty : false);
   }, [handoverDirty, importantInfoDirty, mode, onToolDirtyChange]);
@@ -260,12 +304,14 @@ export default function ScheduleBuilder({
     if (!value.scheduleDayId) nextErrors.scheduleDayId = "Schedule day is required.";
     if (!value.driverId) nextErrors.driverId = "Driver is required.";
     if (!value.vehicleId) nextErrors.vehicleId = "Vehicle is required.";
-    if (!value.driverStart && !value.departureTime && !value.arrivalTime && !value.endTime) {
+    if (!value.driverStart && !value.departureTime && !value.arrivalTime && !value.endTime && !(value.pickups || []).some((pickup) => pickup.time)) {
       nextErrors.timing = "Enter at least one timing field.";
     }
     if (!value.engagementDetails && !value.venue) {
       nextErrors.engagementDetails = "Enter engagement details or a venue.";
     }
+    const pickupIssues = validatePickups(value.pickups || []);
+    if (pickupIssues.length) nextErrors.integrityIssues = pickupIssues;
     return nextErrors;
   }
 
@@ -538,19 +584,22 @@ export default function ScheduleBuilder({
             </Select>
           </Field>
         </div>
+        {!draft.id && draft.driverId === defaultAssignment.driverId && draft.vehicleId === defaultAssignment.vehicleId && draft.driverId && draft.vehicleId ? <p className="text-xs text-[var(--ts-text-muted)]">Default assignment: {getName(drivers, draft.driverId)} · {getName(vehicles, draft.vehicleId)}</p> : null}
         </div>
 
-        <DisclosureSection className="order-4" title="Audience" summary={getAudienceSummary(draft)}>
+        <PickupSequenceEditor key={draft.id || "new-movement"} movement={draft} issues={errors.integrityIssues || []} onChange={onChange} />
+
+        <DisclosureSection className="order-5" title="Audience" summary={getAudienceSummary(draft)}>
           <AudienceEditor movement={draft} drivers={drivers} vehicles={vehicles} idPrefix="main" onChange={(audiences) => onChange((current) => ({ ...current, audiences, isExecutiveVisible: audiences.executive, isOperationalVisible: audiences.operational }))} />
         </DisclosureSection>
 
-        <div className="order-3">
+        <div className="order-4">
           <h3 className="mb-3 text-base font-semibold">Timing</h3>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <Field label="Driver Start" icon={Clock3}>
               <Input type="time" value={draft.driverStart} onChange={(event) => updateField("driverStart", event.target.value)} />
             </Field>
-            <Field label="Departure Time" icon={Clock3}>
+            <Field label="Official Departure" icon={Clock3}>
               <Input type="time" value={draft.departureTime} onChange={(event) => updateField("departureTime", event.target.value)} />
             </Field>
             <Field label="Arrival Time" icon={Clock3}>
@@ -562,14 +611,14 @@ export default function ScheduleBuilder({
             <Field label="Event End" icon={Clock3}>
               <Input type="time" value={draft.eventEndTime} onChange={(event) => updateField("eventEndTime", event.target.value)} />
             </Field>
-            <Field label="End Time" icon={Clock3}>
+            <Field label="Duty End" icon={Clock3}>
               <Input type="time" value={draft.endTime} onChange={(event) => updateField("endTime", event.target.value)} />
             </Field>
           </div>
           <label className="mt-3 flex items-center gap-2 text-sm font-medium text-neutral-700"><input type="checkbox" checked={draft.continuesOvernight === true} onChange={(event) => updateField("continuesOvernight", event.target.checked)} />Continues past midnight</label>
           <div className="mt-3 max-w-sm"><Field label="Working-time classification"><Select value={draft.workClassification || "active"} onChange={(event) => updateField("workClassification", event.target.value)}><option value="active">Active duty</option><option value="travel">Travel / driving</option><option value="standby">Standby</option><option value="break">Break</option><option value="nonWorking">Do not count</option></Select><p className="mt-1 text-xs text-neutral-500">Controls how this recorded interval contributes to working-time totals.</p></Field></div>
           {errors.timing ? <p className="mt-2 text-xs font-medium text-red-600">{errors.timing}</p> : null}
-          <div className="mt-3"><ConflictIssues issues={errors.integrityIssues} movement={draft} onChange={onChange} /></div>
+          <div className="mt-3"><ConflictIssues issues={(errors.integrityIssues || []).filter((issue) => !issue.pickupId && !String(issue.field || "").startsWith("pickups"))} movement={draft} onChange={onChange} /></div>
         </div>
 
         <div className="order-1"><h3 className="mb-3 text-base font-semibold">Core details</h3>
@@ -603,7 +652,7 @@ export default function ScheduleBuilder({
         </div>
         </div>
 
-        <DisclosureSection className="order-5" title="Operational details" summary={[draft.contactPerson && "Contact added", draft.parking && "Parking added", draft.securityNotes && "Security notes", draft.protocolNotes && "Protocol notes", draft.internalNotes && "Internal notes"].filter(Boolean).join(" · ") || "No additional operational details"}>
+        <DisclosureSection className="order-6" title="Operational details" summary={[draft.contactPerson && "Contact added", draft.parking && "Parking added", draft.securityNotes && "Security notes", draft.protocolNotes && "Protocol notes", draft.internalNotes && "Internal notes"].filter(Boolean).join(" · ") || "No additional operational details"}>
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           <Field label="Contact Person"><Input value={draft.contactPerson || ""} onChange={(event) => updateField("contactPerson", event.target.value)} /></Field>
           <Field label="Contact Phone"><Input type="tel" value={draft.contactPhone || ""} onChange={(event) => updateField("contactPhone", event.target.value)} /></Field>
@@ -641,8 +690,9 @@ export default function ScheduleBuilder({
                     <Field label="Vehicle"><Select value={inlineDraft?.vehicleId || ""} onChange={(event) => updateInlineField("vehicleId", event.target.value)}>{selectableResources(vehicles, [inlineDraft?.vehicleId]).map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.name}{vehicle.isActive === false ? " — Inactive" : ""}</option>)}</Select></Field>
                   </div>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-                    {[["driverStart", "Driver Start"], ["departureTime", "Departure"], ["arrivalTime", "Arrival"], ["eventStartTime", "Event Start"], ["eventEndTime", "Event End"], ["endTime", "Duty End"]].map(([field, label]) => <Field key={field} label={label}><Input type="time" value={inlineDraft?.[field] || ""} onChange={(event) => updateInlineField(field, event.target.value)} /></Field>)}
+                    {[["driverStart", "Driver Start"], ["departureTime", "Official Departure"], ["arrivalTime", "Arrival"], ["eventStartTime", "Event Start"], ["eventEndTime", "Event End"], ["endTime", "Duty End"]].map(([field, label]) => <Field key={field} label={label}><Input type="time" value={inlineDraft?.[field] || ""} onChange={(event) => updateInlineField(field, event.target.value)} /></Field>)}
                   </div>
+                  {(inlineDraft?.pickups || []).length ? <p className="rounded-lg bg-neutral-50 p-2 text-xs text-neutral-600">{pickupSummary(inlineDraft)} · Open the full editor to manage pickups.</p> : null}
                   <Field label="Working-time classification"><Select value={inlineDraft?.workClassification || "active"} onChange={(event) => updateInlineField("workClassification", event.target.value)}><option value="active">Active duty</option><option value="travel">Travel / driving</option><option value="standby">Standby</option><option value="break">Break</option><option value="nonWorking">Do not count</option></Select></Field>
                   <div className="flex flex-wrap justify-end gap-2"><Button onClick={cancelInlineEdit}>Cancel</Button><Button variant="primary" onClick={saveInlineEdit}>Save quick edit</Button></div>
                 </div>

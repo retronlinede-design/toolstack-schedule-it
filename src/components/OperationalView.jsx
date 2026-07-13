@@ -3,6 +3,7 @@ import { useState } from "react";
 import { sortMovementsByDateAndTime } from "../utils/calculations";
 import { selectMovementsForView } from "../domain/audiences";
 import { formatLongDate } from "../utils/time";
+import { operationalPickupText } from "../domain/pickupPresentation";
 
 const EMPTY = "-";
 const HANDOVER_DND_TYPE = "application/x-scheduleit-handover";
@@ -144,7 +145,7 @@ function OperationalRows({ entries, driversById, vehiclesById, onEdit, onDelete,
       <td className="border border-neutral-200 p-3">{entry.departureTime || EMPTY}</td>
       <td className="border border-neutral-200 p-3">{entry.arrivalTime || EMPTY}</td>
       <td className="border border-neutral-200 p-3">{entry.endTime || EMPTY}</td>
-      <td className="border border-neutral-200 p-3 font-semibold text-neutral-900">{entry.engagementDetails || EMPTY}</td>
+      <td className="whitespace-pre-line border border-neutral-200 p-3 font-semibold text-neutral-900">{[entry.engagementDetails || EMPTY, operationalPickupText(entry)].filter(Boolean).join("\n\n")}</td>
       <td className="border border-neutral-200 p-3">{entry.venue || EMPTY}</td>
       <td className="border border-neutral-200 p-3">{entry.address || EMPTY}</td>
       <td className="border border-neutral-200 p-3">{entry.locationNotes || EMPTY}</td>
@@ -174,9 +175,9 @@ function OperationalTable({ entries, driversById, vehiclesById, onEdit, onDelete
           <tr className="bg-neutral-50 text-[10px] uppercase font-black tracking-tighter text-neutral-500">
             <th className="no-print border border-neutral-200 p-3 text-center">Order</th>
             <th className="border border-neutral-200 p-3 text-left">Driver Start</th>
-            <th className="border border-neutral-200 p-3 text-left">Departure Time</th>
+            <th className="border border-neutral-200 p-3 text-left">Official Departure</th>
             <th className="border border-neutral-200 p-3 text-left">Arrival Time</th>
-            <th className="border border-neutral-200 p-3 text-left">End Time</th>
+            <th className="border border-neutral-200 p-3 text-left">Duty End</th>
             <th className="border border-neutral-200 p-3 text-left">Engagement Details</th>
             <th className="border border-neutral-200 p-3 text-left">Venue</th>
             <th className="border border-neutral-200 p-3 text-left">Address</th>

@@ -4,9 +4,10 @@ import { migrateRouteNotesToImportantInfo } from "./routeMigration";
 import { withNormalizedAudiences } from "../domain/audiences";
 import { normalizeWorkClassification, normalizeWorkingTimePolicy } from "../domain/workingTimePolicy";
 import { normalizeDriver, normalizeVehicle } from "../domain/resourceValidation";
+import { normalizePickups } from "../domain/pickups";
 
 function fallbackTime(movement) {
-  return parseTimeToMinutes(movement.driverStart || movement.departureTime || movement.arrivalTime || movement.endTime) ?? Number.MAX_SAFE_INTEGER;
+  return parseTimeToMinutes(movement.driverStart || normalizePickups(movement.pickups, movement.id).find((pickup) => pickup.time)?.time || movement.departureTime || movement.arrivalTime || movement.endTime) ?? Number.MAX_SAFE_INTEGER;
 }
 
 function withSortOrders(scheduleDays, movements) {
@@ -42,6 +43,7 @@ export function normalizeState(state) {
       continuesOvernight: movement.continuesOvernight === true,
       conflictOverrides: Array.isArray(movement.conflictOverrides) ? movement.conflictOverrides : [],
       workClassification: normalizeWorkClassification(movement.workClassification),
+      pickups: normalizePickups(movement.pickups, movement.id),
     })),
     vehicleHandoverNotes: (Array.isArray(state?.vehicleHandoverNotes) ? state.vehicleHandoverNotes : []).map((note) => ({
       ...note,

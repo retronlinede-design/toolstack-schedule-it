@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import DayNavigator from "./DayNavigator";
-import MovementCard from "./MovementCard";
+import MovementCard, { PickupDetails } from "./MovementCard";
 import HandoverCard from "./HandoverCard";
 import ImportantInfoCard from "./ImportantInfoCard";
 
@@ -35,5 +35,13 @@ describe("builder presentation components", () => {
     const info = renderToStaticMarkup(<ImportantInfoCard item={{ id: "i", type: "Route", title: "Airport", from: "Hotel", to: "Airport" }} index={0} count={2} onEdit={noop} onMove={noop} onDuplicate={noop} onDelete={noop} />);
     expect(info).toContain("Hotel → Airport");
     expect(info).toContain('aria-label="Move information down"');
+  });
+
+  it("renders a compact pickup badge and expanded pickup detail content", () => {
+    const movement = { id: "m", engagementDetails: "Transfer", driverId: "d", vehicleId: "v", pickups: [{ id: "p", time: "06:45", location: "Hotel", address: "Street 1", person: "Ambassador", contactPhone: "+49 1", notes: "Side entrance", sortOrder: 10 }], audiences: { executive: true, operational: true, cg: false, marida: false, driverIds: [] } };
+    const card = renderToStaticMarkup(<MovementCard movement={movement} index={0} count={1} drivers={[{ id: "d", name: "Driver" }]} vehicles={[{ id: "v", name: "Vehicle" }]} onQuickEdit={noop} onFullEdit={noop} onDuplicate={noop} onMove={noop} onDelete={noop} />);
+    expect(card).toContain("Pickup 06:45");
+    const details = renderToStaticMarkup(<PickupDetails movement={movement} />);
+    expect(details).toContain("Hotel"); expect(details).toContain("Ambassador"); expect(details).toContain("Street 1"); expect(details).toContain("+49 1"); expect(details).toContain("Side entrance");
   });
 });

@@ -1,5 +1,6 @@
 import { minutesToDuration, parseTimeToMinutes } from "./time";
 import { calculateWorkingTime } from "../domain/workingTime";
+import { sortPickups } from "../domain/pickups";
 
 const NORMAL_DAY_END_MINUTES = 16 * 60 + 30;
 const MIN_REST_MINUTES = 11 * 60;
@@ -67,29 +68,36 @@ export function sortMovementsByDateAndTime(movements) {
     if (aHasSortOrder && !bHasSortOrder) return -1;
     if (!aHasSortOrder && bHasSortOrder) return 1;
 
-    const aTime = parseTimeToMinutes(a.driverStart || a.departureTime || a.arrivalTime || a.endTime) ?? Number.MAX_SAFE_INTEGER;
-    const bTime = parseTimeToMinutes(b.driverStart || b.departureTime || b.arrivalTime || b.endTime) ?? Number.MAX_SAFE_INTEGER;
+    const aTime = parseTimeToMinutes(a.driverStart || sortPickups(a.pickups || []).find((pickup) => pickup.time)?.time || a.departureTime || a.arrivalTime || a.endTime) ?? Number.MAX_SAFE_INTEGER;
+    const bTime = parseTimeToMinutes(b.driverStart || sortPickups(b.pickups || []).find((pickup) => pickup.time)?.time || b.departureTime || b.arrivalTime || b.endTime) ?? Number.MAX_SAFE_INTEGER;
     return aTime - bTime;
   });
 }
 
 export function calculateWorkingTimeSummary(movements, drivers, vehicles = [], scheduleDays = [], workingTimePolicy) {
   const result = calculateWorkingTime({ movements, drivers, vehicles, scheduleDays, workingTimePolicy });
-  const driverDaySummaries = result.dailySummaries.map((summary) => ({
-    ...summary,
-    start: summary.dutyStart === null ? null : summary.dutyStart % DAY_MINUTES,
-    end: summary.dutyEnd === null ? null : summary.dutyEnd % DAY_MINUTES,
-    startTime: summary.dutyStartTime,
-    endTime: summary.dutyEndTime,
-    totalMinutes: summary.countedWorkingMinutes,
-    totalDuration: minutesToDuration(summary.countedWorkingMinutes),
-    overtimeDuration: minutesToDuration(summary.overtimeMinutes),
-    dutyStartAbsolute: summary.dutyStart,
-    dutyEndAbsolute: summary.dutyEnd,
-    restDuration: summary.restDuration,
-    notes: summary.warnings,
-    hasValidDate: Boolean(summary.date),
-  }));
+  const datesByDay = new Map(scheduleDays.map((day) => [day.id, day.date]));
+  const driverDaySummaries = result.dailySummaries.map((summary) => {
+    const dayMovements = movements.filter((movement) => movement.driverId === summary.driverId && datesByDay.get(movement.scheduleDayId) === summary.date);
+    const pickups = dayMovements.flatMap((movement) => sortPickups(movement.pickups || []));
+    return {
+      ...summary,
+      start: summary.dutyStart === null ? null : summary.dutyStart % DAY_MINUTES,
+      end: summary.dutyEnd === null ? null : summary.dutyEnd % DAY_MINUTES,
+      startTime: summary.dutyStartTime,
+      endTime: summary.dutyEndTime,
+      totalMinutes: summary.countedWorkingMinutes,
+      totalDuration: minutesToDuration(summary.countedWorkingMinutes),
+      overtimeDuration: minutesToDuration(summary.overtimeMinutes),
+      dutyStartAbsolute: summary.dutyStart,
+      dutyEndAbsolute: summary.dutyEnd,
+      restDuration: summary.restDuration,
+      notes: summary.warnings,
+      hasValidDate: Boolean(summary.date),
+      pickupCount: pickups.length,
+      firstPickupTime: pickups.find((pickup) => pickup.time)?.time || "",
+    };
+  });
   const dailyTotals = [...driverDaySummaries.reduce((map, summary) => {
     const total = map.get(summary.date) || { date: summary.date, driverCount: 0, totalMinutes: 0, overtimeMinutes: 0, shortRestCount: 0 };
     total.driverCount += 1; total.totalMinutes += summary.totalMinutes; total.overtimeMinutes += summary.overtimeMinutes; if (summary.shortRest) total.shortRestCount += 1;

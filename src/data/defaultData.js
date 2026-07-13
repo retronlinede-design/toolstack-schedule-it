@@ -99,6 +99,7 @@ export function createMondayDemoState() {
         continuesOvernight: false,
         workClassification: "active",
         conflictOverrides: [],
+        pickups: [],
       },
       {
         id: "demo-greg-transfer-staatskanzlei",
@@ -123,6 +124,7 @@ export function createMondayDemoState() {
         continuesOvernight: false,
         workClassification: "active",
         conflictOverrides: [],
+        pickups: [],
       },
       {
         id: "demo-greg-official-meeting",
@@ -147,6 +149,7 @@ export function createMondayDemoState() {
         continuesOvernight: false,
         workClassification: "active",
         conflictOverrides: [],
+        pickups: [],
       },
       {
         id: "demo-greg-transfer-bbw",
@@ -171,6 +174,7 @@ export function createMondayDemoState() {
         continuesOvernight: false,
         workClassification: "active",
         conflictOverrides: [],
+        pickups: [],
       },
       {
         id: "demo-greg-bbw-meeting",
@@ -195,6 +199,7 @@ export function createMondayDemoState() {
         continuesOvernight: false,
         workClassification: "active",
         conflictOverrides: [],
+        pickups: [],
       },
       {
         id: "demo-greg-end-duty",
@@ -219,6 +224,7 @@ export function createMondayDemoState() {
         continuesOvernight: false,
         workClassification: "active",
         conflictOverrides: [],
+        pickups: [],
       },
     ],
   };

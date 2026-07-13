@@ -11,7 +11,7 @@ import {
   createDraftFromMovement,
   createMovementFromDraft,
   createScheduleDayFromDraft,
-  emptyDraft,
+  createFreshMovementDraft,
 } from "./data/schema";
 import { getEntriesByMonth, sortMovementsByDateAndTime } from "./utils/calculations";
 import { getExportDocument } from "./utils/exportHtml";
@@ -25,7 +25,7 @@ import { buildHtmlImportCandidate } from "./import/htmlCandidate";
 import { createClearCandidate } from "./import/operationCandidates";
 import { getVisibilityCounts } from "./domain/audiences";
 import { analyzeScheduleIntegrity, validateMovementCandidate } from "./domain/scheduleValidation";
-import { duplicateMovementForSchedule } from "./domain/schedulingMutations";
+import { duplicateMovementForSchedule, preserveClearedTimeFields } from "./domain/schedulingMutations";
 import { Button } from "./components/ui/Button";
 import Card from "./components/ui/Card";
 import Badge from "./components/ui/Badge";
@@ -36,17 +36,14 @@ import { preparePreviewDocument } from "./components/preview/previewPreparation"
 import { createStorageId } from "./storage/storage";
 import { deleteDriverCandidate, deleteVehicleCandidate, reassignDriverReferences, reassignVehicleReferences } from "./domain/resourceMutations";
 import { getDriverUsage, getVehicleUsage, totalUsage } from "./domain/resourceUsage";
+import { validatePickups } from "./domain/pickups";
 
 function createId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function createInitialDraft(profile) {
-  return {
-    ...emptyDraft,
-    missionName: profile.missionName,
-    documentTitle: profile.documentTitle,
-  };
+function createInitialDraft(schedule) {
+  return createFreshMovementDraft(schedule);
 }
 
 function findOrCreateDay(scheduleDays, draft) {
@@ -79,18 +76,6 @@ function nextVehicleHandoverSortOrder(vehicleHandoverNotes, scheduleDayId) {
   return orders.length === 0 ? 10 : Math.max(...orders) + 10;
 }
 
-function preserveClearedTimeFields(updatedMovement, previousMovement) {
-  return {
-    ...updatedMovement,
-    eventStartTime:
-      updatedMovement.departureTime === "" && updatedMovement.eventStartTime === previousMovement.departureTime
-        ? ""
-        : updatedMovement.eventStartTime || "",
-    eventEndTime:
-      updatedMovement.endTime === "" && updatedMovement.eventEndTime === previousMovement.endTime ? "" : updatedMovement.eventEndTime || "",
-  };
-}
-
 const documentPreviewTabs = [
   { id: "executive", label: "Full Executive Programme" },
   { id: "executiveCg", label: "CG Programme" },
@@ -111,7 +96,7 @@ export default function ScheduleItApp() {
   const previewFrameRef = useRef(null);
   const [startup, setStartup] = useState(getInitialStorageResult);
   const [schedule, setSchedule] = useState(() => startup.ok ? startup.value : null);
-  const [draft, setDraft] = useState(() => createInitialDraft(startup.ok ? startup.value.profile : defaultProfile));
+  const [draft, setDraft] = useState(() => createInitialDraft(startup.ok ? startup.value : { ...defaultScheduleState, profile: defaultProfile }));
   const [validationErrors, setValidationErrors] = useState({});
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
@@ -177,7 +162,7 @@ export default function ScheduleItApp() {
     revisionRef.current = 0;
     setSchedule(result.value);
     setSelectedDriverId(result.value.drivers[0]?.id || "");
-    setDraft(createInitialDraft(result.value.profile));
+    setDraft(createInitialDraft(result.value));
     setPersistence({ status: result.needsInitialSave ? "initializing" : "saved", currentRevision: 0, persistedRevision: 0, savedAt: result.savedAt || null });
   }
 
@@ -190,7 +175,7 @@ export default function ScheduleItApp() {
     const normalized = normalizeState(value);
     setStartup({ ok: true, status: "volatile", value: normalized });
     setSchedule(normalized);
-    setDraft(createInitialDraft(normalized.profile));
+    setDraft(createInitialDraft(normalized));
     setSelectedDriverId(normalized.drivers[0]?.id || "");
     setPersistence({ status: "unavailable", currentRevision: 0, persistedRevision: null, error: startup });
   }
@@ -212,7 +197,7 @@ export default function ScheduleItApp() {
     const firstDay = targetDay || result.storedState.scheduleDays[0];
     const nextDriverId = result.storedState.drivers.some((driver) => driver.id === selectedDriverId) ? selectedDriverId : result.storedState.drivers[0]?.id || "";
     setSelectedDriverId(nextDriverId);
-    resetDraft(result.storedState.profile, firstDay);
+    resetDraft(result.storedState.profile, firstDay, result.storedState);
     setPersistence((current) => ({ ...current, status: "saved", savedAt: new Date().toISOString(), error: null }));
     setOperationResult({ ok: true, snapshotKey: result.snapshotKey, message, operationType: result.operationType });
   }
@@ -264,9 +249,9 @@ export default function ScheduleItApp() {
     });
   }
 
-  function resetDraft(profile = schedule.profile, scheduleDay) {
+  function resetDraft(profile = schedule.profile, scheduleDay, sourceSchedule = schedule) {
     setDraft({
-      ...createInitialDraft(profile),
+      ...createInitialDraft({ ...sourceSchedule, profile }),
       scheduleDayId: scheduleDay?.id || null,
       dayTitle: scheduleDay?.title || "",
       date: scheduleDay?.date || "",
@@ -280,12 +265,14 @@ export default function ScheduleItApp() {
     if (!value.scheduleDayId) errors.scheduleDayId = "Select or create a schedule day.";
     if (!value.driverId) errors.driverId = "Select a driver.";
     if (!value.vehicleId) errors.vehicleId = "Select a vehicle.";
-    if (!value.driverStart && !value.departureTime && !value.arrivalTime && !value.endTime) {
+    if (!value.driverStart && !value.departureTime && !value.arrivalTime && !value.endTime && !(value.pickups || []).some((pickup) => pickup.time)) {
       errors.timing = "Enter at least one timing field.";
     }
     if (!value.engagementDetails && !value.venue) {
       errors.engagementDetails = "Enter engagement details or a venue.";
     }
+    const pickupIssues = validatePickups(value.pickups || []);
+    if (pickupIssues.length) errors.integrityIssues = pickupIssues;
     return errors;
   }
 
