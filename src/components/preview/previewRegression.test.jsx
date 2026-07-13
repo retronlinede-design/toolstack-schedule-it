@@ -44,7 +44,7 @@ describe("Preview regression boundary", () => {
     expect(source).not.toContain("Official preview is unavailable until blocking");
     expect(source).not.toContain("skipIntegrityConfirmation");
     expect(source).not.toContain("reviewPreviewIssues");
-    expect(source).toContain("onPrint={() => handlePrintView(previewView, schedule.scheduleDays.map((day) => day.id))}");
+    expect(source).toContain("onPrint={() => handlePrintView(previewView)}");
     expect(source).toContain('setToolsInitialTool("print")');
     expect(source).not.toContain("frameWindow.print()");
   });

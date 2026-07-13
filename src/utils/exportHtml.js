@@ -90,6 +90,10 @@ function operationalHeaders() {
   return ["Driver Start", "Official Departure", "Arrival", "Duty End", "Engagement", "Venue", "Address", "Location Notes", "Parking", "Participants", "Driver", "Vehicle"];
 }
 
+function driverHeaders() {
+  return ["Timeline", "Engagement / Pickups", "Destination", "Address", "Vehicle", "Instructions"];
+}
+
 function isExecutiveView(view) {
   return view === "executive" || view === "executiveCg" || view === "executiveMarida";
 }
@@ -216,6 +220,26 @@ function operationalMovementRows(movements, driversById, vehiclesById) {
   ]);
 }
 
+function driverMovementRows(movements, vehiclesById) {
+  return movements.map((movement) => [
+    cell([
+      movement.driverStart && `Driver Start ${movement.driverStart}`,
+      movement.departureTime && `Departure ${movement.departureTime}`,
+      movement.arrivalTime && `Arrival ${movement.arrivalTime}`,
+      movement.endTime && `Duty End ${movement.endTime}`,
+    ].filter(Boolean).join("\n"), "time-cell timeline-cell"),
+    cell([movement.engagementDetails, operationalPickupText(movement)].filter(Boolean).join("\n\n"), "details-cell wrap-cell"),
+    cell(movement.venue, "venue-cell"),
+    cell(movement.address, "address-cell small-cell"),
+    cell(vehiclesById.get(movement.vehicleId)?.name),
+    cell([
+      movement.locationNotes,
+      movement.parking && `Parking: ${movement.parking}`,
+      movement.participants && `Participants: ${movement.participants}`,
+    ].filter(Boolean).join("\n"), "wrap-cell"),
+  ]);
+}
+
 function groupOperationalMovements(movements, driversById, vehiclesById, groupByDriver) {
   const dayGroups = [];
   const dayGroupsByKey = new Map();
@@ -336,10 +360,13 @@ function operationalSections(schedule, driverId, groupByDriver) {
       const driverSections = dayGroup.driverGroups
         .map((driverGroup) => {
           const driverHeading = groupByDriver ? `<div class="driver-section-heading">${escapeHtml(driverGroup.label)}</div>` : "";
+          const headers = driverId ? driverHeaders() : operationalHeaders();
+          const rows = driverId ? driverMovementRows(driverGroup.movements, vehiclesById) : operationalMovementRows(driverGroup.movements, driversById, vehiclesById);
+          const tableClass = driverId ? "driver-table" : "operational-table compact-table";
           return `
             <section class="driver-section">
               ${driverHeading}
-              ${table(operationalHeaders(), operationalMovementRows(driverGroup.movements, driversById, vehiclesById), "operational-table compact-table")}
+              ${table(headers, rows, tableClass)}
             </section>
           `;
         })
@@ -606,6 +633,11 @@ function stylesFor(view) {
       text-transform: uppercase;
       letter-spacing: .04em;
       font-weight: 800;
+      min-width: 0;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: normal;
+      hyphens: auto;
     }
     h2 {
       font-size: ${isExecutive ? "15px" : "13px"};
@@ -613,6 +645,11 @@ function stylesFor(view) {
       color: #404040;
       text-transform: uppercase;
       letter-spacing: .04em;
+      min-width: 0;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: normal;
+      hyphens: auto;
     }
     .meta {
       display: flex;
@@ -685,7 +722,7 @@ function stylesFor(view) {
       width: 100%;
       max-width: 100%;
       border-collapse: collapse;
-      table-layout: fixed;
+      table-layout: auto;
       font-size: ${fontSize};
       page-break-inside: auto;
     }
@@ -697,6 +734,8 @@ function stylesFor(view) {
       overflow-wrap: anywhere;
       word-break: normal;
       white-space: pre-line;
+      min-width: 0;
+      hyphens: auto;
     }
     th {
       background: #eeeeee;
@@ -710,7 +749,7 @@ function stylesFor(view) {
     tbody tr:nth-child(even) td { background: #fafafa; }
     .time-cell {
       text-align: center;
-      white-space: nowrap;
+      white-space: normal;
       font-variant-numeric: tabular-nums;
       font-weight: 700;
     }
@@ -841,22 +880,28 @@ function stylesFor(view) {
       font-size: 8px;
       text-align: center;
     }
-    .executive-table th:nth-child(1), .executive-table td:nth-child(1) { width: 13%; }
+    .executive-table th:nth-child(1), .executive-table td:nth-child(1) { width: 8%; }
     .executive-table th:nth-child(2), .executive-table td:nth-child(2) { width: 25%; }
-    .executive-table th:nth-child(3), .executive-table td:nth-child(3) { width: 17%; }
-    .executive-table th:nth-child(4), .executive-table td:nth-child(4) { width: 16%; }
-    .executive-table th:nth-child(5), .executive-table td:nth-child(5) { width: 9%; }
-    .executive-table th:nth-child(6), .executive-table td:nth-child(6) { width: 9%; }
-    .executive-table th:nth-child(7), .executive-table td:nth-child(7) { width: 11%; }
-    .compact-table th:nth-child(-n+4), .compact-table td:nth-child(-n+4) { width: 6.5%; }
-    .compact-table th:nth-child(5), .compact-table td:nth-child(5) { width: 14%; }
-    .compact-table th:nth-child(6), .compact-table td:nth-child(6) { width: 10%; }
-    .compact-table th:nth-child(7), .compact-table td:nth-child(7) { width: 13%; }
-    .compact-table th:nth-child(8), .compact-table td:nth-child(8) { width: 13%; }
-    .compact-table th:nth-child(9), .compact-table td:nth-child(9) { width: 8%; }
-    .compact-table th:nth-child(10), .compact-table td:nth-child(10) { width: 10%; }
+    .executive-table th:nth-child(3), .executive-table td:nth-child(3) { width: 16%; }
+    .executive-table th:nth-child(4), .executive-table td:nth-child(4) { width: 17%; }
+    .executive-table th:nth-child(5), .executive-table td:nth-child(5) { width: 8%; }
+    .executive-table th:nth-child(6), .executive-table td:nth-child(6) { width: 8%; }
+    .executive-table th:nth-child(7), .executive-table td:nth-child(7) { width: 18%; }
+    .compact-table th:nth-child(-n+4), .compact-table td:nth-child(-n+4) { width: 5.5%; }
+    .compact-table th:nth-child(5), .compact-table td:nth-child(5) { width: 20%; }
+    .compact-table th:nth-child(6), .compact-table td:nth-child(6) { width: 12%; }
+    .compact-table th:nth-child(7), .compact-table td:nth-child(7) { width: 12%; }
+    .compact-table th:nth-child(8), .compact-table td:nth-child(8) { width: 8%; }
+    .compact-table th:nth-child(9), .compact-table td:nth-child(9) { width: 6%; }
+    .compact-table th:nth-child(10), .compact-table td:nth-child(10) { width: 8%; }
     .compact-table th:nth-child(11), .compact-table td:nth-child(11) { width: 6%; }
     .compact-table th:nth-child(12), .compact-table td:nth-child(12) { width: 6%; }
+    .driver-table th:nth-child(1), .driver-table td:nth-child(1) { width: 14%; }
+    .driver-table th:nth-child(2), .driver-table td:nth-child(2) { width: 32%; }
+    .driver-table th:nth-child(3), .driver-table td:nth-child(3) { width: 18%; }
+    .driver-table th:nth-child(4), .driver-table td:nth-child(4) { width: 18%; }
+    .driver-table th:nth-child(5), .driver-table td:nth-child(5) { width: 8%; }
+    .driver-table th:nth-child(6), .driver-table td:nth-child(6) { width: 10%; }
     .summary-section {
       margin: 0 0 14px;
       break-inside: avoid;
@@ -918,6 +963,7 @@ function stylesFor(view) {
       border: 1px solid #d4d4d4;
       background: #ffffff;
       padding: 7px 8px;
+      min-width: 0;
     }
     .working-driver-summary span {
       display: block;
@@ -958,14 +1004,6 @@ function stylesFor(view) {
       font-size: 8px;
       padding: 5px 6px;
     }
-    .handover-table th:nth-child(1), .handover-table td:nth-child(1) { width: 7%; }
-    .handover-table th:nth-child(2), .handover-table td:nth-child(2) { width: 10%; }
-    .handover-table th:nth-child(3), .handover-table td:nth-child(3) { width: 9%; }
-    .handover-table th:nth-child(4), .handover-table td:nth-child(4) { width: 9%; }
-    .handover-table th:nth-child(5), .handover-table td:nth-child(5) { width: 15%; }
-    .handover-table th:nth-child(6), .handover-table td:nth-child(6) { width: 20%; }
-    .handover-table th:nth-child(7), .handover-table td:nth-child(7) { width: 12%; }
-    .handover-table th:nth-child(8), .handover-table td:nth-child(8) { width: 18%; }
     .short-rest-cell {
       color: #b91c1c;
       font-weight: 800;
@@ -1030,6 +1068,7 @@ function stylesFor(view) {
       border: 1px solid #d4d4d4;
       background: #ffffff;
       padding: 7px 8px;
+      min-width: 0;
     }
     .daily-total-summary span {
       display: block;
@@ -1101,6 +1140,7 @@ function stylesFor(view) {
     .important-info-detail {
       border-top: 1px solid #eeeeee;
       padding-top: 5px;
+      min-width: 0;
     }
     .important-info-detail span {
       display: block;

@@ -25,13 +25,11 @@ export function printableDayIds(schedule, config) {
   return chronologicalDays(schedule).filter((day) => ids.has(day.id)).map((day) => day.id);
 }
 
-export function selectPrintDays(schedule, config, context = {}) {
+export function selectPrintDays(schedule, config) {
   const printable = new Set(printableDayIds(schedule, config));
   let requested;
   if (config.scope === "current") requested = [config.currentDayId];
   else if (config.scope === "selected") requested = config.selectedDayIds;
-  else if (config.scope === "range") requested = chronologicalDays(schedule).filter((day) => day.date >= config.rangeStart && day.date <= config.rangeEnd).map((day) => day.id);
-  else if (config.scope === "preview") requested = context.previewDayIds?.length ? context.previewDayIds : [...printable];
   else requested = [...printable];
   const selected = new Set(requested.filter((id) => printable.has(id)));
   return chronologicalDays(schedule).filter((day) => selected.has(day.id));
@@ -40,44 +38,39 @@ export function selectPrintDays(schedule, config, context = {}) {
 function filterPickup(pickup, include) {
   return {
     ...pickup,
-    address: include.pickupAddresses ? pickup.address : "",
-    contactPhone: include.pickupContacts ? pickup.contactPhone : "",
-    notes: include.pickupNotes ? pickup.notes : "",
+    address: include.addresses ? pickup.address : "",
+    notes: include.parkingNotes ? pickup.notes : "",
   };
 }
 
 function filterMovement(movement, include) {
   return {
     ...movement,
-    printPickupDetails: { addresses: include.pickupAddresses, contacts: include.pickupContacts, notes: include.pickupNotes },
     pickups: include.pickups ? (movement.pickups || []).map((pickup) => filterPickup(pickup, include)) : [],
-    venue: include.venue ? movement.venue : "",
-    address: include.address ? movement.address : "",
+    address: include.addresses ? movement.address : "",
     participants: include.participants ? movement.participants : "",
-    parking: include.parking ? movement.parking : "",
-    locationNotes: include.locationNotes ? movement.locationNotes : "",
+    parking: include.parkingNotes ? movement.parking : "",
+    locationNotes: include.parkingNotes ? movement.locationNotes : "",
   };
 }
 
-export function createPrintSchedule(schedule, config, context = {}) {
+export function createPrintSchedule(schedule, config) {
   if (config.view === "importantInfo") return { ...schedule, scheduleDays: [], movements: [], vehicleHandoverNotes: [] };
-  const selectedDays = selectPrintDays(schedule, config, context);
+  const selectedDays = selectPrintDays(schedule, config);
   const dayIds = new Set(selectedDays.map((day) => day.id));
   return {
     ...schedule,
-    drivers: config.include.driver ? schedule.drivers : schedule.drivers.map((driver) => ({ ...driver, name: "" })),
-    vehicles: config.include.vehicle ? schedule.vehicles : schedule.vehicles.map((vehicle) => ({ ...vehicle, name: "", registration: "" })),
     scheduleDays: selectedDays,
     movements: schedule.movements.filter((movement) => dayIds.has(movement.scheduleDayId)).map((movement) => filterMovement(movement, config.include)),
     vehicleHandoverNotes: config.include.handovers ? (schedule.vehicleHandoverNotes || []).filter((note) => dayIds.has(note.scheduleDayId)) : [],
   };
 }
 
-export function validatePrintSelection(schedule, config, context = {}) {
+export function validatePrintSelection(schedule, config) {
   if (config.view === "importantInfo") return (schedule.importantInfoItems || []).length ? { ok: true, message: "" } : { ok: false, message: "No Important Information records are available." };
-  const selectedDays = selectPrintDays(schedule, config, context);
-  if (!selectedDays.length) return { ok: false, message: config.scope === "range" ? "The date range contains no printable programme days." : "No printable programme days match this selection." };
-  const derived = createPrintSchedule(schedule, config, context);
+  const selectedDays = selectPrintDays(schedule, config);
+  if (!selectedDays.length) return { ok: false, message: "No printable programme days match this selection." };
+  const derived = createPrintSchedule(schedule, config);
   const matching = movementsForView(derived, config);
   const hasHandovers = config.include.handovers && derived.vehicleHandoverNotes.length && (config.view === "operational" || config.view === "driver");
   if (!matching.length && !hasHandovers) return { ok: false, message: config.view === "driver" ? "The selected driver has no matching output." : "The selected programme has no matching movements." };

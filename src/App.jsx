@@ -103,7 +103,6 @@ export default function ScheduleItApp() {
   const [isToolsOpen, setIsToolsOpen] = useState(false);
   const [toolsInitialTool, setToolsInitialTool] = useState(null);
   const [printInitialView, setPrintInitialView] = useState("executive");
-  const [printPreviewDayIds, setPrintPreviewDayIds] = useState([]);
   const [previewView, setPreviewView] = useState("executive");
   const [selectedDriverId, setSelectedDriverId] = useState(() => startup.ok ? startup.value.drivers[0]?.id || "" : "");
   const [persistence, setPersistence] = useState(() => ({
@@ -828,9 +827,8 @@ export default function ScheduleItApp() {
     return true;
   }
 
-  function handlePrintView(view, previewDayIds = []) {
+  function handlePrintView(view) {
     setPrintInitialView(view);
-    setPrintPreviewDayIds(previewDayIds);
     setToolsInitialTool("print");
     setIsExportOpen(false);
     setIsPreviewOpen(false);
@@ -899,7 +897,7 @@ export default function ScheduleItApp() {
               </p>
             </div>
             <div className="grid w-full grid-cols-3 gap-2 sm:w-auto">
-              <Button onClick={() => { setIsPreviewOpen(false); setIsExportOpen(false); setToolsInitialTool(null); setPrintPreviewDayIds([]); setIsToolsOpen(true); }} variant="secondary">
+              <Button onClick={() => { setIsPreviewOpen(false); setIsExportOpen(false); setToolsInitialTool(null); setIsToolsOpen(true); }} variant="secondary">
                 <Wrench className="h-4 w-4" /> Tools
               </Button>
               <Button
@@ -951,7 +949,7 @@ export default function ScheduleItApp() {
         ) : null}
 
         {isPreviewOpen && previewPreparation.ok ? (
-          <PreviewWorkspace tabs={documentPreviewTabs} selectedView={previewView} onViewChange={setPreviewView} scheduleDays={schedule.scheduleDays} selectedDriverName={selectedDriver?.name || ""} documentTitle={previewDocument.title} srcDoc={previewSrcDoc} frameRef={previewFrameRef} onPrint={() => handlePrintView(previewView, schedule.scheduleDays.map((day) => day.id))} onCopy={handleCopyHtml} onClose={() => setIsPreviewOpen(false)} />
+          <PreviewWorkspace tabs={documentPreviewTabs} selectedView={previewView} onViewChange={setPreviewView} scheduleDays={schedule.scheduleDays} selectedDriverName={selectedDriver?.name || ""} documentTitle={previewDocument.title} srcDoc={previewSrcDoc} frameRef={previewFrameRef} onPrint={() => handlePrintView(previewView)} onCopy={handleCopyHtml} onClose={() => setIsPreviewOpen(false)} />
         ) : null}
 
         {isPreviewOpen && !previewPreparation.ok ? <PreviewUnavailable error={previewPreparation.error} onClose={() => setIsPreviewOpen(false)} /> : null}
@@ -962,7 +960,6 @@ export default function ScheduleItApp() {
           printInitialView={printInitialView}
           currentDayId={draft.scheduleDayId}
           selectedDriverId={selectedDriver?.id || ""}
-          previewDayIds={printPreviewDayIds}
           onPrintDocument={printHtmlDocument}
           schedule={schedule}
           onSaveDriver={saveDriver}

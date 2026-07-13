@@ -44,13 +44,26 @@ describe("Tools navigation", () => {
   it("opens the Print Manager workspace with accessible settings", () => {
     const props = builderProps();
     const schedule = { drivers: props.drivers.map((item) => ({ ...item, isActive: true })), vehicles: props.vehicles, scheduleDays: props.scheduleDays, movements: [{ id: "m", scheduleDayId: "day", driverId: "driver-greg", vehicleId: "vehicle-vito", audiences: { executive: true, operational: true, cg: true, marida: true, driverIds: [] }, pickups: [] }], vehicleHandoverNotes: [], importantInfoItems: props.importantInfoItems, profile: { missionName: "Mission", documentTitle: "Programme" }, workingTimePolicy: {} };
-    const html = renderToStaticMarkup(<ToolsWorkspace onClose={noop} builderProps={props} schedule={schedule} initialTool="print" currentDayId="day" selectedDriverId="driver-greg" previewDayIds={["day"]} onPrintDocument={noop} importantInfoCount={1} handoverCount={0} />);
+    const html = renderToStaticMarkup(<ToolsWorkspace onClose={noop} builderProps={props} schedule={schedule} initialTool="print" currentDayId="day" selectedDriverId="driver-greg" onPrintDocument={noop} importantInfoCount={1} handoverCount={0} />);
     expect(html).toContain("Print Manager");
-    expect(html).toContain("Days to print");
+    expect(html).toContain("All days");
+    expect(html).toContain("Selected days");
     expect(html).toContain("Preview Print Layout");
     expect(html).toContain("One day per page");
-    expect(html).toContain("Compact itinerary");
-    expect(html).toContain("Page numbers (unavailable in browser print)");
+    expect(html).toContain("Smart grouping");
+    expect(html).toContain("Printed details");
+    expect(html).toContain(">Daily<");
+    expect(html).toContain(">Combined<");
+    for (const removed of ["Date range", "Compact itinerary", "Spacious", "Driver page grouping", "Page numbers", "Repeat table headers", "Keep movements together", "Mission header", "Pickup contacts", "Operational landscape"]) expect(html).not.toContain(removed);
+  });
+
+  it("keeps the preview at A4 dimensions without changing final document HTML", () => {
+    const source = readFileSync(new URL("./PrintManager.jsx", import.meta.url), "utf8");
+    expect(source).toContain('width: landscape ? "297mm" : "210mm"');
+    expect(source).toContain('height: landscape ? "210mm" : "297mm"');
+    expect(source).toContain("srcDoc={document.fullHtml}");
+    expect(source).toContain("overflow-auto");
+    expect(source).not.toContain("min-w-[760px]");
   });
 
   it("warns before abandoning dirty drafts and respects cancellation", () => {

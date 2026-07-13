@@ -16,21 +16,10 @@ export function pickupBadge(movement) {
   return pickups.length === 1 && pickups[0].time ? `Pickup ${pickups[0].time}` : `${pickups.length} pickups`;
 }
 
-function basicExecutivePickupText(movement) {
+export function executivePickupText(movement) {
   const pickups = pickupViewModels(movement);
   if (!pickups.length) return "";
   return `Pickups: ${pickups.map((pickup) => [pickup.time, pickup.person, pickup.location && `— ${pickup.location}`].filter(Boolean).join(" ")).join("; ")}`;
-}
-
-export function executivePickupText(movement) {
-  const summary = basicExecutivePickupText(movement);
-  const details = movement?.printPickupDetails || {};
-  const extra = pickupViewModels(movement).flatMap((pickup) => [
-    details.addresses ? pickup.address : "",
-    details.contacts && pickup.contactPhone ? `Contact: ${pickup.contactPhone}` : "",
-    details.notes ? pickup.notes : "",
-  ]).filter(Boolean);
-  return extra.length ? `${summary} · ${extra.join(" · ")}` : summary;
 }
 
 export function operationalPickupText(movement) {
