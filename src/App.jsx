@@ -30,7 +30,6 @@ import { Button } from "./components/ui/Button";
 import Card from "./components/ui/Card";
 import Badge from "./components/ui/Badge";
 import PreviewWorkspace from "./components/preview/PreviewWorkspace";
-import IntegrityPanel from "./components/integrity/IntegrityPanel";
 import ToolsWorkspace from "./components/tools/ToolsWorkspace";
 import PreviewUnavailable from "./components/preview/PreviewUnavailable";
 import { preparePreviewDocument } from "./components/preview/previewPreparation";
@@ -839,16 +838,14 @@ export default function ScheduleItApp() {
     return true;
   }
 
-  function handlePrintView(view, { skipIntegrityConfirmation = false } = {}) {
-    if (!skipIntegrityConfirmation && integrity.errors.length && !window.confirm("This schedule contains unresolved integrity issues.\n\nYou can continue, but the output may contain timing, driver, vehicle, or handover conflicts.")) return;
+  function handlePrintView(view) {
     const { fullHtml } = getExportDocument(schedule, view, { selectedDriverId: selectedDriver?.id });
     const didOpen = printHtmlDocument(fullHtml);
     setIsExportOpen(false);
     if (!didOpen) window.alert("Could not open print window. Check your browser popup settings.");
   }
 
-  async function handleCopyHtml(view, { skipIntegrityConfirmation = false } = {}) {
-    if (!skipIntegrityConfirmation && integrity.errors.length && !window.confirm("This schedule contains unresolved integrity issues.\n\nYou can continue, but the output may contain timing, driver, vehicle, or handover conflicts.")) return "Copy cancelled.";
+  async function handleCopyHtml(view) {
     const { fullHtml } = getExportDocument(schedule, view, { selectedDriverId: selectedDriver?.id });
     try {
       await navigator.clipboard.writeText(fullHtml);
@@ -910,18 +907,6 @@ export default function ScheduleItApp() {
     setIsPreviewOpen(true);
   }
 
-  function reviewPreviewIssues() {
-    setIsPreviewOpen(false);
-    setIsExportOpen(false);
-    setIsToolsOpen(false);
-    window.requestAnimationFrame(() => {
-      document.getElementById("schedule-integrity")?.scrollIntoView({ behavior: "smooth" });
-      const toggle = document.getElementById("schedule-integrity-toggle");
-      if (toggle?.getAttribute("aria-expanded") === "false") toggle.click();
-      else document.querySelector("[data-integrity-issue]")?.focus();
-    });
-  }
-
   return (
     <div className="ts-app">
       <div className="ts-container">
@@ -951,17 +936,12 @@ export default function ScheduleItApp() {
               </Button>
             </div>
           </div>
-          <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 rounded-xl bg-neutral-50 px-3 py-2 text-xs text-neutral-600" aria-label="Programme visibility summary">
-            <Badge>Executive {visibilityCounts.executive}</Badge><Badge>CG {visibilityCounts.cg}</Badge><Badge>Marida {visibilityCounts.marida}</Badge><Badge>Operational {visibilityCounts.operational}</Badge>
-            <Badge tone={visibilityCounts.hidden ? "warning" : "neutral"}>Hidden {visibilityCounts.hidden}</Badge>
-          </div>
-          <div className={`ts-alert mt-3 ${integrity.errors.length ? "ts-alert--danger" : "ts-alert--info"}`}>
-            <div className="flex flex-wrap items-center justify-between gap-2"><strong>Schedule Integrity</strong><span>{integrity.errors.length} errors · {integrity.warnings.length} warnings</span></div>
-            <div className="mt-1 flex flex-wrap gap-x-3 text-xs"><span>Chronology: {integrity.summary.chronologyErrors}</span><span>Driver: {integrity.summary.driverOverlaps}</span><span>Vehicle: {integrity.summary.vehicleOverlaps}</span><span>Handover: {integrity.summary.handoverConflicts}</span><span>Orphans: {integrity.summary.orphanReferences}</span></div>
-            <Button variant="ghost" className="mt-2 min-h-9 px-2" onClick={() => document.getElementById("schedule-integrity")?.scrollIntoView({ behavior: "smooth" })}>Review Issues</Button>
-          </div>
-          <div className="mt-4 flex justify-end">
-            <div className="flex flex-col items-end gap-2">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-neutral-50 px-3 py-2">
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-600" aria-label="Programme visibility summary">
+              <Badge>Executive {visibilityCounts.executive}</Badge><Badge>CG {visibilityCounts.cg}</Badge><Badge>Marida {visibilityCounts.marida}</Badge><Badge>Operational {visibilityCounts.operational}</Badge>
+              <Badge tone={visibilityCounts.hidden ? "warning" : "neutral"}>Hidden {visibilityCounts.hidden}</Badge>
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <PersistenceStatus persistence={persistence} onRetry={retrySave} onExport={handleExportJson} />
               <Button onClick={handleResetAll} variant="ghost" className="min-h-0 px-2 py-1 text-xs text-red-600">Clear Schedule Data</Button>
             </div>
@@ -976,17 +956,13 @@ export default function ScheduleItApp() {
           onDownloadCandidate={() => operationResult?.candidate && downloadJson("schedule-it-candidate-backup.json", createFullBackup(operationResult.candidate))}
         />
 
-        <IntegrityPanel integrity={integrity} onReviewIssue={(issue) => document.getElementById(`movement-${issue.movementIds?.[0]}`)?.focus()} />
-
         {isExportOpen ? (
           <ExportPanel
             onClose={() => setIsExportOpen(false)}
             selectedDriverName={selectedDriver?.name || ""}
             hasDrivers={schedule.drivers.length > 0}
-            hasBlockingIssues={integrity.errors.length > 0}
             onPrintView={handlePrintView}
             onCopyHtml={handleCopyHtml}
-            onReviewIssues={reviewPreviewIssues}
             onExportJson={handleExportJson}
             onImportJson={handleImportJson}
             onReplaceJson={handleReplaceJson}
@@ -995,7 +971,7 @@ export default function ScheduleItApp() {
         ) : null}
 
         {isPreviewOpen && previewPreparation.ok ? (
-          <PreviewWorkspace tabs={documentPreviewTabs} selectedView={previewView} onViewChange={setPreviewView} scheduleDays={schedule.scheduleDays} integrity={integrity} selectedDriverName={selectedDriver?.name || ""} documentTitle={previewDocument.title} srcDoc={previewSrcDoc} frameRef={previewFrameRef} onPrint={printPreview} onCopy={(view) => handleCopyHtml(view, { skipIntegrityConfirmation: true })} onReviewIssues={reviewPreviewIssues} onClose={() => setIsPreviewOpen(false)} />
+          <PreviewWorkspace tabs={documentPreviewTabs} selectedView={previewView} onViewChange={setPreviewView} scheduleDays={schedule.scheduleDays} selectedDriverName={selectedDriver?.name || ""} documentTitle={previewDocument.title} srcDoc={previewSrcDoc} frameRef={previewFrameRef} onPrint={printPreview} onCopy={handleCopyHtml} onClose={() => setIsPreviewOpen(false)} />
         ) : null}
 
         {isPreviewOpen && !previewPreparation.ok ? <PreviewUnavailable error={previewPreparation.error} onClose={() => setIsPreviewOpen(false)} /> : null}
@@ -1011,7 +987,6 @@ export default function ScheduleItApp() {
           onReassignVehicle={reassignVehicle}
           importantInfoCount={(schedule.importantInfoItems || []).length}
           handoverCount={(schedule.vehicleHandoverNotes || []).length}
-          handoverConflictCount={Object.values(integrity.conflictsByHandoverId).filter((issues) => issues.some((issue) => issue.severity === "error")).length}
           builderProps={{ draft, drivers: schedule.drivers, vehicles: schedule.vehicles, scheduleDays: schedule.scheduleDays, movements: schedule.movements, vehicleHandoverNotes: schedule.vehicleHandoverNotes || [], importantInfoItems: schedule.importantInfoItems || [], integrity, errors: validationErrors, onChange: updateDraft, onSubmit: handleSubmit, onCancelEdit: () => resetDraft(), onClear: () => resetDraft(schedule.profile, schedule.scheduleDays.find((day) => day.id === draft.scheduleDayId)), onCreateDay: handleCreateDay, onSelectDay: handleSelectDay, onUpdateDay: handleUpdateDay, onDuplicateDay: handleDuplicateDay, onEditMovement: handleEdit, onUpdateMovement: handleUpdateMovement, onDuplicateMovement: handleDuplicateMovement, onMoveMovement: handleMoveMovement, onDeleteMovement: handleDelete, onSaveVehicleHandoverNote: handleSaveVehicleHandoverNote, onDuplicateVehicleHandoverNote: handleDuplicateVehicleHandoverNote, onMoveVehicleHandoverNote: handleMoveVehicleHandoverNote, onDeleteVehicleHandoverNote: handleDeleteVehicleHandoverNote, onSaveImportantInfoItem: handleSaveImportantInfoItem, onDuplicateImportantInfoItem: handleDuplicateImportantInfoItem, onMoveImportantInfoItem: handleMoveImportantInfoItem, onDeleteImportantInfoItem: handleDeleteImportantInfoItem }}
         /> : null}
 
@@ -1052,7 +1027,6 @@ export default function ScheduleItApp() {
             entriesByMonth={entriesByMonth}
             profile={schedule.profile}
             movements={schedule.movements}
-            integrity={integrity}
             vehicleHandoverNotes={schedule.vehicleHandoverNotes || []}
             importantInfoItems={schedule.importantInfoItems || []}
             drivers={schedule.drivers}

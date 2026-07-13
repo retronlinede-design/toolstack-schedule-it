@@ -15,16 +15,17 @@ function builderProps() {
 }
 
 describe("Tools navigation", () => {
-  it("renders semantic tool choices, counts, conflicts, and accessible modal structure", () => {
+  it("renders exactly the four intended tool choices without global conflict status", () => {
     const props = builderProps();
-    const html = renderToStaticMarkup(<ToolsWorkspace onClose={noop} builderProps={props} schedule={{ drivers: props.drivers, vehicles: props.vehicles }} importantInfoCount={1} handoverCount={2} handoverConflictCount={1} />);
+    const html = renderToStaticMarkup(<ToolsWorkspace onClose={noop} builderProps={props} schedule={{ drivers: props.drivers, vehicles: props.vehicles }} importantInfoCount={1} handoverCount={2} />);
     expect(html).toContain('role="dialog"');
     expect(html).toContain("Important Information");
     expect(html).toContain("Driver Manager");
     expect(html).toContain("Vehicle Manager");
     expect(html).toContain("1 record");
     expect(html).toContain("2 handovers");
-    expect(html).toContain("1 unresolved conflict");
+    expect(html).not.toContain("unresolved conflict");
+    expect((html.match(/aria-label="Open /g) || []).length).toBe(4);
     expect(html).toContain('aria-label="Open Important Information"');
     expect(html).toContain('aria-label="Open Vehicle Handover"');
   });

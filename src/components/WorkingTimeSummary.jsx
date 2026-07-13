@@ -83,7 +83,7 @@ function MetricCard({ label, value, alert = false }) {
   );
 }
 
-export default function WorkingTimeSummary({ movements, drivers, vehicles, scheduleDays, integrity, workingTimePolicy, onWorkingTimePolicyChange }) {
+export default function WorkingTimeSummary({ movements, drivers, vehicles, scheduleDays, workingTimePolicy, onWorkingTimePolicyChange }) {
   const policy = normalizeWorkingTimePolicy(workingTimePolicy);
   const { driverDaySummaries, dailyTotals, overallDriverTotals } = calculateWorkingTimeSummary(movements, drivers, vehicles, scheduleDays, policy);
   const driverGroups = [...groupDriverSummaries(driverDaySummaries, overallDriverTotals)];
@@ -103,7 +103,6 @@ export default function WorkingTimeSummary({ movements, drivers, vehicles, sched
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={policy.travelCountsAsWorkingTime} onChange={(event) => onWorkingTimePolicyChange?.({ ...policy, travelCountsAsWorkingTime: event.target.checked })} />Travel counts as working time</label>
       </div></details>
       {driverDaySummaries.length === 0 ? <WorkingEmptyState /> : null}
-      {integrity?.summary?.chronologyErrors > 0 ? <AlertBanner tone="danger"><strong>Results may be unreliable.</strong> Unresolved chronology conflicts affect the recorded duty spans.</AlertBanner> : null}
       {driverGroups.map((group) => (
         <section key={group.driverId} className="min-w-0 max-w-full rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
           <div className="mb-4 border-b border-neutral-100 pb-3">

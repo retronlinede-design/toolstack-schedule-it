@@ -475,7 +475,7 @@ export default function ScheduleBuilder({
       </div>
 
       <SectionCard title="Schedule Day" subtitle="Create, select, duplicate, or update the day being edited">
-        <DayNavigator days={scheduleDays} selectedDayId={draft.scheduleDayId} movements={movements} integrity={integrity} onSelect={onSelectDay} />
+        <DayNavigator days={scheduleDays} selectedDayId={draft.scheduleDayId} movements={movements} onSelect={onSelectDay} />
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <Field label="Select Schedule Day" icon={CalendarDays} error={errors.scheduleDayId}>
             <Select value={draft.scheduleDayId || ""} onChange={(event) => onSelectDay(event.target.value)}>
@@ -540,7 +540,7 @@ export default function ScheduleBuilder({
         </div>
         </div>
 
-        <DisclosureSection className="order-4" title="Audience" summary={getAudienceSummary(draft)} forceOpen={Boolean(errors.integrityIssues?.length)}>
+        <DisclosureSection className="order-4" title="Audience" summary={getAudienceSummary(draft)}>
           <AudienceEditor movement={draft} drivers={drivers} vehicles={vehicles} idPrefix="main" onChange={(audiences) => onChange((current) => ({ ...current, audiences, isExecutiveVisible: audiences.executive, isOperationalVisible: audiences.operational }))} />
         </DisclosureSection>
 
@@ -759,7 +759,7 @@ export default function ScheduleBuilder({
                           <td className="border border-neutral-200 p-3 text-neutral-900">
                             <div>{movement.engagementDetails || "-"}</div>
                             <div className="mt-1 flex flex-wrap gap-1" aria-label={getAudienceSummary(movement)}>{getAudienceBadges(movement).map((badge) => <Badge key={badge}>{badge}</Badge>)}</div>
-                            <div className="mt-1 flex flex-wrap gap-1" aria-label="Schedule integrity indicators">
+                            <div className="mt-1 flex flex-wrap gap-1" aria-label="Movement indicators">
                               {movementIssues.some((issue) => issue.severity === "error") ? <Badge tone="danger">Conflict</Badge> : null}
                               {movementIssues.some((issue) => issue.severity === "warning") ? <Badge tone="warning">Warning</Badge> : null}
                               {movement.continuesOvernight ? <Badge tone="info">Overnight</Badge> : null}

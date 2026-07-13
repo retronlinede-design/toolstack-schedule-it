@@ -17,18 +17,19 @@ describe("Preview regression boundary", () => {
     expect(result).toMatchObject({ ok: false, error: { message: "Generation failed" } });
   });
 
-  it("keeps normal preview available with blocking issues and reserves unavailable for generation errors", () => {
-    const blocked = renderToStaticMarkup(<PreviewWorkspace tabs={[{ id: "executive", label: "Executive" }]} selectedView="executive" onViewChange={vi.fn()} scheduleDays={[]} integrity={{ errors: [{ type: "ERROR" }], warnings: [] }} documentTitle="Programme" srcDoc="<main />" onPrint={vi.fn()} onCopy={vi.fn()} onReviewIssues={vi.fn()} onClose={vi.fn()} />);
-    expect(blocked).toContain("Schedule contains unresolved integrity issues.");
-    expect(blocked).toContain("Print / Save PDF");
-    expect(blocked).toContain("Copy programme");
+  it("keeps normal preview available without global issue warnings and reserves unavailable for generation errors", () => {
+    const preview = renderToStaticMarkup(<PreviewWorkspace tabs={[{ id: "executive", label: "Executive" }]} selectedView="executive" onViewChange={vi.fn()} scheduleDays={[]} documentTitle="Programme" srcDoc="<main />" onPrint={vi.fn()} onCopy={vi.fn()} onClose={vi.fn()} />);
+    expect(preview).not.toContain("integrity");
+    expect(preview).not.toContain("Review Issues");
+    expect(preview).toContain("Print / Save PDF");
+    expect(preview).toContain("Copy programme");
     const failed = renderToStaticMarkup(<PreviewUnavailable error={new Error("Broken preview")} onClose={vi.fn()} />);
     expect(failed).toContain("Technical details");
     expect(failed).toContain("Broken preview");
   });
 
   it("retains interactive modal controls and the default tab", () => {
-    const html = renderToStaticMarkup(<PreviewWorkspace tabs={[{ id: "executive", label: "Full Executive Programme" }]} selectedView="executive" onViewChange={vi.fn()} scheduleDays={[]} integrity={{ errors: [] }} documentTitle="Programme" srcDoc="<main />" onPrint={vi.fn()} onCopy={vi.fn()} onClose={vi.fn()} />);
+    const html = renderToStaticMarkup(<PreviewWorkspace tabs={[{ id: "executive", label: "Full Executive Programme" }]} selectedView="executive" onViewChange={vi.fn()} scheduleDays={[]} documentTitle="Programme" srcDoc="<main />" onPrint={vi.fn()} onCopy={vi.fn()} onClose={vi.fn()} />);
     expect(html).toContain("Document Preview");
     expect(html).toContain('aria-selected="true"');
     expect(html).toContain("Print / Save PDF");
@@ -41,5 +42,7 @@ describe("Preview regression boundary", () => {
     expect(source).not.toContain('disabled={!officialOutputAllowed}');
     expect(source).toContain("isPreviewOpen && previewPreparation.ok");
     expect(source).not.toContain("Official preview is unavailable until blocking");
+    expect(source).not.toContain("skipIntegrityConfirmation");
+    expect(source).not.toContain("reviewPreviewIssues");
   });
 });

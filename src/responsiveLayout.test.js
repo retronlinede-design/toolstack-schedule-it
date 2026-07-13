@@ -16,6 +16,8 @@ describe("responsive application structure", () => {
   it("wraps header actions before they force overflow", () => {
     expect(app).toContain("lg:flex-row");
     expect(app).toContain("grid w-full grid-cols-3");
+    expect(app).not.toContain("Schedule Integrity");
+    expect(app).not.toContain("schedule-integrity");
   });
 
   it("uses later wide-grid breakpoints while preserving deliberate scroll containers", () => {

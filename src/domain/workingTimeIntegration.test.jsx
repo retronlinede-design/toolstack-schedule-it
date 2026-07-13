@@ -37,7 +37,7 @@ describe("working-time compatibility and presentation", () => {
 
   it("renders classifications, policy settings, assumptions, and no compliance claim", () => {
     const state = validState();
-    const html = renderToStaticMarkup(<WorkingTimeSummary movements={state.movements} drivers={state.drivers} vehicles={state.vehicles} scheduleDays={state.scheduleDays} workingTimePolicy={state.workingTimePolicy} onWorkingTimePolicyChange={vi.fn()} integrity={{ summary: { chronologyErrors: 0 } }} />);
+    const html = renderToStaticMarkup(<WorkingTimeSummary movements={state.movements} drivers={state.drivers} vehicles={state.vehicles} scheduleDays={state.scheduleDays} workingTimePolicy={state.workingTimePolicy} onWorkingTimePolicyChange={vi.fn()} />);
     expect(html).toContain("Working-Time Settings");
     expect(html).toContain("recorded movement intervals");
     expect(html).toContain("operational planning summary");

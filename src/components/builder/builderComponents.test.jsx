@@ -8,12 +8,12 @@ import ImportantInfoCard from "./ImportantInfoCard";
 const noop = vi.fn();
 
 describe("builder presentation components", () => {
-  it("renders days chronologically with selected, count, and issue states", () => {
-    const html = renderToStaticMarkup(<DayNavigator days={[{ id: "late", date: "2026-02-02", title: "Late" }, { id: "early", date: "2026-01-01", title: "Early" }]} selectedDayId="early" movements={[{ id: "m", scheduleDayId: "early" }]} integrity={{ conflictsByMovementId: { m: [{ severity: "error" }] } }} onSelect={noop} />);
+  it("renders days chronologically with selected and movement counts but no global issue count", () => {
+    const html = renderToStaticMarkup(<DayNavigator days={[{ id: "late", date: "2026-02-02", title: "Late" }, { id: "early", date: "2026-01-01", title: "Early" }]} selectedDayId="early" movements={[{ id: "m", scheduleDayId: "early" }]} onSelect={noop} />);
     expect(html.indexOf("Early")).toBeLessThan(html.indexOf("Late"));
     expect(html).toContain('aria-current="date"');
     expect(html).toContain("1 movement");
-    expect(html).toContain("1 issues");
+    expect(html).not.toContain("issues");
   });
 
   it("renders a collapsed movement summary, editing highlight, badges, and semantic disclosure", () => {
