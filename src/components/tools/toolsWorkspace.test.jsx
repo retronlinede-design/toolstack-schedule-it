@@ -15,7 +15,7 @@ function builderProps() {
 }
 
 describe("Tools navigation", () => {
-  it("renders exactly the four intended tool choices without global conflict status", () => {
+  it("renders Print Manager and the four existing tool choices without global conflict status", () => {
     const props = builderProps();
     const html = renderToStaticMarkup(<ToolsWorkspace onClose={noop} builderProps={props} schedule={{ drivers: props.drivers, vehicles: props.vehicles }} importantInfoCount={1} handoverCount={2} />);
     expect(html).toContain('role="dialog"');
@@ -25,7 +25,8 @@ describe("Tools navigation", () => {
     expect(html).toContain("1 record");
     expect(html).toContain("2 handovers");
     expect(html).not.toContain("unresolved conflict");
-    expect((html.match(/aria-label="Open /g) || []).length).toBe(4);
+    expect((html.match(/aria-label="Open /g) || []).length).toBe(5);
+    expect(html).toContain('aria-label="Open Print Manager"');
     expect(html).toContain('aria-label="Open Important Information"');
     expect(html).toContain('aria-label="Open Vehicle Handover"');
   });
@@ -33,9 +34,23 @@ describe("Tools navigation", () => {
   it("opens each workspace and returns to the Tools menu through navigation state", () => {
     const info = toolsNavigationReducer(initialToolsNavigation, { type: "open", tool: "importantInfo" });
     const handover = toolsNavigationReducer(initialToolsNavigation, { type: "open", tool: "handover" });
+    const print = toolsNavigationReducer(initialToolsNavigation, { type: "open", tool: "print" });
     expect(info.activeTool).toBe("importantInfo");
     expect(handover.activeTool).toBe("handover");
+    expect(print.activeTool).toBe("print");
     expect(toolsNavigationReducer(info, { type: "back" })).toEqual(initialToolsNavigation);
+  });
+
+  it("opens the Print Manager workspace with accessible settings", () => {
+    const props = builderProps();
+    const schedule = { drivers: props.drivers.map((item) => ({ ...item, isActive: true })), vehicles: props.vehicles, scheduleDays: props.scheduleDays, movements: [{ id: "m", scheduleDayId: "day", driverId: "driver-greg", vehicleId: "vehicle-vito", audiences: { executive: true, operational: true, cg: true, marida: true, driverIds: [] }, pickups: [] }], vehicleHandoverNotes: [], importantInfoItems: props.importantInfoItems, profile: { missionName: "Mission", documentTitle: "Programme" }, workingTimePolicy: {} };
+    const html = renderToStaticMarkup(<ToolsWorkspace onClose={noop} builderProps={props} schedule={schedule} initialTool="print" currentDayId="day" selectedDriverId="driver-greg" previewDayIds={["day"]} onPrintDocument={noop} importantInfoCount={1} handoverCount={0} />);
+    expect(html).toContain("Print Manager");
+    expect(html).toContain("Days to print");
+    expect(html).toContain("Preview Print Layout");
+    expect(html).toContain("One day per page");
+    expect(html).toContain("Compact itinerary");
+    expect(html).toContain("Page numbers (unavailable in browser print)");
   });
 
   it("warns before abandoning dirty drafts and respects cancellation", () => {
