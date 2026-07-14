@@ -383,7 +383,7 @@ export default function OperationalView({
               targetScheduleDayId: dayGroup.day?.id || dayGroup.key,
             })
           }
-          className={`min-w-0 max-w-full rounded-2xl border bg-white p-3 transition-colors ${
+          className={`programme-day min-w-0 max-w-full rounded-2xl border bg-white p-3 transition-colors ${
             handoverDragOverId === `day-${dayGroup.day?.id || dayGroup.key}`
               ? "border-amber-300 bg-amber-50/40"
               : "border-neutral-200"

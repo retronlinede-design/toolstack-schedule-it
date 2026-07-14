@@ -83,7 +83,7 @@ function MetricCard({ label, value, alert = false }) {
   );
 }
 
-export default function WorkingTimeSummary({ movements, drivers, vehicles, scheduleDays, workingTimePolicy, onWorkingTimePolicyChange }) {
+export default function WorkingTimeSummary({ movements, drivers, vehicles, scheduleDays, workingTimePolicy, showControls = true, onWorkingTimePolicyChange }) {
   const policy = normalizeWorkingTimePolicy(workingTimePolicy);
   const { driverDaySummaries, dailyTotals, overallDriverTotals } = calculateWorkingTimeSummary(movements, drivers, vehicles, scheduleDays, policy);
   const driverGroups = [...groupDriverSummaries(driverDaySummaries, overallDriverTotals)];
@@ -97,11 +97,11 @@ export default function WorkingTimeSummary({ movements, drivers, vehicles, sched
   return (
     <div className="space-y-8">
       <AlertBanner tone="info"><p>Working-time results are based on recorded movement intervals and the configured policy. Breaks, standby, travel, and split duties are calculated from explicit movement classifications.</p><p className="mt-1 font-semibold">This is an operational planning summary, not a legal compliance determination.</p></AlertBanner>
-      <details className="ts-card p-4"><summary className="cursor-pointer font-semibold">Working-Time Settings</summary><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {showControls ? <details className="programme-controls no-print ts-card p-4"><summary className="cursor-pointer font-semibold">Working-Time Settings</summary><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {[['standardDailyMinutes', 'Standard daily hours'], ['shortRestThresholdMinutes', 'Rest warning threshold (hours)'], ['splitDutyGapThresholdMinutes', 'Split-duty gap threshold (hours)']].map(([key, label]) => <label key={key} className="text-sm font-medium">{label}<input className="ts-input mt-1" type="number" min="0" step="0.25" value={policy[key] / 60} onChange={(event) => onWorkingTimePolicyChange?.({ ...policy, [key]: Math.round(Number(event.target.value) * 60) })} /></label>)}
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={policy.standbyCountsAsWorkingTime} onChange={(event) => onWorkingTimePolicyChange?.({ ...policy, standbyCountsAsWorkingTime: event.target.checked })} />Standby counts as working time</label>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={policy.travelCountsAsWorkingTime} onChange={(event) => onWorkingTimePolicyChange?.({ ...policy, travelCountsAsWorkingTime: event.target.checked })} />Travel counts as working time</label>
-      </div></details>
+      </div></details> : null}
       {driverDaySummaries.length === 0 ? <WorkingEmptyState /> : null}
       {driverGroups.map((group) => (
         <section key={group.driverId} className="min-w-0 max-w-full rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
@@ -150,7 +150,7 @@ export default function WorkingTimeSummary({ movements, drivers, vehicles, sched
       {dailyGroups.length ? <Section title="Daily Totals" secondary>
         <div className="space-y-5">
           {dailyGroups.map((group) => (
-            <section key={group.key} className="min-w-0 max-w-full rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+            <section key={group.key} className="programme-day min-w-0 max-w-full rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
               <div className="mb-3 flex flex-col gap-1 border-b border-neutral-100 pb-3 sm:flex-row sm:items-end sm:justify-between">
                 <h4 className="text-lg font-black text-neutral-900">{formatLongDate(group.date) || "Missing date"}</h4>
                 <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">

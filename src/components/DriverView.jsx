@@ -8,6 +8,7 @@ export default function DriverView({
   vehicles,
   scheduleDays,
   selectedDriverId,
+  showDriverControl = true,
   onSelectedDriverChange,
   onEdit,
   onDelete,
@@ -36,7 +37,7 @@ export default function DriverView({
           <h3 className="text-xl font-black text-neutral-900">{selectedDriver.name}</h3>
           <p className="text-sm text-neutral-500">Vehicle: {selectedVehicle?.name || "-"}</p>
         </div>
-        <label className="block min-w-56">
+        {showDriverControl ? <label className="programme-controls no-print block min-w-56">
           <span className="mb-2 block text-sm text-neutral-700">Driver</span>
           <select
             value={selectedDriver.id}
@@ -49,7 +50,7 @@ export default function DriverView({
               </option>
             ))}
           </select>
-        </label>
+        </label> : null}
       </div>
 
       <OperationalView

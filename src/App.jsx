@@ -13,8 +13,7 @@ import {
   createScheduleDayFromDraft,
   createFreshMovementDraft,
 } from "./data/schema";
-import { getEntriesByMonth, sortMovementsByDateAndTime } from "./utils/calculations";
-import { getExportDocument } from "./utils/exportHtml";
+import { sortMovementsByDateAndTime } from "./utils/calculations";
 import { downloadJson, initializeScheduleStorage, normalizeState, saveScheduleState } from "./utils/storage";
 import { getWeekday } from "./utils/time";
 import { shouldWarnBeforeUnload } from "./storage/persistence";
@@ -37,6 +36,8 @@ import { createStorageId } from "./storage/storage";
 import { deleteDriverCandidate, deleteVehicleCandidate, reassignDriverReferences, reassignVehicleReferences } from "./domain/resourceMutations";
 import { getDriverUsage, getVehicleUsage, totalUsage } from "./domain/resourceUsage";
 import { validatePickups } from "./domain/pickups";
+import { createProgrammeDocumentModel } from "./components/preview/programmeDocumentModel";
+import { renderProgrammeDocumentMarkup } from "./print/renderProgrammeDocument";
 
 function createId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -93,7 +94,6 @@ function getInitialStorageResult() {
 }
 
 export default function ScheduleItApp() {
-  const previewFrameRef = useRef(null);
   const [startup, setStartup] = useState(getInitialStorageResult);
   const [schedule, setSchedule] = useState(() => startup.ok ? startup.value : null);
   const [draft, setDraft] = useState(() => createInitialDraft(startup.ok ? startup.value : { ...defaultScheduleState, profile: defaultProfile }));
@@ -225,17 +225,12 @@ export default function ScheduleItApp() {
   }
 
   const activeSchedule = schedule || defaultScheduleState;
-  const entriesByMonth = useMemo(
-    () => getEntriesByMonth(activeSchedule.scheduleDays, activeSchedule.movements),
-    [activeSchedule.scheduleDays, activeSchedule.movements],
-  );
   const selectedDriver = activeSchedule.drivers.find((driver) => driver.id === selectedDriverId) || activeSchedule.drivers[0];
   const previewPreparation = useMemo(
-    () => preparePreviewDocument(() => getExportDocument(activeSchedule, previewView, { selectedDriverId: selectedDriver?.id })),
+    () => preparePreviewDocument(() => createProgrammeDocumentModel(activeSchedule, previewView, { selectedDriverId: selectedDriver?.id })),
     [activeSchedule, previewView, selectedDriver?.id],
   );
-  const previewDocument = previewPreparation.ok ? previewPreparation.document : { title: "Preview" };
-  const previewSrcDoc = previewPreparation.ok ? previewPreparation.srcDoc : "";
+  const previewDocument = previewPreparation.ok ? previewPreparation.document : { label: "Preview" };
   const visibilityCounts = useMemo(() => getVisibilityCounts(activeSchedule.movements), [activeSchedule.movements]);
   const integrity = useMemo(() => analyzeScheduleIntegrity(activeSchedule), [activeSchedule]);
 
@@ -813,20 +808,6 @@ export default function ScheduleItApp() {
     downloadJson(fullBackupFilename(), createFullBackup(schedule));
   }
 
-  function printHtmlDocument(html) {
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) return false;
-
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.setTimeout(() => {
-      printWindow.print();
-    }, 100);
-    return true;
-  }
-
   function handlePrintView(view) {
     setPrintInitialView(view);
     setToolsInitialTool("print");
@@ -836,9 +817,9 @@ export default function ScheduleItApp() {
   }
 
   async function handleCopyHtml(view) {
-    const { fullHtml } = getExportDocument(schedule, view, { selectedDriverId: selectedDriver?.id });
+    const { bodyHtml } = renderProgrammeDocumentMarkup(schedule, view, { selectedDriverId: selectedDriver?.id });
     try {
-      await navigator.clipboard.writeText(fullHtml);
+      await navigator.clipboard.writeText(bodyHtml);
       return "HTML copied to clipboard.";
     } catch {
       return "Could not copy HTML. Your browser may require clipboard permission.";
@@ -949,7 +930,7 @@ export default function ScheduleItApp() {
         ) : null}
 
         {isPreviewOpen && previewPreparation.ok ? (
-          <PreviewWorkspace tabs={documentPreviewTabs} selectedView={previewView} onViewChange={setPreviewView} scheduleDays={schedule.scheduleDays} selectedDriverName={selectedDriver?.name || ""} documentTitle={previewDocument.title} srcDoc={previewSrcDoc} frameRef={previewFrameRef} onPrint={() => handlePrintView(previewView)} onCopy={handleCopyHtml} onClose={() => setIsPreviewOpen(false)} />
+          <PreviewWorkspace tabs={documentPreviewTabs} selectedView={previewView} onViewChange={setPreviewView} scheduleDays={schedule.scheduleDays} selectedDriverName={selectedDriver?.name || ""} documentTitle={previewDocument.label} documentModel={previewDocument} onPrint={() => handlePrintView(previewView)} onCopy={handleCopyHtml} onClose={() => setIsPreviewOpen(false)} />
         ) : null}
 
         {isPreviewOpen && !previewPreparation.ok ? <PreviewUnavailable error={previewPreparation.error} onClose={() => setIsPreviewOpen(false)} /> : null}
@@ -960,7 +941,6 @@ export default function ScheduleItApp() {
           printInitialView={printInitialView}
           currentDayId={draft.scheduleDayId}
           selectedDriverId={selectedDriver?.id || ""}
-          onPrintDocument={printHtmlDocument}
           schedule={schedule}
           onSaveDriver={saveDriver}
           onDeleteDriver={deleteDriver}
@@ -1007,15 +987,7 @@ export default function ScheduleItApp() {
             onDeleteImportantInfoItem={handleDeleteImportantInfoItem}
           />
           <PreviewTabs
-            entriesByMonth={entriesByMonth}
-            profile={schedule.profile}
-            movements={schedule.movements}
-            vehicleHandoverNotes={schedule.vehicleHandoverNotes || []}
-            importantInfoItems={schedule.importantInfoItems || []}
-            drivers={schedule.drivers}
-            vehicles={schedule.vehicles}
-            scheduleDays={schedule.scheduleDays}
-            workingTimePolicy={schedule.workingTimePolicy}
+            schedule={schedule}
             onWorkingTimePolicyChange={(workingTimePolicy) => setSchedule((current) => ({ ...current, workingTimePolicy }))}
             selectedDriverId={selectedDriver?.id || ""}
             onSelectedDriverChange={setSelectedDriverId}

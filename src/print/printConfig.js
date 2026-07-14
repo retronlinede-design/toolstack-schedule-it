@@ -1,20 +1,6 @@
-export const PRINT_VIEWS = [
-  { id: "executive", label: "Full Executive" },
-  { id: "executiveCg", label: "CG" },
-  { id: "executiveMarida", label: "Marida" },
-  { id: "operational", label: "Operational" },
-  { id: "driver", label: "Driver" },
-  { id: "workingTime", label: "Working Time" },
-  { id: "importantInfo", label: "Important Information" },
-];
+import { PROGRAMME_VIEWS } from "../components/preview/programmeDocumentModel";
 
-export const DEFAULT_INCLUDE = Object.freeze({
-  pickups: true,
-  addresses: true,
-  participants: true,
-  parkingNotes: true,
-  handovers: true,
-});
+export const PRINT_VIEWS = PROGRAMME_VIEWS;
 
 export function createDefaultPrintConfig(view = "executive", context = {}) {
   return {
@@ -23,21 +9,9 @@ export function createDefaultPrintConfig(view = "executive", context = {}) {
     scope: "all",
     currentDayId: context.currentDayId || "",
     selectedDayIds: [],
-    layout: "smart",
+    layout: "continuous",
     density: "standard",
-    orientation: "portrait",
-    include: { ...DEFAULT_INCLUDE },
   };
-}
-
-export const PRINT_PRESETS = Object.freeze({
-  daily: { label: "Daily", values: { layout: "separate", density: "standard", orientation: "portrait" } },
-  combined: { label: "Combined", values: { layout: "continuous", density: "compact", orientation: "portrait" } },
-});
-
-export function applyPrintPreset(config, presetId) {
-  const preset = PRINT_PRESETS[presetId];
-  return preset ? { ...config, ...preset.values } : config;
 }
 
 export function validatePrintConfig(config) {

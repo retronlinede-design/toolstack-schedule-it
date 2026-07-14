@@ -14,7 +14,7 @@ function ToolOption({ icon, title, description, count, onOpen }) {
   return <article className="ts-card p-4"><div className="flex items-start gap-3"><div className="rounded-xl bg-[var(--ts-surface-muted)] p-3"><ToolIcon className="h-5 w-5" aria-hidden="true" /></div><div className="min-w-0 flex-1"><h3 className="ts-card-title">{title}</h3><p className="mt-1 text-sm text-[var(--ts-text-muted)]">{description}</p><div className="mt-3 flex flex-wrap items-center gap-2"><Badge>{count}</Badge><Button variant="secondary" className="ml-auto" onClick={onOpen} aria-label={`Open ${title}`}>Open</Button></div></div></div></article>;
 }
 
-export default function ToolsWorkspace({ onClose, builderProps, schedule = { drivers: [], vehicles: [], movements: [], scheduleDays: [] }, initialTool = null, printInitialView = "executive", currentDayId = "", selectedDriverId = "", onPrintDocument, onSaveDriver, onDeleteDriver, onReassignDriver, onSaveVehicle, onDeleteVehicle, onReassignVehicle, importantInfoCount, handoverCount }) {
+export default function ToolsWorkspace({ onClose, builderProps, schedule = { drivers: [], vehicles: [], movements: [], scheduleDays: [] }, initialTool = null, printInitialView = "executive", currentDayId = "", selectedDriverId = "", onSaveDriver, onDeleteDriver, onReassignDriver, onSaveVehicle, onDeleteVehicle, onReassignVehicle, importantInfoCount, handoverCount }) {
   const [{ activeTool }, navigate] = useReducer(toolsNavigationReducer, initialTool, (tool) => tool ? { activeTool: tool } : initialToolsNavigation);
   const [dirty, setDirty] = useState(false);
   const title = activeTool === "print" ? "Print Manager" : activeTool === "drivers" ? "Driver Manager" : activeTool === "vehicles" ? "Vehicle Manager" : activeTool === "importantInfo" ? "Important Information" : activeTool === "handover" ? "Vehicle Handover" : "Tools";
@@ -23,7 +23,7 @@ export default function ToolsWorkspace({ onClose, builderProps, schedule = { dri
   const back = () => { if (mayLeave()) { setDirty(false); navigate({ type: "back" }); } };
   const open = (tool) => { setDirty(false); navigate({ type: "open", tool }); };
   let workspace = null;
-  if (activeTool === "print") workspace = <PrintManager schedule={schedule} initialView={printInitialView} currentDayId={currentDayId} selectedDriverId={selectedDriverId} onPrintDocument={onPrintDocument} onClose={onClose} />;
+  if (activeTool === "print") workspace = <PrintManager schedule={schedule} initialView={printInitialView} currentDayId={currentDayId} selectedDriverId={selectedDriverId} onClose={onClose} />;
   else if (activeTool === "drivers") workspace = <DriverManager schedule={schedule} onSave={onSaveDriver} onDelete={onDeleteDriver} onReassign={onReassignDriver} onDirtyChange={setDirty} />;
   else if (activeTool === "vehicles") workspace = <VehicleManager schedule={schedule} onSave={onSaveVehicle} onDelete={onDeleteVehicle} onReassign={onReassignVehicle} onDirtyChange={setDirty} />;
   else if (activeTool) workspace = <ScheduleBuilder {...builderProps} mode={activeTool} onToolDirtyChange={setDirty} />;

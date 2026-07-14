@@ -17,7 +17,7 @@ export function movementCountForPrintDay(schedule, config, dayId) {
 
 export function printableDayIds(schedule, config) {
   const ids = new Set(movementsForView(schedule, config).map((movement) => movement.scheduleDayId));
-  if (config.include.handovers && (config.view === "operational" || config.view === "driver")) {
+  if (config.view === "operational" || config.view === "driver") {
     (schedule.vehicleHandoverNotes || []).forEach((note) => {
       if (config.view !== "driver" || note.visibleToDriverIds?.includes(config.driverId) || note.fromDriverId === config.driverId || note.toDriverId === config.driverId) ids.add(note.scheduleDayId);
     });
@@ -35,25 +35,6 @@ export function selectPrintDays(schedule, config) {
   return chronologicalDays(schedule).filter((day) => selected.has(day.id));
 }
 
-function filterPickup(pickup, include) {
-  return {
-    ...pickup,
-    address: include.addresses ? pickup.address : "",
-    notes: include.parkingNotes ? pickup.notes : "",
-  };
-}
-
-function filterMovement(movement, include) {
-  return {
-    ...movement,
-    pickups: include.pickups ? (movement.pickups || []).map((pickup) => filterPickup(pickup, include)) : [],
-    address: include.addresses ? movement.address : "",
-    participants: include.participants ? movement.participants : "",
-    parking: include.parkingNotes ? movement.parking : "",
-    locationNotes: include.parkingNotes ? movement.locationNotes : "",
-  };
-}
-
 export function createPrintSchedule(schedule, config) {
   if (config.view === "importantInfo") return { ...schedule, scheduleDays: [], movements: [], vehicleHandoverNotes: [] };
   const selectedDays = selectPrintDays(schedule, config);
@@ -61,8 +42,8 @@ export function createPrintSchedule(schedule, config) {
   return {
     ...schedule,
     scheduleDays: selectedDays,
-    movements: schedule.movements.filter((movement) => dayIds.has(movement.scheduleDayId)).map((movement) => filterMovement(movement, config.include)),
-    vehicleHandoverNotes: config.include.handovers ? (schedule.vehicleHandoverNotes || []).filter((note) => dayIds.has(note.scheduleDayId)) : [],
+    movements: schedule.movements.filter((movement) => dayIds.has(movement.scheduleDayId)),
+    vehicleHandoverNotes: (schedule.vehicleHandoverNotes || []).filter((note) => dayIds.has(note.scheduleDayId)),
   };
 }
 
@@ -72,7 +53,7 @@ export function validatePrintSelection(schedule, config) {
   if (!selectedDays.length) return { ok: false, message: "No printable programme days match this selection." };
   const derived = createPrintSchedule(schedule, config);
   const matching = movementsForView(derived, config);
-  const hasHandovers = config.include.handovers && derived.vehicleHandoverNotes.length && (config.view === "operational" || config.view === "driver");
+  const hasHandovers = derived.vehicleHandoverNotes.length && (config.view === "operational" || config.view === "driver");
   if (!matching.length && !hasHandovers) return { ok: false, message: config.view === "driver" ? "The selected driver has no matching output." : "The selected programme has no matching movements." };
   return { ok: true, message: "" };
 }

@@ -8,7 +8,7 @@ import { buildHtmlImportCandidate } from "../import/htmlCandidate";
 import { validState } from "../import/testFixtures";
 import { duplicateMovementForSchedule } from "./schedulingMutations";
 import { normalizeState } from "../storage/state";
-import { getExportDocument } from "../utils/exportHtml";
+import { renderProgrammeDocumentMarkup } from "../print/renderProgrammeDocument";
 
 describe("working-time compatibility and presentation", () => {
   it("defaults legacy movements to active and preserves classification through editing and duplication", () => {
@@ -47,9 +47,9 @@ describe("working-time compatibility and presentation", () => {
 
   it("uses shared totals in standalone working-time HTML", () => {
     const state = validState();
-    const html = getExportDocument(state, "workingTime").fullHtml;
+    const html = renderProgrammeDocumentMarkup(state, "workingTime").bodyHtml;
     expect(html).toContain("Counted Working Time");
-    expect(html).toContain("active 1h 00m");
+    expect(html).toContain("Active 1h 00m");
     expect(html).toContain("not a legal compliance determination");
     expect(html).not.toContain("Overtime After 16:30");
   });

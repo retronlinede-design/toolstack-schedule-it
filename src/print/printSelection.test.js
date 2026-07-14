@@ -27,14 +27,14 @@ describe("simple print day selection", () => {
     expect(selectPrintDays(state, { ...base, scope: "selected", selectedDayIds: ["day-b", "day-a"] }).map((day) => day.id)).toEqual(["day-a", "day-b"]);
   });
 
-  it("reports empty selections and applies broad detail choices without altering assignments", () => {
+  it("reports empty selections and filters days without altering programme records", () => {
     const state = multiDayState();
     Object.assign(state.movements[0], { address: "Address", participants: "Guests", parking: "Rear", locationNotes: "Call ahead", pickups: [{ id: "p", time: "07:00", location: "Hotel", address: "Pickup address", person: "Guest", contactPhone: "123", notes: "Internal", sortOrder: 10 }] });
     const base = createDefaultPrintConfig();
     expect(validatePrintSelection(state, { ...base, scope: "selected", selectedDayIds: [] }).ok).toBe(false);
-    const selected = createPrintSchedule(state, { ...base, scope: "selected", selectedDayIds: ["day-b"], include: { ...base.include, addresses: false, participants: false, parkingNotes: false } });
-    expect(selected.movements[0]).toMatchObject({ driverId: "driver-greg", address: "", participants: "", parking: "", locationNotes: "" });
-    expect(selected.movements[0].pickups[0]).toMatchObject({ address: "", notes: "", contactPhone: "123" });
+    const selected = createPrintSchedule(state, { ...base, scope: "selected", selectedDayIds: ["day-b"] });
+    expect(selected.movements[0]).toMatchObject({ driverId: "driver-greg", address: "Address", participants: "Guests", parking: "Rear", locationNotes: "Call ahead" });
+    expect(selected.movements[0].pickups[0]).toMatchObject({ address: "Pickup address", notes: "Internal", contactPhone: "123" });
     expect(selected.drivers[0].name).toBe("Greg");
   });
 });

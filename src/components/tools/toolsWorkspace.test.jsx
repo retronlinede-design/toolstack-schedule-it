@@ -48,22 +48,19 @@ describe("Tools navigation", () => {
     expect(html).toContain("Print Manager");
     expect(html).toContain("All days");
     expect(html).toContain("Selected days");
-    expect(html).toContain("Preview Print Layout");
+    expect(html).toContain(" Preview</button>");
     expect(html).toContain("One day per page");
-    expect(html).toContain("Smart grouping");
-    expect(html).toContain("Printed details");
-    expect(html).toContain(">Daily<");
-    expect(html).toContain(">Combined<");
-    for (const removed of ["Date range", "Compact itinerary", "Spacious", "Driver page grouping", "Page numbers", "Repeat table headers", "Keep movements together", "Mission header", "Pickup contacts", "Operational landscape"]) expect(html).not.toContain(removed);
+    expect(html).toContain("Continuous");
+    expect(html).toContain("Standard");
+    expect(html).toContain("Compact");
+    for (const removed of ["Date range", "Smart grouping", "Orientation", "Printed details", "Preset", "Driver page grouping", "Page numbers", "Repeat table headers", "Keep movements together", "Mission header", "Pickup contacts"]) expect(html).not.toContain(removed);
   });
 
-  it("keeps the preview at A4 dimensions without changing final document HTML", () => {
+  it("renders the shared programme component instead of an iframe or fixed alternate layout", () => {
     const source = readFileSync(new URL("./PrintManager.jsx", import.meta.url), "utf8");
-    expect(source).toContain('width: landscape ? "297mm" : "210mm"');
-    expect(source).toContain('height: landscape ? "210mm" : "297mm"');
-    expect(source).toContain("srcDoc={document.fullHtml}");
-    expect(source).toContain("overflow-auto");
-    expect(source).not.toContain("min-w-[760px]");
+    expect(source).toContain("<ProgrammeDocument model={previewDocument.model}");
+    expect(source).not.toContain("srcDoc");
+    expect(source).not.toContain("mm\"");
   });
 
   it("warns before abandoning dirty drafts and respects cancellation", () => {

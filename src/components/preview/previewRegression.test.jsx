@@ -4,12 +4,16 @@ import { describe, expect, it, vi } from "vitest";
 import PreviewUnavailable from "./PreviewUnavailable";
 import PreviewWorkspace from "./PreviewWorkspace";
 import { preparePreviewDocument } from "./previewPreparation";
+import { createProgrammeDocumentModel } from "./programmeDocumentModel";
+import { validState } from "../../import/testFixtures";
+
+const model = () => createProgrammeDocumentModel(validState(), "executive");
 
 describe("Preview regression boundary", () => {
-  it("prepares a complete iframe document without throwing", () => {
-    const result = preparePreviewDocument(() => ({ title: "Programme", styles: "body{}", bodyHtml: "<main>Ready</main>" }));
+  it("prepares a shared programme model without throwing", () => {
+    const result = preparePreviewDocument(() => model());
     expect(result.ok).toBe(true);
-    expect(result.srcDoc).toContain("<main>Ready</main>");
+    expect(result.document.view).toBe("executive");
   });
 
   it("catches document-generation failures", () => {
@@ -18,7 +22,7 @@ describe("Preview regression boundary", () => {
   });
 
   it("keeps normal preview available without global issue warnings and reserves unavailable for generation errors", () => {
-    const preview = renderToStaticMarkup(<PreviewWorkspace tabs={[{ id: "executive", label: "Executive" }]} selectedView="executive" onViewChange={vi.fn()} scheduleDays={[]} documentTitle="Programme" srcDoc="<main />" onPrint={vi.fn()} onCopy={vi.fn()} onClose={vi.fn()} />);
+    const preview = renderToStaticMarkup(<PreviewWorkspace tabs={[{ id: "executive", label: "Executive" }]} selectedView="executive" onViewChange={vi.fn()} scheduleDays={[]} documentTitle="Programme" documentModel={model()} onPrint={vi.fn()} onCopy={vi.fn()} onClose={vi.fn()} />);
     expect(preview).not.toContain("integrity");
     expect(preview).not.toContain("Review Issues");
     expect(preview).toContain("Print / Save PDF");
@@ -29,7 +33,7 @@ describe("Preview regression boundary", () => {
   });
 
   it("retains interactive modal controls and the default tab", () => {
-    const html = renderToStaticMarkup(<PreviewWorkspace tabs={[{ id: "executive", label: "Full Executive Programme" }]} selectedView="executive" onViewChange={vi.fn()} scheduleDays={[]} documentTitle="Programme" srcDoc="<main />" onPrint={vi.fn()} onCopy={vi.fn()} onClose={vi.fn()} />);
+    const html = renderToStaticMarkup(<PreviewWorkspace tabs={[{ id: "executive", label: "Full Executive Programme" }]} selectedView="executive" onViewChange={vi.fn()} scheduleDays={[]} documentTitle="Programme" documentModel={model()} onPrint={vi.fn()} onCopy={vi.fn()} onClose={vi.fn()} />);
     expect(html).toContain("Document Preview");
     expect(html).toContain('aria-selected="true"');
     expect(html).toContain("Print / Save PDF");
