@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createMovementFromDraft, emptyDraft } from "../data/schema";
 import { normalizeState } from "../storage/state";
-import { renderProgrammeDocumentMarkup } from "../print/renderProgrammeDocument";
+import { getExportDocument } from "../utils/exportHtml";
 import {
   applyAudiencePreset,
   getAudienceWarnings,
@@ -112,7 +112,7 @@ describe("HTML export parity", () => {
     ];
     state.movements = templates.map(([label, audiences], index) => ({ ...state.movements[0], id: `m-${index}`, engagementDetails: label, participants: "CG Marida", audiences }));
     const selected = selectMovementsForView(state.movements, view);
-    const html = renderProgrammeDocumentMarkup(state, view).bodyHtml;
+    const html = getExportDocument(state, view).fullHtml;
     expect(selected.map((item) => item.engagementDetails)).toEqual([visibleLabel]);
     expect(html).toContain(visibleLabel);
     templates.filter(([label]) => label !== visibleLabel).forEach(([label]) => expect(html).not.toContain(label));

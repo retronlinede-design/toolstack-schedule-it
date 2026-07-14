@@ -4,12 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 import PreviewWorkspace from "./preview/PreviewWorkspace";
 import ImportantInfoView from "./ImportantInfoView";
 import ExportPanel from "./ExportPanel";
-import { createProgrammeDocumentModel } from "./preview/programmeDocumentModel";
-import { validState } from "../import/testFixtures";
 
 describe("stage 3 presentation", () => {
   it("renders semantic preview tabs, selected panel, actions, and descriptive frame", () => {
-    const html = renderToStaticMarkup(<PreviewWorkspace tabs={[{ id: "executive", label: "Full Executive Programme" }, { id: "driver", label: "Driver" }]} selectedView="executive" onViewChange={vi.fn()} scheduleDays={[{ date: "2026-07-12" }]} documentTitle="Official Programme" documentModel={createProgrammeDocumentModel(validState(), "executive")} onPrint={vi.fn()} onCopy={vi.fn()} onClose={vi.fn()} />);
+    const html = renderToStaticMarkup(<PreviewWorkspace tabs={[{ id: "executive", label: "Full Executive Programme" }, { id: "driver", label: "Driver" }]} selectedView="executive" onViewChange={vi.fn()} scheduleDays={[{ date: "2026-07-12" }]} documentTitle="Official Programme" srcDoc="<p>Programme</p>" onPrint={vi.fn()} onCopy={vi.fn()} onClose={vi.fn()} />);
     expect(html).toContain('role="tablist"');
     expect(html).toContain('role="tab"');
     expect(html).toContain('aria-selected="true"');

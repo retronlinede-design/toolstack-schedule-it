@@ -90,37 +90,36 @@ function groupByDay(entries) {
   return groups;
 }
 
-export default function ExecutiveView({ entriesByMonth, profile, drivers = [], vehicles = [], variant, showVariantControls = true, onEdit, onDelete }) {
-  const [selectedVariant, setSelectedVariant] = useState("executive");
-  const activeVariant = variant || selectedVariant;
+export default function ExecutiveView({ entriesByMonth, profile, drivers = [], vehicles = [], onEdit, onDelete }) {
+  const [variant, setVariant] = useState("executive");
   const driversById = buildLookup(drivers);
   const vehiclesById = buildLookup(vehicles);
   const allEntries = Object.values(entriesByMonth).flat();
   const executiveEntries = selectMovementsForView(allEntries, "executive");
-  const entries = sortMovementsByDateAndTime(selectMovementsForView(allEntries, activeVariant));
+  const entries = sortMovementsByDateAndTime(selectMovementsForView(allEntries, variant));
   const dayGroups = groupByDay(entries);
-  const personFilteredEmpty = entries.length === 0 && executiveEntries.length > 0 && activeVariant !== "executive";
+  const personFilteredEmpty = entries.length === 0 && executiveEntries.length > 0 && variant !== "executive";
 
   return (
     <div className="bg-white">
       <div className="mb-6 border-b border-neutral-100 pb-4 text-center">
         <h3 className="text-2xl font-black uppercase tracking-widest text-neutral-900">{profile.missionName || "Mission Name"}</h3>
-        <p className="text-md font-bold uppercase text-neutral-500 underline">{variants.find((item) => item.id === activeVariant)?.label || "Executive Programme"}</p>
+        <p className="text-md font-bold uppercase text-neutral-500 underline">{variants.find((item) => item.id === variant)?.label || "Executive Programme"}</p>
       </div>
 
-      {showVariantControls ? <div className="programme-controls no-print mb-5 flex flex-wrap justify-center gap-2">
+      <div className="mb-5 flex flex-wrap justify-center gap-2">
         {variants.map((item) => (
           <button
             key={item.id}
-            onClick={() => setSelectedVariant(item.id)}
+            onClick={() => setVariant(item.id)}
             className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
-              activeVariant === item.id ? "bg-neutral-900 text-white" : "border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
+              variant === item.id ? "bg-neutral-900 text-white" : "border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
             }`}
           >
             {item.label}
           </button>
         ))}
-      </div> : null}
+      </div>
 
       {entries.length === 0 ? (
         <div className="rounded-3xl border-2 border-dashed py-12 text-center italic text-neutral-400">
@@ -129,7 +128,7 @@ export default function ExecutiveView({ entriesByMonth, profile, drivers = [], v
       ) : (
         <div className="space-y-8">
           {dayGroups.map((dayGroup) => (
-            <section key={dayGroup.key} className="programme-day">
+            <section key={dayGroup.key}>
               <div className="mb-3 border-b-2 border-neutral-900 pb-1">
                 <h3 className="text-sm font-black uppercase underline">{formatLongDate(dayGroup.day?.date) || "Unscheduled"}</h3>
                 {dayGroup.day?.title ? <p className="mt-1 text-xs font-semibold text-neutral-500">{dayGroup.day.title}</p> : null}
