@@ -2,6 +2,114 @@ import { describe, expect, it } from "vitest";
 import { validState } from "../import/testFixtures";
 import { getExportDocument } from "./exportHtml";
 
+function multiDayOperationalState() {
+  const state = validState();
+  const baseMovement = state.movements[0];
+  const operationalAudience = { executive: false, operational: true, cg: false, marida: false, driverIds: [] };
+
+  state.scheduleDays = [
+    { id: "day-1", date: "2026-01-01", title: "Arrival day" },
+    { id: "day-2", date: "2026-01-02", title: "Meeting day" },
+    { id: "day-3", date: "2026-01-03", title: "Departure day" },
+  ];
+  state.vehicleHandoverNotes = [];
+  state.movements = [
+    {
+      ...baseMovement,
+      id: "day-1-meeting",
+      scheduleDayId: "day-1",
+      sortOrder: 10,
+      driverStart: "07:30",
+      departureTime: "08:30",
+      arrivalTime: "09:00",
+      eventStartTime: "09:30",
+      eventEndTime: "11:00",
+      endTime: "22:57",
+      engagementDetails: "Morning briefing",
+      audiences: operationalAudience,
+      isExecutiveVisible: false,
+      pickups: [{
+        id: "pickup-print",
+        time: "08:00",
+        location: "Hotel lobby",
+        address: "1 Example Street",
+        person: "Passenger A",
+        contactPhone: "+49 123",
+        notes: "Meet by reception",
+        sortOrder: 10,
+      }],
+    },
+    {
+      ...baseMovement,
+      id: "day-2-meeting-1",
+      scheduleDayId: "day-2",
+      sortOrder: 10,
+      driverStart: "",
+      departureTime: "10:45",
+      arrivalTime: "11:05",
+      eventStartTime: "11:05",
+      eventEndTime: "11:20",
+      endTime: "",
+      engagementDetails: "Pre-lunch meeting",
+      audiences: operationalAudience,
+      isExecutiveVisible: false,
+      pickups: [],
+    },
+    {
+      ...baseMovement,
+      id: "day-2-break",
+      scheduleDayId: "day-2",
+      sortOrder: 20,
+      driverStart: "",
+      departureTime: "",
+      arrivalTime: "",
+      eventStartTime: "11:20",
+      eventEndTime: "13:00",
+      endTime: "",
+      engagementDetails: "Lunch break",
+      venue: "Restaurant",
+      workClassification: "break",
+      audiences: operationalAudience,
+      isExecutiveVisible: false,
+      pickups: [],
+    },
+    {
+      ...baseMovement,
+      id: "day-2-meeting-2",
+      scheduleDayId: "day-2",
+      sortOrder: 30,
+      driverStart: "",
+      departureTime: "13:00",
+      arrivalTime: "13:30",
+      eventStartTime: "14:00",
+      eventEndTime: "16:00",
+      endTime: "",
+      engagementDetails: "Afternoon meeting",
+      audiences: operationalAudience,
+      isExecutiveVisible: false,
+      pickups: [],
+    },
+    {
+      ...baseMovement,
+      id: "day-3-transfer",
+      scheduleDayId: "day-3",
+      sortOrder: 10,
+      driverStart: "08:00",
+      departureTime: "08:30",
+      arrivalTime: "09:00",
+      eventStartTime: "",
+      eventEndTime: "",
+      endTime: "",
+      engagementDetails: "Departure transfer",
+      audiences: operationalAudience,
+      isExecutiveVisible: false,
+      pickups: [],
+    },
+  ];
+
+  return state;
+}
+
 describe("original programme print generator", () => {
   it.each(["executive", "executiveCg", "executiveMarida", "operational", "driver", "workingTime", "importantInfo"])("generates the %s programme", (view) => {
     const state = validState();
@@ -32,5 +140,41 @@ describe("original programme print generator", () => {
       expect(html).toContain("+49 123");
       expect(html).toContain("Side entrance");
     }
+  });
+
+  it.each(["operational", "driver"])("paginates %s by day while allowing long days and tables to flow", (view) => {
+    const state = multiDayOperationalState();
+    const output = getExportDocument(state, view, { selectedDriverId: state.movements[0].driverId });
+    const dayClasses = [...output.bodyHtml.matchAll(/<section class="([^"]*\boperational-day-section\b[^"]*)">/g)]
+      .map((match) => match[1].split(/\s+/));
+
+    expect(output.orientation).toBe("landscape");
+    expect(dayClasses).toHaveLength(3);
+    expect(dayClasses[0]).toContain("first-day-section");
+    expect(dayClasses.slice(1).every((classes) => !classes.includes("first-day-section"))).toBe(true);
+    expect(output.styles).toContain(".operational-day-section:not(.first-day-section)");
+    expect(output.styles).toMatch(/\.operational-day-section:not\(\.first-day-section\)[\s\S]*?break-before:\s*page;[\s\S]*?page-break-before:\s*always;/);
+    expect(output.styles).toMatch(/\.operational-page \.operational-day-section,[\s\S]*?break-inside:\s*auto;[\s\S]*?page-break-inside:\s*auto;/);
+    expect(output.styles).not.toMatch(/\.operational-page \.operational-day-section\s*\{[^}]*break-inside:\s*avoid;/);
+    expect(output.styles).toMatch(/\.operational-page \.operational-table[\s\S]*?break-inside:\s*auto;[\s\S]*?page-break-inside:\s*auto;/);
+    expect(output.styles).toContain("thead { display: table-header-group; }");
+    expect(output.styles).toContain("tbody { display: table-row-group; }");
+    expect(output.styles).toMatch(/tr \{[\s\S]*?break-inside:\s*avoid;[\s\S]*?page-break-inside:\s*avoid;/);
+    expect(output.bodyHtml.match(/<thead>/g)).toHaveLength(3);
+
+    const beforeBreak = output.bodyHtml.indexOf("Pre-lunch meeting");
+    const breakMovement = output.bodyHtml.indexOf("Lunch break");
+    const afterBreak = output.bodyHtml.indexOf("Afternoon meeting");
+    expect(beforeBreak).toBeGreaterThan(-1);
+    expect(beforeBreak).toBeLessThan(breakMovement);
+    expect(breakMovement).toBeLessThan(afterBreak);
+    expect(output.bodyHtml).toContain("11:20–13:00");
+    expect(output.bodyHtml).toContain("Passenger A");
+    expect(output.bodyHtml).toContain("Hotel lobby");
+    expect(output.bodyHtml).toContain("1 Example Street");
+    expect(output.bodyHtml).toContain("+49 123");
+    expect(output.bodyHtml).toContain("Meet by reception");
+    expect(output.bodyHtml).not.toContain("Duty End");
+    expect(output.bodyHtml).not.toContain("22:57");
   });
 });

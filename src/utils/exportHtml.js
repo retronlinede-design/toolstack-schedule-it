@@ -98,6 +98,10 @@ function isExecutiveView(view) {
   return view === "executive" || view === "executiveCg" || view === "executiveMarida";
 }
 
+function isOperationalView(view) {
+  return view === "operational" || view === "driver";
+}
+
 function isTransfer(movement) {
   const text = `${movement.engagementDetails || ""} ${movementLabel(movement.engagementDetails)}`.toLowerCase();
   return text.includes("transfer");
@@ -393,7 +397,7 @@ function operationalSections(schedule, driverId, groupByDriver) {
         .join("");
 
       return `
-        <section class="day-section${index === 0 ? " first-day-section" : ""}">
+        <section class="day-section operational-day-section${index === 0 ? " first-day-section" : ""}">
           <div class="day-heading">
             <div class="day-date">${escapeHtml(formatLongDate(dayGroup.day?.date) || "Unscheduled")}</div>
             ${dayTitle}
@@ -686,8 +690,8 @@ function stylesFor(view) {
     .driver-heading span { margin-left: 18px; }
     .day-section {
       margin: 0 0 16px;
-      break-inside: avoid;
-      page-break-inside: avoid;
+      break-inside: auto;
+      page-break-inside: auto;
     }
     .day-heading {
       margin: 0 0 8px;
@@ -712,8 +716,8 @@ function stylesFor(view) {
     }
     .driver-section {
       margin: 0 0 10px;
-      break-inside: avoid;
-      page-break-inside: avoid;
+      break-inside: auto;
+      page-break-inside: auto;
     }
     .driver-section-heading {
       margin: 0 0 4px;
@@ -1280,10 +1284,17 @@ function stylesFor(view) {
     @media print {
       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .page { padding: 0; }
-      .day-section:not(.first-day-section),
+      .operational-page { width: auto; max-width: none; margin: 0; padding: 0; }
+      .operational-day-section:not(.first-day-section),
       .executive-day-section:not(.first-day-section) {
         break-before: page;
         page-break-before: always;
+      }
+      .operational-page .operational-day-section,
+      .operational-page .driver-section,
+      .operational-page .operational-table {
+        break-inside: auto;
+        page-break-inside: auto;
       }
       .day-heading,
       .executive-day-heading,
@@ -1294,7 +1305,6 @@ function stylesFor(view) {
         break-after: avoid;
         page-break-after: avoid;
       }
-      .driver-section,
       .handover-section,
       .working-driver-section,
       .working-driver-summary,
@@ -1305,9 +1315,39 @@ function stylesFor(view) {
         page-break-inside: avoid;
       }
       thead { display: table-header-group; }
+      tbody { display: table-row-group; }
       tr {
         break-inside: avoid;
         page-break-inside: avoid;
+      }
+      .operational-page .operational-table {
+        width: 100%;
+        max-width: none;
+        table-layout: fixed;
+        font-size: 8px;
+      }
+      .operational-page .operational-table th,
+      .operational-page .operational-table td {
+        padding: 4px;
+        overflow: visible;
+        overflow-wrap: anywhere;
+        word-break: normal;
+      }
+      .operational-page .compact-table th:nth-child(1), .operational-page .compact-table td:nth-child(1) { width: 25%; }
+      .operational-page .compact-table th:nth-child(2), .operational-page .compact-table td:nth-child(2) { width: 16%; }
+      .operational-page .compact-table th:nth-child(3), .operational-page .compact-table td:nth-child(3) { width: 10%; }
+      .operational-page .compact-table th:nth-child(4), .operational-page .compact-table td:nth-child(4) { width: 11%; }
+      .operational-page .compact-table th:nth-child(5), .operational-page .compact-table td:nth-child(5) { width: 10%; }
+      .operational-page .compact-table th:nth-child(6), .operational-page .compact-table td:nth-child(6) { width: 6%; }
+      .operational-page .compact-table th:nth-child(7), .operational-page .compact-table td:nth-child(7) { width: 8%; }
+      .operational-page .compact-table th:nth-child(8), .operational-page .compact-table td:nth-child(8) { width: 7%; }
+      .operational-page .compact-table th:nth-child(9), .operational-page .compact-table td:nth-child(9) { width: 7%; }
+      .operational-page .timeline-cell,
+      .operational-page .operational-pickup,
+      .operational-page .operational-pickup-primary,
+      .operational-page .operational-pickup-secondary {
+        min-width: 0;
+        max-width: 100%;
       }
     }
   `;
@@ -1317,6 +1357,7 @@ export function getExportDocument(schedule, view, options = {}) {
   const generatedAt = new Date().toLocaleString();
   const title = viewNames[view];
   const isExecutive = isExecutiveView(view);
+  const isOperational = isOperationalView(view);
   const metaHtml = isExecutive
     ? `
           <span><span class="meta-label">Document:</span> ${escapeHtml(headerTitle(schedule, view, options.selectedDriverId))}</span>
@@ -1328,7 +1369,7 @@ export function getExportDocument(schedule, view, options = {}) {
           <span>Generated ${escapeHtml(generatedAt)}</span>
         `;
   const headingHtml = `
-    <div class="page${isExecutive ? " executive-page" : ""}">
+    <div class="page${isExecutive ? " executive-page" : ""}${isOperational ? " operational-page" : ""}">
       <header>
         <h1>${escapeHtml(schedule.profile.missionName)}</h1>
         <h2>${escapeHtml(isExecutive ? title : headerTitle(schedule, view, options.selectedDriverId))}</h2>
