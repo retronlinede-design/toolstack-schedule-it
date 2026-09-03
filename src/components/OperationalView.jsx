@@ -1,9 +1,11 @@
-import { GripVertical, Pencil, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
+import { Fragment, useState } from "react";
 import { sortMovementsByDateAndTime } from "../utils/calculations";
 import { selectMovementsForView } from "../domain/audiences";
 import { formatLongDate } from "../utils/time";
 import { operationalTimelineViewModel } from "../domain/pickupPresentation";
+import { breakInsertionContext } from "../domain/operationalBreaks";
+import OperationalBreakDialog from "./OperationalBreakDialog";
 
 const EMPTY = "-";
 const HANDOVER_DND_TYPE = "application/x-scheduleit-handover";
@@ -114,7 +116,19 @@ function OperationalTimeline({ movement }) {
   );
 }
 
-function OperationalRows({ entries, driversById, vehiclesById, onEdit, onDelete, onReorderMovements }) {
+function AddBreakRow({ onClick }) {
+  return (
+    <tr className="no-print">
+      <td colSpan="11" className="border-x border-neutral-200 px-3 py-1 text-center">
+        <button type="button" onClick={onClick} className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold text-neutral-500 transition hover:bg-[var(--ts-accent-soft)] hover:text-neutral-900">
+          <Plus className="h-3 w-3" /> Add Break
+        </button>
+      </td>
+    </tr>
+  );
+}
+
+function OperationalRows({ entries, driversById, vehiclesById, onEdit, onDelete, onReorderMovements, onRequestBreak }) {
   const [draggedEntry, setDraggedEntry] = useState(null);
   const [dragOverId, setDragOverId] = useState(null);
 
@@ -158,8 +172,12 @@ function OperationalRows({ entries, driversById, vehiclesById, onEdit, onDelete,
     clearDragState();
   }
 
-  return entries.map((entry) => (
-    <tr
+  return (
+    <>
+      {entries.map((entry, index) => (
+        <Fragment key={entry.id}>
+          {onRequestBreak ? <AddBreakRow onClick={() => onRequestBreak(breakInsertionContext(entries, index))} /> : null}
+          <tr
       key={entry.id}
       onDragOver={(event) => handleDragOver(event, entry)}
       onDragLeave={() => {
@@ -201,11 +219,15 @@ function OperationalRows({ entries, driversById, vehiclesById, onEdit, onDelete,
           </button>
         </div>
       </td>
-    </tr>
-  ));
+          </tr>
+        </Fragment>
+      ))}
+      {onRequestBreak && entries.length ? <AddBreakRow onClick={() => onRequestBreak(breakInsertionContext(entries, entries.length))} /> : null}
+    </>
+  );
 }
 
-function OperationalTable({ entries, driversById, vehiclesById, onEdit, onDelete, onReorderMovements }) {
+function OperationalTable({ entries, driversById, vehiclesById, onEdit, onDelete, onReorderMovements, onRequestBreak }) {
   return (
     <div className="min-w-0 max-w-full overflow-x-auto">
       <table className="min-w-[1040px] w-full border-collapse border border-neutral-200 bg-white text-xs shadow-sm">
@@ -232,6 +254,7 @@ function OperationalTable({ entries, driversById, vehiclesById, onEdit, onDelete
             onEdit={onEdit}
             onDelete={onDelete}
             onReorderMovements={onReorderMovements}
+            onRequestBreak={onRequestBreak}
           />
         </tbody>
       </table>
@@ -336,12 +359,14 @@ export default function OperationalView({
   onEdit,
   onDelete,
   onReorderMovements,
+  onCreateOperationalBreak,
   groupByDriver = true,
   selectedDriverId = "",
   onMoveVehicleHandoverInOperational,
 }) {
   const [draggedHandover, setDraggedHandover] = useState(null);
   const [handoverDragOverId, setHandoverDragOverId] = useState(null);
+  const [breakContext, setBreakContext] = useState(null);
   const driversById = buildLookup(drivers);
   const vehiclesById = buildLookup(vehicles);
   const entries = sortMovementsByDateAndTime(
@@ -352,6 +377,7 @@ export default function OperationalView({
     (note) => !selectedDriverId || handoverVisibleToDriver(note, selectedDriverId),
   );
   const canDragHandovers = groupByDriver && Boolean(onMoveVehicleHandoverInOperational);
+  const canCreateBreak = groupByDriver && !selectedDriverId && Boolean(onCreateOperationalBreak);
 
   function isHandoverDrag(event) {
     return Boolean(draggedHandover || Array.from(event.dataTransfer.types).includes(HANDOVER_DND_TYPE));
@@ -464,6 +490,7 @@ export default function OperationalView({
                   onEdit={onEdit}
                   onDelete={onDelete}
                   onReorderMovements={onReorderMovements}
+                  onRequestBreak={canCreateBreak ? setBreakContext : null}
                 />
               </div>
             ))}
@@ -487,6 +514,17 @@ export default function OperationalView({
           />
         </section>
       ))}
+      {breakContext ? (
+        <OperationalBreakDialog
+          context={breakContext}
+          day={scheduleDays.find((day) => day.id === breakContext.scheduleDayId)}
+          driver={driversById.get(breakContext.driverId)}
+          vehicle={vehiclesById.get(breakContext.vehicleId)}
+          schedule={{ scheduleDays, drivers, vehicles }}
+          onSave={onCreateOperationalBreak}
+          onClose={() => setBreakContext(null)}
+        />
+      ) : null}
     </div>
   );
 }

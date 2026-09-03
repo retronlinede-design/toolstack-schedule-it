@@ -37,6 +37,8 @@ import { createStorageId } from "./storage/storage";
 import { deleteDriverCandidate, deleteVehicleCandidate, reassignDriverReferences, reassignVehicleReferences } from "./domain/resourceMutations";
 import { getDriverUsage, getVehicleUsage, totalUsage } from "./domain/resourceUsage";
 import { validatePickups } from "./domain/pickups";
+import { hasMovementTiming } from "./domain/timeIntervals";
+import { createOperationalBreakMovement, insertMovementIntoDay, validateOperationalBreakInput } from "./domain/operationalBreaks";
 
 function createId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -265,7 +267,7 @@ export default function ScheduleItApp() {
     if (!value.scheduleDayId) errors.scheduleDayId = "Select or create a schedule day.";
     if (!value.driverId) errors.driverId = "Select a driver.";
     if (!value.vehicleId) errors.vehicleId = "Select a vehicle.";
-    if (!value.driverStart && !value.departureTime && !value.arrivalTime && !value.endTime && !(value.pickups || []).some((pickup) => pickup.time)) {
+    if (!hasMovementTiming(value)) {
       errors.timing = "Enter at least one timing field.";
     }
     if (!value.engagementDetails && !value.venue) {
@@ -441,6 +443,19 @@ export default function ScheduleItApp() {
         movement.id === updatedMovement.id ? preserveClearedTimeFields(updatedMovement, movement) : movement,
       ),
     }));
+    return { ok: true, issues: validation.issues };
+  }
+
+  function handleCreateOperationalBreak(input) {
+    const inputIssues = validateOperationalBreakInput(input, schedule);
+    if (inputIssues.length > 0) return { ok: false, issues: inputIssues };
+    const day = schedule.scheduleDays.find((item) => item.id === input.scheduleDayId);
+    const movement = createOperationalBreakMovement(input, createId("movement"));
+    const validation = validateMovementCandidate(schedule, movement, movement.id);
+    if (validation.blocking.length > 0) return { ok: false, issues: validation.issues };
+    const movements = insertMovementIntoDay(schedule.movements, movement, day, input.previousMovementId, input.nextMovementId);
+    if (!movements) return { ok: false, issues: [{ message: "The selected insertion point is no longer available." }] };
+    setSchedule({ ...schedule, movements });
     return { ok: true, issues: validation.issues };
   }
 
@@ -1026,6 +1041,7 @@ export default function ScheduleItApp() {
             onEdit={handleEdit}
             onDelete={handleDelete}
             onReorderMovements={handleReorderOperationalMovements}
+            onCreateOperationalBreak={handleCreateOperationalBreak}
             onMoveVehicleHandoverInOperational={handleMoveVehicleHandoverInOperational}
           />
         </div>

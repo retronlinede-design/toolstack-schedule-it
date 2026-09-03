@@ -35,6 +35,7 @@ import DisclosureSection from "./builder/DisclosureSection";
 import { addPickup, deletePickup, duplicatePickup, movePickup, sortPickups, updatePickup, validatePickups } from "../domain/pickups";
 import { createDefaultMovementAssignment } from "../domain/resourceDefaults";
 import { pickupSummary } from "../domain/pickupPresentation";
+import { hasMovementTiming } from "../domain/timeIntervals";
 
 function Field({ label, icon: Icon, error, children }) {
   return (
@@ -304,7 +305,7 @@ export default function ScheduleBuilder({
     if (!value.scheduleDayId) nextErrors.scheduleDayId = "Schedule day is required.";
     if (!value.driverId) nextErrors.driverId = "Driver is required.";
     if (!value.vehicleId) nextErrors.vehicleId = "Vehicle is required.";
-    if (!value.driverStart && !value.departureTime && !value.arrivalTime && !value.endTime && !(value.pickups || []).some((pickup) => pickup.time)) {
+    if (!hasMovementTiming(value)) {
       nextErrors.timing = "Enter at least one timing field.";
     }
     if (!value.engagementDetails && !value.venue) {

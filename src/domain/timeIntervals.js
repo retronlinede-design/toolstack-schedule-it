@@ -11,6 +11,10 @@ export function parseStrictTime(value) {
   return { ok: true, minutes: hours * 60 + minutes };
 }
 
+export function hasMovementTiming(movement) {
+  return MOVEMENT_TIME_FIELDS.some((field) => Boolean(movement?.[field])) || sortPickups(movement?.pickups || []).some((pickup) => Boolean(pickup.time));
+}
+
 export function dateToDayNumber(value) {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   const [year, month, day] = value.split("-").map(Number);

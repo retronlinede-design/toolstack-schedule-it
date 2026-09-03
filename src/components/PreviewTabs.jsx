@@ -41,6 +41,7 @@ export default function PreviewTabs({
   onEdit,
   onDelete,
   onReorderMovements,
+  onCreateOperationalBreak,
   onMoveVehicleHandoverInOperational,
 }) {
   const [activeTab, setActiveTab] = useState("executive");
@@ -74,6 +75,7 @@ export default function PreviewTabs({
             onEdit={onEdit}
             onDelete={onDelete}
             onReorderMovements={onReorderMovements}
+            onCreateOperationalBreak={onCreateOperationalBreak}
             onMoveVehicleHandoverInOperational={onMoveVehicleHandoverInOperational}
           />
         ) : null}
