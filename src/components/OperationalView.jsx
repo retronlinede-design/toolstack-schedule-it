@@ -87,7 +87,7 @@ function OperationalTimeline({ movement }) {
 
   return (
     <div className="min-w-52 space-y-1.5" aria-label="Movement timeline">
-      <TimelineItem label="Driver Start" value={timeline.driverStart} />
+      {timeline.driverStart ? <TimelineItem label="Driver Start" value={timeline.driverStart} /> : null}
       {timeline.pickups.length ? (
         <section className="rounded-lg border border-blue-200 bg-blue-50/70 p-2" aria-label="Pickups">
           <div className="text-[9px] font-black uppercase tracking-wide text-blue-700">Pickups</div>
@@ -106,13 +106,10 @@ function OperationalTimeline({ movement }) {
             ))}
           </ol>
         </section>
-      ) : (
-        <TimelineItem label="Pickups" value={EMPTY} />
-      )}
-      <TimelineItem label="Official Departure" value={timeline.departureTime} />
-      <TimelineItem label="Arrival" value={timeline.arrivalTime} />
-      <TimelineItem label="Event / Meeting Time" value={timeline.eventTime} emphasis />
-      <TimelineItem label="Duty End" value={timeline.dutyEnd} />
+      ) : null}
+      {timeline.departureTime ? <TimelineItem label="Departure" value={timeline.departureTime} /> : null}
+      {timeline.arrivalTime ? <TimelineItem label="Arrival" value={timeline.arrivalTime} /> : null}
+      {timeline.eventTime ? <TimelineItem label="Event / Meeting Time" value={timeline.eventTime} emphasis /> : null}
     </div>
   );
 }

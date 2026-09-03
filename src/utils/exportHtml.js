@@ -213,7 +213,7 @@ function operationalTimelineItem(label, value, className = "") {
 }
 
 function operationalPickupBlock(pickups) {
-  if (!pickups.length) return operationalTimelineItem("Pickups", EMPTY);
+  if (!pickups.length) return "";
 
   return `
     <section class="operational-pickups">
@@ -240,12 +240,11 @@ function operationalTimelineHtml(movement) {
   const timeline = operationalTimelineViewModel(movement);
   return `
     <div class="operational-timeline">
-      ${operationalTimelineItem("Driver Start", timeline.driverStart)}
+      ${timeline.driverStart ? operationalTimelineItem("Driver Start", timeline.driverStart) : ""}
       ${operationalPickupBlock(timeline.pickups)}
-      ${operationalTimelineItem("Official Departure", timeline.departureTime)}
-      ${operationalTimelineItem("Arrival", timeline.arrivalTime)}
-      ${operationalTimelineItem("Event / Meeting Time", timeline.eventTime, "operational-event-time")}
-      ${operationalTimelineItem("Duty End", timeline.dutyEnd)}
+      ${timeline.departureTime ? operationalTimelineItem("Departure", timeline.departureTime) : ""}
+      ${timeline.arrivalTime ? operationalTimelineItem("Arrival", timeline.arrivalTime) : ""}
+      ${timeline.eventTime ? operationalTimelineItem("Event / Meeting Time", timeline.eventTime, "operational-event-time") : ""}
     </div>
   `;
 }
