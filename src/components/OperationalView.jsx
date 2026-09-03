@@ -3,7 +3,7 @@ import { useState } from "react";
 import { sortMovementsByDateAndTime } from "../utils/calculations";
 import { selectMovementsForView } from "../domain/audiences";
 import { formatLongDate } from "../utils/time";
-import { operationalPickupText } from "../domain/pickupPresentation";
+import { operationalTimelineViewModel } from "../domain/pickupPresentation";
 
 const EMPTY = "-";
 const HANDOVER_DND_TYPE = "application/x-scheduleit-handover";
@@ -71,6 +71,50 @@ function ensureHandoverDayGroups(dayGroups, vehicleHandoverNotes, scheduleDays, 
     });
 
   return dayGroups;
+}
+
+function TimelineItem({ label, value, emphasis = false }) {
+  return (
+    <div className={`rounded-lg px-2 py-1.5 ${emphasis ? "bg-[var(--ts-accent-soft)]" : "bg-neutral-50"}`}>
+      <div className="text-[9px] font-black uppercase tracking-wide text-neutral-500">{label}</div>
+      <div className={`mt-0.5 font-mono text-xs tabular-nums text-neutral-900 ${emphasis ? "font-black" : "font-semibold"}`}>{value}</div>
+    </div>
+  );
+}
+
+function OperationalTimeline({ movement }) {
+  const timeline = operationalTimelineViewModel(movement);
+
+  return (
+    <div className="min-w-52 space-y-1.5" aria-label="Movement timeline">
+      <TimelineItem label="Driver Start" value={timeline.driverStart} />
+      {timeline.pickups.length ? (
+        <section className="rounded-lg border border-blue-200 bg-blue-50/70 p-2" aria-label="Pickups">
+          <div className="text-[9px] font-black uppercase tracking-wide text-blue-700">Pickups</div>
+          <ol className="mt-1.5 space-y-2">
+            {timeline.pickups.map((pickup) => (
+              <li key={pickup.id} className="rounded-md border border-blue-100 bg-white p-2 text-xs text-neutral-800">
+                <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+                  <strong className="font-mono tabular-nums text-neutral-950">{pickup.time || "Time missing"}</strong>
+                  {pickup.person ? <span className="font-bold text-neutral-900">{pickup.person}</span> : null}
+                  <span className="font-semibold text-neutral-800">{pickup.location || "Location missing"}</span>
+                </div>
+                {pickup.address ? <div className="mt-1 text-[11px] text-neutral-600">{pickup.address}</div> : null}
+                {pickup.contactPhone ? <div className="mt-1 text-[11px] font-semibold text-neutral-700">Contact: {pickup.contactPhone}</div> : null}
+                {pickup.notes ? <div className="mt-1 whitespace-pre-line text-[11px] text-neutral-600">{pickup.notes}</div> : null}
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : (
+        <TimelineItem label="Pickups" value={EMPTY} />
+      )}
+      <TimelineItem label="Official Departure" value={timeline.departureTime} />
+      <TimelineItem label="Arrival" value={timeline.arrivalTime} />
+      <TimelineItem label="Event / Meeting Time" value={timeline.eventTime} emphasis />
+      <TimelineItem label="Duty End" value={timeline.dutyEnd} />
+    </div>
+  );
 }
 
 function OperationalRows({ entries, driversById, vehiclesById, onEdit, onDelete, onReorderMovements }) {
@@ -141,11 +185,8 @@ function OperationalRows({ entries, driversById, vehiclesById, onEdit, onDelete,
           <GripVertical className="h-4 w-4" />
         </button>
       </td>
-      <td className="border border-neutral-200 p-3 font-bold text-neutral-900">{entry.driverStart || EMPTY}</td>
-      <td className="border border-neutral-200 p-3">{entry.departureTime || EMPTY}</td>
-      <td className="border border-neutral-200 p-3">{entry.arrivalTime || EMPTY}</td>
-      <td className="border border-neutral-200 p-3">{entry.endTime || EMPTY}</td>
-      <td className="whitespace-pre-line border border-neutral-200 p-3 font-semibold text-neutral-900">{[entry.engagementDetails || EMPTY, operationalPickupText(entry)].filter(Boolean).join("\n\n")}</td>
+      <td className="border border-neutral-200 p-2"><OperationalTimeline movement={entry} /></td>
+      <td className="whitespace-pre-line border border-neutral-200 p-3 font-semibold text-neutral-900">{entry.engagementDetails || EMPTY}</td>
       <td className="border border-neutral-200 p-3">{entry.venue || EMPTY}</td>
       <td className="border border-neutral-200 p-3">{entry.address || EMPTY}</td>
       <td className="border border-neutral-200 p-3">{entry.locationNotes || EMPTY}</td>
@@ -170,14 +211,11 @@ function OperationalRows({ entries, driversById, vehiclesById, onEdit, onDelete,
 function OperationalTable({ entries, driversById, vehiclesById, onEdit, onDelete, onReorderMovements }) {
   return (
     <div className="min-w-0 max-w-full overflow-x-auto">
-      <table className="min-w-[1120px] w-full border-collapse border border-neutral-200 bg-white text-xs shadow-sm">
+      <table className="min-w-[1040px] w-full border-collapse border border-neutral-200 bg-white text-xs shadow-sm">
         <thead>
           <tr className="bg-neutral-50 text-[10px] uppercase font-black tracking-tighter text-neutral-500">
             <th className="no-print border border-neutral-200 p-3 text-center">Order</th>
-            <th className="border border-neutral-200 p-3 text-left">Driver Start</th>
-            <th className="border border-neutral-200 p-3 text-left">Official Departure</th>
-            <th className="border border-neutral-200 p-3 text-left">Arrival Time</th>
-            <th className="border border-neutral-200 p-3 text-left">Duty End</th>
+            <th className="border border-neutral-200 p-3 text-left">Timeline</th>
             <th className="border border-neutral-200 p-3 text-left">Engagement Details</th>
             <th className="border border-neutral-200 p-3 text-left">Venue</th>
             <th className="border border-neutral-200 p-3 text-left">Address</th>

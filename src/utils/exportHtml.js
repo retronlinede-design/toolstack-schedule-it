@@ -1,7 +1,7 @@
 import { calculateWorkingTimeSummary, sortMovementsByDateAndTime } from "./calculations";
 import { formatLongDate, minutesToDuration } from "./time";
 import { selectMovementsForView } from "../domain/audiences";
-import { executivePickupText, operationalPickupText } from "../domain/pickupPresentation";
+import { executivePickupText, operationalTimelineViewModel } from "../domain/pickupPresentation";
 
 const EMPTY = "-";
 
@@ -76,7 +76,7 @@ function table(headers, rows, className = "") {
 
   const headerHtml = headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("");
   const rowsHtml = rows
-    .map((row) => `<tr>${row.map((cell) => `<td class="${cell.className || ""}">${escapeHtml(cell.value || EMPTY)}</td>`).join("")}</tr>`)
+    .map((row) => `<tr>${row.map((cell) => `<td class="${cell.className || ""}">${cell.html ?? escapeHtml(cell.value || EMPTY)}</td>`).join("")}</tr>`)
     .join("");
 
   return `<table class="${className}"><thead><tr>${headerHtml}</tr></thead><tbody>${rowsHtml}</tbody></table>`;
@@ -86,8 +86,12 @@ function cell(value, className = "") {
   return { value, className };
 }
 
+function htmlCell(html, className = "") {
+  return { html, className };
+}
+
 function operationalHeaders() {
-  return ["Driver Start", "Official Departure", "Arrival", "Duty End", "Engagement", "Venue", "Address", "Location Notes", "Parking", "Participants", "Driver", "Vehicle"];
+  return ["Timeline", "Engagement", "Venue", "Address", "Location Notes", "Parking", "Participants", "Driver", "Vehicle"];
 }
 
 function isExecutiveView(view) {
@@ -199,13 +203,57 @@ function executiveTable(schedule, view = "executive") {
     .join("");
 }
 
+function operationalTimelineItem(label, value, className = "") {
+  return `
+    <div class="operational-timeline-item ${className}">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value || EMPTY)}</strong>
+    </div>
+  `;
+}
+
+function operationalPickupBlock(pickups) {
+  if (!pickups.length) return operationalTimelineItem("Pickups", EMPTY);
+
+  return `
+    <section class="operational-pickups">
+      <h4>Pickups</h4>
+      <ol>
+        ${pickups.map((pickup) => `
+          <li>
+            <div class="operational-pickup-primary">
+              <strong>${escapeHtml(pickup.time || "Time missing")}</strong>
+              ${pickup.person ? `<b>${escapeHtml(pickup.person)}</b>` : ""}
+              <span>${escapeHtml(pickup.location || "Location missing")}</span>
+            </div>
+            ${pickup.address ? `<div class="operational-pickup-secondary">${escapeHtml(pickup.address)}</div>` : ""}
+            ${pickup.contactPhone ? `<div class="operational-pickup-secondary"><b>Contact:</b> ${escapeHtml(pickup.contactPhone)}</div>` : ""}
+            ${pickup.notes ? `<div class="operational-pickup-secondary">${escapeHtml(pickup.notes)}</div>` : ""}
+          </li>
+        `).join("")}
+      </ol>
+    </section>
+  `;
+}
+
+function operationalTimelineHtml(movement) {
+  const timeline = operationalTimelineViewModel(movement);
+  return `
+    <div class="operational-timeline">
+      ${operationalTimelineItem("Driver Start", timeline.driverStart)}
+      ${operationalPickupBlock(timeline.pickups)}
+      ${operationalTimelineItem("Official Departure", timeline.departureTime)}
+      ${operationalTimelineItem("Arrival", timeline.arrivalTime)}
+      ${operationalTimelineItem("Event / Meeting Time", timeline.eventTime, "operational-event-time")}
+      ${operationalTimelineItem("Duty End", timeline.dutyEnd)}
+    </div>
+  `;
+}
+
 function operationalMovementRows(movements, driversById, vehiclesById) {
   return movements.map((movement) => [
-    cell(movement.driverStart, "time-cell"),
-    cell(movement.departureTime, "time-cell"),
-    cell(movement.arrivalTime, "time-cell"),
-    cell(movement.endTime, "time-cell"),
-    cell([movement.engagementDetails, operationalPickupText(movement)].filter(Boolean).join("\n\n"), "details-cell wrap-cell"),
+    htmlCell(operationalTimelineHtml(movement), "timeline-cell"),
+    cell(movement.engagementDetails, "details-cell wrap-cell"),
     cell(movement.venue, "venue-cell"),
     cell(movement.address, "address-cell small-cell"),
     cell(movement.locationNotes, "wrap-cell"),
@@ -714,6 +762,87 @@ function stylesFor(view) {
       font-variant-numeric: tabular-nums;
       font-weight: 700;
     }
+    .timeline-cell {
+      padding: 4px;
+      white-space: normal;
+    }
+    .operational-timeline {
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+    }
+    .operational-timeline-item {
+      border-radius: 4px;
+      padding: 4px 5px;
+      background: #f5f5f5;
+    }
+    .operational-timeline-item > span,
+    .operational-pickups h4 {
+      display: block;
+      margin: 0;
+      color: #525252;
+      font-size: 6.5px;
+      font-weight: 800;
+      letter-spacing: .04em;
+      line-height: 1.2;
+      text-transform: uppercase;
+    }
+    .operational-timeline-item > strong {
+      display: block;
+      margin-top: 2px;
+      color: #171717;
+      font-size: 8px;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.2;
+    }
+    .operational-event-time {
+      background: #f1f9d2;
+    }
+    .operational-event-time > strong {
+      font-size: 9px;
+      font-weight: 900;
+    }
+    .operational-pickups {
+      border: 1px solid #bfdbfe;
+      border-radius: 5px;
+      padding: 5px;
+      background: #eff6ff;
+    }
+    .operational-pickups h4 {
+      color: #1d4ed8;
+    }
+    .operational-pickups ol {
+      display: grid;
+      gap: 4px;
+      margin: 4px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+    .operational-pickups li {
+      border: 1px solid #dbeafe;
+      border-radius: 4px;
+      padding: 4px;
+      background: #ffffff;
+    }
+    .operational-pickup-primary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2px 5px;
+      color: #262626;
+      font-size: 7.5px;
+      line-height: 1.3;
+    }
+    .operational-pickup-primary > strong {
+      color: #171717;
+      font-variant-numeric: tabular-nums;
+    }
+    .operational-pickup-secondary {
+      margin-top: 2px;
+      color: #525252;
+      font-size: 7px;
+      line-height: 1.3;
+      white-space: pre-line;
+    }
     .movement-cell { font-weight: 700; }
     .venue-cell { font-weight: 800; }
     .address-cell, .small-cell { font-size: ${isExecutive ? "10px" : "7.8px"}; color: #525252; }
@@ -848,15 +977,15 @@ function stylesFor(view) {
     .executive-table th:nth-child(5), .executive-table td:nth-child(5) { width: 9%; }
     .executive-table th:nth-child(6), .executive-table td:nth-child(6) { width: 9%; }
     .executive-table th:nth-child(7), .executive-table td:nth-child(7) { width: 11%; }
-    .compact-table th:nth-child(-n+4), .compact-table td:nth-child(-n+4) { width: 6.5%; }
-    .compact-table th:nth-child(5), .compact-table td:nth-child(5) { width: 14%; }
-    .compact-table th:nth-child(6), .compact-table td:nth-child(6) { width: 10%; }
-    .compact-table th:nth-child(7), .compact-table td:nth-child(7) { width: 13%; }
-    .compact-table th:nth-child(8), .compact-table td:nth-child(8) { width: 13%; }
-    .compact-table th:nth-child(9), .compact-table td:nth-child(9) { width: 8%; }
-    .compact-table th:nth-child(10), .compact-table td:nth-child(10) { width: 10%; }
-    .compact-table th:nth-child(11), .compact-table td:nth-child(11) { width: 6%; }
-    .compact-table th:nth-child(12), .compact-table td:nth-child(12) { width: 6%; }
+    .compact-table th:nth-child(1), .compact-table td:nth-child(1) { width: 24%; }
+    .compact-table th:nth-child(2), .compact-table td:nth-child(2) { width: 15%; }
+    .compact-table th:nth-child(3), .compact-table td:nth-child(3) { width: 10%; }
+    .compact-table th:nth-child(4), .compact-table td:nth-child(4) { width: 12%; }
+    .compact-table th:nth-child(5), .compact-table td:nth-child(5) { width: 12%; }
+    .compact-table th:nth-child(6), .compact-table td:nth-child(6) { width: 7%; }
+    .compact-table th:nth-child(7), .compact-table td:nth-child(7) { width: 9%; }
+    .compact-table th:nth-child(8), .compact-table td:nth-child(8) { width: 5.5%; }
+    .compact-table th:nth-child(9), .compact-table td:nth-child(9) { width: 5.5%; }
     .summary-section {
       margin: 0 0 14px;
       break-inside: avoid;

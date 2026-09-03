@@ -32,3 +32,21 @@ export function operationalPickupText(movement) {
     pickup.notes,
   ].filter(Boolean).join("\n")).join("\n");
 }
+
+export function formatOperationalEventTime(movement) {
+  const start = movement?.eventStartTime || "";
+  const end = movement?.eventEndTime || "";
+  if (start && end) return `${start}–${end}`;
+  return start || end || "-";
+}
+
+export function operationalTimelineViewModel(movement) {
+  return {
+    driverStart: movement?.driverStart || "-",
+    pickups: pickupViewModels(movement),
+    departureTime: movement?.departureTime || "-",
+    arrivalTime: movement?.arrivalTime || "-",
+    eventTime: formatOperationalEventTime(movement),
+    dutyEnd: movement?.endTime || "-",
+  };
+}
