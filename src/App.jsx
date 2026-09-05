@@ -25,7 +25,8 @@ import { buildHtmlImportCandidate } from "./import/htmlCandidate";
 import { createClearCandidate } from "./import/operationCandidates";
 import { getVisibilityCounts } from "./domain/audiences";
 import { analyzeScheduleIntegrity, validateMovementCandidate } from "./domain/scheduleValidation";
-import { duplicateMovementForSchedule, preserveClearedTimeFields } from "./domain/schedulingMutations";
+import { duplicateMovementForSchedule } from "./domain/schedulingMutations";
+import { replaceMovementInSchedule } from "./domain/movementEditor";
 import { Button } from "./components/ui/Button";
 import Card from "./components/ui/Card";
 import Badge from "./components/ui/Badge";
@@ -437,12 +438,7 @@ export default function ScheduleItApp() {
   function handleUpdateMovement(updatedMovement) {
     const validation = validateMovementCandidate(schedule, updatedMovement, updatedMovement.id);
     if (validation.blocking.length > 0) return { ok: false, issues: validation.issues };
-    setSchedule((current) => ({
-      ...current,
-      movements: current.movements.map((movement) =>
-        movement.id === updatedMovement.id ? preserveClearedTimeFields(updatedMovement, movement) : movement,
-      ),
-    }));
+    setSchedule((current) => replaceMovementInSchedule(current, updatedMovement));
     return { ok: true, issues: validation.issues };
   }
 
@@ -1039,6 +1035,7 @@ export default function ScheduleItApp() {
             selectedDriverId={selectedDriver?.id || ""}
             onSelectedDriverChange={setSelectedDriverId}
             onEdit={handleEdit}
+            onUpdateMovement={handleUpdateMovement}
             onDelete={handleDelete}
             onReorderMovements={handleReorderOperationalMovements}
             onCreateOperationalBreak={handleCreateOperationalBreak}

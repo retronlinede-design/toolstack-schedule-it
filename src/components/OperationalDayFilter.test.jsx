@@ -178,7 +178,8 @@ describe("Operational date navigation UI and integration", () => {
     );
     expect(html).toContain('aria-label="Operational date navigation"');
     expect(html).toMatch(/aria-pressed="true"[^>]*>Day<\/button>/);
-    expect((html.match(/ movement/g) || []).length).toBe(1);
+    expect(html).toContain("Munich movement");
+    expect(html).not.toContain("Berlin movement");
   });
 
   it("renders compact mode controls, period navigation, and custom validation", () => {

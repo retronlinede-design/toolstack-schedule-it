@@ -6,6 +6,7 @@ import { formatLongDate } from "../utils/time";
 import { operationalTimelineViewModel } from "../domain/pickupPresentation";
 import { breakInsertionContext } from "../domain/operationalBreaks";
 import OperationalBreakDialog from "./OperationalBreakDialog";
+import MovementEditorDialog from "./MovementEditorDialog";
 import {
   OPERATIONAL_FILTER_MODES,
   changeOperationalFilterMode,
@@ -321,11 +322,11 @@ function OperationalRows({ entries, driversById, vehiclesById, onEdit, onDelete,
       <td className="border border-neutral-200 p-3">{driversById.get(entry.driverId)?.name || EMPTY}</td>
       <td className="border border-neutral-200 p-3">{vehiclesById.get(entry.vehicleId)?.name || EMPTY}</td>
       <td className="no-print border border-neutral-200 p-3 text-right">
-        <div className="flex justify-end gap-1 opacity-0 transition-all group-hover:opacity-100">
-          <button onClick={() => onEdit(entry)} className="p-2 bg-blue-50 text-blue-600 rounded-lg" title="Edit">
+        <div className="flex justify-end gap-1">
+          <button onClick={() => onEdit?.(entry)} className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg bg-blue-50 p-2 text-blue-600" title="Edit" aria-label={`Edit ${entry.engagementDetails || "movement"}`}>
             <Pencil className="h-4 w-4" />
           </button>
-          <button onClick={() => onDelete(entry.id)} className="p-2 bg-red-50 text-red-600 rounded-lg" title="Delete">
+          <button onClick={() => onDelete?.(entry.id)} className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg bg-red-50 p-2 text-red-600" title="Delete" aria-label={`Delete ${entry.engagementDetails || "movement"}`}>
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
@@ -463,11 +464,13 @@ function HandoverTable({
 
 export default function OperationalView({
   entriesByMonth,
+  profile,
   vehicleHandoverNotes = [],
   drivers,
   vehicles,
   scheduleDays = [],
   onEdit,
+  onUpdateMovement,
   onDelete,
   onReorderMovements,
   onCreateOperationalBreak,
@@ -476,11 +479,13 @@ export default function OperationalView({
   onMoveVehicleHandoverInOperational,
   enableDayFilter = false,
   initialFilterState,
+  initialEditingMovementId = null,
   todayDate = localCalendarDate(),
 }) {
   const [draggedHandover, setDraggedHandover] = useState(null);
   const [handoverDragOverId, setHandoverDragOverId] = useState(null);
   const [breakContext, setBreakContext] = useState(null);
+  const [editingMovementId, setEditingMovementId] = useState(initialEditingMovementId);
   const [dateFilter, setDateFilter] = useState(() => ({
     ...createInitialOperationalFilter(scheduleDays, todayDate),
     ...initialFilterState,
@@ -506,6 +511,12 @@ export default function OperationalView({
   );
   const canDragHandovers = groupByDriver && Boolean(onMoveVehicleHandoverInOperational);
   const canCreateBreak = groupByDriver && !selectedDriverId && Boolean(onCreateOperationalBreak);
+  const editingMovement = entries.find((entry) => entry.id === editingMovementId);
+
+  function handleEditRequest(movement) {
+    if (onUpdateMovement) setEditingMovementId(movement.id);
+    else onEdit?.(movement);
+  }
 
   function isHandoverDrag(event) {
     return Boolean(draggedHandover || Array.from(event.dataTransfer.types).includes(HANDOVER_DND_TYPE));
@@ -623,7 +634,7 @@ export default function OperationalView({
                   entries={driverGroup.entries}
                   driversById={driversById}
                   vehiclesById={vehiclesById}
-                  onEdit={onEdit}
+                  onEdit={handleEditRequest}
                   onDelete={onDelete}
                   onReorderMovements={onReorderMovements}
                   onRequestBreak={canCreateBreak ? setBreakContext : null}
@@ -659,6 +670,19 @@ export default function OperationalView({
           schedule={{ scheduleDays, drivers, vehicles }}
           onSave={onCreateOperationalBreak}
           onClose={() => setBreakContext(null)}
+        />
+      ) : null}
+      {editingMovement && onUpdateMovement ? (
+        <MovementEditorDialog
+          key={editingMovement.id}
+          movement={editingMovement}
+          day={scheduleDays.find((day) => day.id === editingMovement.scheduleDayId)}
+          profile={profile}
+          scheduleDays={scheduleDays}
+          drivers={drivers}
+          vehicles={vehicles}
+          onSave={onUpdateMovement}
+          onClose={() => setEditingMovementId(null)}
         />
       ) : null}
     </div>

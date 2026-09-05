@@ -32,10 +32,10 @@ import MovementCard from "./builder/MovementCard";
 import HandoverCard from "./builder/HandoverCard";
 import ImportantInfoCard from "./builder/ImportantInfoCard";
 import DisclosureSection from "./builder/DisclosureSection";
-import { addPickup, deletePickup, duplicatePickup, movePickup, sortPickups, updatePickup, validatePickups } from "../domain/pickups";
+import { addPickup, deletePickup, duplicatePickup, movePickup, sortPickups, updatePickup } from "../domain/pickups";
 import { createDefaultMovementAssignment } from "../domain/resourceDefaults";
 import { pickupSummary } from "../domain/pickupPresentation";
-import { hasMovementTiming } from "../domain/timeIntervals";
+import { updateMovementEditorDriver, validateMovementEditorDraft } from "../domain/movementEditor";
 
 function Field({ label, icon: Icon, error, children }) {
   return (
@@ -286,34 +286,11 @@ export default function ScheduleBuilder({
   }
 
   function updateDriver(driverId) {
-    onChange((current) => {
-      const nextDriver = drivers.find((driver) => driver.id === driverId);
-      const currentDriver = drivers.find((driver) => driver.id === current.driverId);
-      const shouldUseDefaultVehicle = !current.vehicleId || current.vehicleId === currentDriver?.defaultVehicle;
-
-      return {
-        ...current,
-        driverId,
-        vehicleId: shouldUseDefaultVehicle ? nextDriver?.defaultVehicle || current.vehicleId : current.vehicleId,
-        audiences: { ...normalizeMovementAudiences(current), driverIds: normalizeMovementAudiences(current).driverIds.filter((id) => id !== driverId) },
-      };
-    });
+    onChange((current) => updateMovementEditorDriver(current, driverId, drivers));
   }
 
   function validateMovement(value) {
-    const nextErrors = {};
-    if (!value.scheduleDayId) nextErrors.scheduleDayId = "Schedule day is required.";
-    if (!value.driverId) nextErrors.driverId = "Driver is required.";
-    if (!value.vehicleId) nextErrors.vehicleId = "Vehicle is required.";
-    if (!hasMovementTiming(value)) {
-      nextErrors.timing = "Enter at least one timing field.";
-    }
-    if (!value.engagementDetails && !value.venue) {
-      nextErrors.engagementDetails = "Enter engagement details or a venue.";
-    }
-    const pickupIssues = validatePickups(value.pickups || []);
-    if (pickupIssues.length) nextErrors.integrityIssues = pickupIssues;
-    return nextErrors;
+    return validateMovementEditorDraft(value);
   }
 
   function startInlineEdit(movement) {
@@ -333,18 +310,7 @@ export default function ScheduleBuilder({
   }
 
   function updateInlineDriver(driverId) {
-    setInlineDraft((current) => {
-      const nextDriver = drivers.find((driver) => driver.id === driverId);
-      const currentDriver = drivers.find((driver) => driver.id === current.driverId);
-      const shouldUseDefaultVehicle = !current.vehicleId || current.vehicleId === currentDriver?.defaultVehicle;
-
-      return {
-        ...current,
-        driverId,
-        vehicleId: shouldUseDefaultVehicle ? nextDriver?.defaultVehicle || current.vehicleId : current.vehicleId,
-        audiences: { ...normalizeMovementAudiences(current), driverIds: normalizeMovementAudiences(current).driverIds.filter((id) => id !== driverId) },
-      };
-    });
+    setInlineDraft((current) => updateMovementEditorDriver(current, driverId, drivers));
   }
 
   function saveInlineEdit() {
