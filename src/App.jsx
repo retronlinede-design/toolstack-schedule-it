@@ -26,7 +26,7 @@ import { createClearCandidate } from "./import/operationCandidates";
 import { getVisibilityCounts } from "./domain/audiences";
 import { analyzeScheduleIntegrity, validateMovementCandidate } from "./domain/scheduleValidation";
 import { duplicateMovementForSchedule } from "./domain/schedulingMutations";
-import { replaceMovementInSchedule } from "./domain/movementEditor";
+import { createMovementInSchedule, createOperationalMovementDraft, nextMovementSortOrder, replaceMovementInSchedule } from "./domain/movementEditor";
 import { Button } from "./components/ui/Button";
 import Card from "./components/ui/Card";
 import Badge from "./components/ui/Badge";
@@ -51,15 +51,6 @@ function createInitialDraft(schedule) {
 
 function findOrCreateDay(scheduleDays, draft) {
   return scheduleDays.find((day) => day.id === draft.scheduleDayId);
-}
-
-function nextSortOrder(movements, scheduleDayId) {
-  const dayOrders = movements
-    .filter((movement) => movement.scheduleDayId === scheduleDayId)
-    .map((movement) => movement.sortOrder)
-    .filter(Number.isFinite);
-
-  return dayOrders.length === 0 ? 10 : Math.max(...dayOrders) + 10;
 }
 
 function nextImportantInfoSortOrder(importantInfoItems) {
@@ -287,7 +278,7 @@ export default function ScheduleItApp() {
     const profile = { missionName: workingDraft.missionName || defaultProfile.missionName, documentTitle: workingDraft.documentTitle || defaultProfile.documentTitle };
     const existingDay = findOrCreateDay(schedule.scheduleDays, workingDraft);
     const day = createScheduleDayFromDraft(workingDraft, existingDay);
-    const movement = { ...createMovementFromDraft(workingDraft, day.id), sortOrder: Number.isFinite(workingDraft.sortOrder) ? workingDraft.sortOrder : nextSortOrder(schedule.movements, day.id) };
+    const movement = { ...createMovementFromDraft(workingDraft, day.id), sortOrder: Number.isFinite(workingDraft.sortOrder) ? workingDraft.sortOrder : nextMovementSortOrder(schedule.movements, day.id) };
     const scheduleDays = existingDay ? schedule.scheduleDays.map((item) => (item.id === day.id ? day : item)) : [...schedule.scheduleDays, day];
     const validation = validateMovementCandidate({ ...schedule, scheduleDays }, movement, workingDraft.id);
     if (validation.blocking.length > 0) {
@@ -427,7 +418,7 @@ export default function ScheduleItApp() {
   }
 
   function handleDuplicateMovement(movement) {
-    const nextMovement = duplicateMovementForSchedule(movement, createId("movement"), nextSortOrder(schedule.movements, movement.scheduleDayId));
+    const nextMovement = duplicateMovementForSchedule(movement, createId("movement"), nextMovementSortOrder(schedule.movements, movement.scheduleDayId));
 
     setSchedule((current) => ({
       ...current,
@@ -440,6 +431,17 @@ export default function ScheduleItApp() {
     if (validation.blocking.length > 0) return { ok: false, issues: validation.issues };
     setSchedule((current) => replaceMovementInSchedule(current, updatedMovement));
     return { ok: true, issues: validation.issues };
+  }
+
+  function handleCreateOperationalMovementDraft(scheduleDayId = "") {
+    return createOperationalMovementDraft(schedule, scheduleDayId, createId("movement"));
+  }
+
+  function handleCreateOperationalMovement(movementDraft) {
+    const result = createMovementInSchedule(schedule, movementDraft);
+    if (!result.ok) return { ok: false, issues: result.issues };
+    setSchedule(result.schedule);
+    return { ok: true, issues: result.issues, movement: result.movement };
   }
 
   function handleCreateOperationalBreak(input) {
@@ -1036,6 +1038,8 @@ export default function ScheduleItApp() {
             onSelectedDriverChange={setSelectedDriverId}
             onEdit={handleEdit}
             onUpdateMovement={handleUpdateMovement}
+            onCreateMovementDraft={handleCreateOperationalMovementDraft}
+            onCreateMovement={handleCreateOperationalMovement}
             onDelete={handleDelete}
             onReorderMovements={handleReorderOperationalMovements}
             onCreateOperationalBreak={handleCreateOperationalBreak}

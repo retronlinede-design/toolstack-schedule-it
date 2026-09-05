@@ -40,6 +40,8 @@ export default function PreviewTabs({
   onSelectedDriverChange,
   onEdit,
   onUpdateMovement,
+  onCreateMovementDraft,
+  onCreateMovement,
   onDelete,
   onReorderMovements,
   onCreateOperationalBreak,
@@ -76,6 +78,8 @@ export default function PreviewTabs({
             scheduleDays={scheduleDays}
             onEdit={onEdit}
             onUpdateMovement={onUpdateMovement}
+            onCreateMovementDraft={onCreateMovementDraft}
+            onCreateMovement={onCreateMovement}
             onDelete={onDelete}
             onReorderMovements={onReorderMovements}
             onCreateOperationalBreak={onCreateOperationalBreak}

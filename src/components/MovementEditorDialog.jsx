@@ -104,8 +104,9 @@ function ConflictIssues({ issues, movement, onChange }) {
   })}</ul></div>;
 }
 
-export default function MovementEditorDialog({ movement, day, profile, scheduleDays, drivers, vehicles, onSave, onClose }) {
-  const [draft, setDraft] = useState(() => createDraftFromMovement(movement, day, profile));
+export default function MovementEditorDialog({ mode = "edit", movement, initialDraft, day, profile, scheduleDays, drivers, vehicles, onSave, onClose }) {
+  const isCreate = mode === "create";
+  const [draft, setDraft] = useState(() => isCreate ? { ...initialDraft } : createDraftFromMovement(movement, day, profile));
   const [errors, setErrors] = useState({});
   const issues = errors.integrityIssues || [];
   const updateField = (name, value) => setDraft((current) => ({ ...current, [name]: value }));
@@ -116,22 +117,22 @@ export default function MovementEditorDialog({ movement, day, profile, scheduleD
     const nextErrors = validateMovementEditorDraft(draft);
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
-    const result = onSave(movementFromEditorDraft(draft));
+    const result = onSave(isCreate ? draft : movementFromEditorDraft(draft));
     if (result?.ok === false) { setErrors({ integrityIssues: result.issues }); return; }
     onClose();
   }
 
-  return <ModalShell title="Edit movement" subtitle={day?.date ? `${day.date}${day.title ? ` - ${day.title}` : ""}` : "Update the existing schedule movement"} onClose={onClose} maxWidth="max-w-5xl" bodyClassName="p-0">
+  return <ModalShell title={isCreate ? "Add movement" : "Edit movement"} subtitle={isCreate && !draft.scheduleDayId ? "Choose a schedule day, then complete the movement details." : day?.date ? `${day.date}${day.title ? ` - ${day.title}` : ""}` : isCreate ? "Create a new schedule movement." : "Update the existing schedule movement"} onClose={onClose} maxWidth="max-w-5xl" bodyClassName="p-0">
     <form onSubmit={submit} className="space-y-4 p-4 md:p-6">
       <Section title="Assignment"><div className="grid gap-3 sm:grid-cols-3">
-        <Field label="Schedule day" error={errors.scheduleDayId}><Select value={draft.scheduleDayId || ""} invalid={Boolean(errors.scheduleDayId)} onChange={(event) => updateField("scheduleDayId", event.target.value)}>{scheduleDays.map((item) => <option key={item.id} value={item.id}>{item.date}{item.title ? ` - ${item.title}` : ""}</option>)}</Select></Field>
+        <Field label="Schedule day" error={errors.scheduleDayId}><Select value={draft.scheduleDayId || ""} invalid={Boolean(errors.scheduleDayId)} onChange={(event) => updateField("scheduleDayId", event.target.value)}>{isCreate ? <option value="">Select schedule day</option> : null}{scheduleDays.map((item) => <option key={item.id} value={item.id}>{item.date}{item.title ? ` - ${item.title}` : ""}</option>)}</Select></Field>
         <Field label="Driver" error={errors.driverId}><Select value={draft.driverId || ""} invalid={Boolean(errors.driverId)} onChange={(event) => setDraft((current) => updateMovementEditorDriver(current, event.target.value, drivers))}><option value="">Select driver</option>{drivers.filter((item) => item.isActive !== false || item.id === draft.driverId).map((item) => <option key={item.id} value={item.id}>{item.name}{item.isActive === false ? " - Inactive" : ""}</option>)}</Select></Field>
         <Field label="Vehicle" error={errors.vehicleId}><Select value={draft.vehicleId || ""} invalid={Boolean(errors.vehicleId)} onChange={(event) => updateField("vehicleId", event.target.value)}><option value="">Select vehicle</option>{vehicles.filter((item) => item.isActive !== false || item.id === draft.vehicleId).map((item) => <option key={item.id} value={item.id}>{item.name}{item.isActive === false ? " - Inactive" : ""}</option>)}</Select></Field>
       </div></Section>
       <Section title="Timing"><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{[["driverStart", "Driver Start"], ["departureTime", "Official Departure"], ["arrivalTime", "Arrival"], ["eventStartTime", "Event Start"], ["eventEndTime", "Event End"], ["endTime", "Duty End"]].map(([name, label]) => <Field key={name} label={label}><Input type="time" value={draft[name]} onChange={(event) => updateField(name, event.target.value)} /></Field>)}</div>{errors.timing ? <p className="mt-2 ts-field-error">{errors.timing}</p> : null}<div className="mt-4"><PickupEditor movement={draft} issues={issues} onChange={setDraft} /></div><label className="mt-4 flex min-h-11 items-center gap-2 text-sm font-medium"><input type="checkbox" checked={draft.continuesOvernight} onChange={(event) => updateField("continuesOvernight", event.target.checked)} />Continues past midnight</label></Section>
       <Section title="Engagement / Location"><div className="grid gap-3 sm:grid-cols-2"><Field label="Engagement Details" error={errors.engagementDetails}><Input value={draft.engagementDetails} invalid={Boolean(errors.engagementDetails)} onChange={(event) => updateField("engagementDetails", event.target.value)} /></Field><Field label="Venue"><Input value={draft.venue} onChange={(event) => updateField("venue", event.target.value)} /></Field><Field label="Address"><Input value={draft.address} onChange={(event) => updateField("address", event.target.value)} /></Field><Field label="Parking"><Input value={draft.parking} onChange={(event) => updateField("parking", event.target.value)} /></Field><Field label="Location Notes"><Textarea value={draft.locationNotes} onChange={(event) => updateField("locationNotes", event.target.value)} /></Field><Field label="Participants"><Textarea value={draft.participants} onChange={(event) => updateField("participants", event.target.value)} /></Field></div><details className="mt-4"><summary className="cursor-pointer text-sm font-semibold">Additional operational details</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">{[["contactPerson", "Contact person"], ["contactPhone", "Contact phone"], ["securityNotes", "Security notes"], ["protocolNotes", "Protocol notes"], ["dressCode", "Dress code"], ["documentsToCarry", "Documents to carry"], ["materialsOrGifts", "Materials / gifts"], ["specialInstructions", "Special instructions"], ["internalNotes", "Internal notes"]].map(([name, label]) => <Field key={name} label={label}><Textarea value={draft[name] || ""} onChange={(event) => updateField(name, event.target.value)} /></Field>)}</div></details></Section>
       <Section title="Audience / Classification"><AudienceEditor movement={draft} drivers={drivers} vehicles={vehicles} onChange={updateAudiences} /><div className="mt-4 max-w-sm"><Field label="Working-time classification"><Select value={draft.workClassification || "active"} onChange={(event) => updateField("workClassification", event.target.value)}><option value="active">Active duty</option><option value="travel">Travel / driving</option><option value="standby">Standby</option><option value="break">Break</option><option value="nonWorking">Do not count</option></Select></Field></div><div className="mt-4"><ConflictIssues issues={issues} movement={draft} onChange={setDraft} /></div></Section>
-      <div className="sticky bottom-0 -mx-4 -mb-4 flex flex-wrap justify-end gap-2 border-t border-[var(--ts-border)] bg-white/95 p-4 backdrop-blur md:-mx-6 md:-mb-6"><Button onClick={onClose}>Cancel</Button><Button type="submit" variant="primary">Save movement</Button></div>
+      <div className="sticky bottom-0 -mx-4 -mb-4 flex flex-wrap justify-end gap-2 border-t border-[var(--ts-border)] bg-white/95 p-4 backdrop-blur md:-mx-6 md:-mb-6"><Button onClick={onClose}>Cancel</Button><Button type="submit" variant="primary">{isCreate ? "Add movement" : "Save movement"}</Button></div>
     </form>
   </ModalShell>;
 }

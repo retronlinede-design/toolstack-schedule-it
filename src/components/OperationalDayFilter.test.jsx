@@ -173,6 +173,7 @@ describe("Operational date navigation UI and integration", () => {
         workingTimePolicy={state.workingTimePolicy} onWorkingTimePolicyChange={vi.fn()}
         selectedDriverId={state.drivers[0].id} onSelectedDriverChange={vi.fn()}
         onEdit={vi.fn()} onDelete={vi.fn()} onReorderMovements={vi.fn()}
+        onCreateMovementDraft={vi.fn()} onCreateMovement={vi.fn()}
         onCreateOperationalBreak={vi.fn()} onMoveVehicleHandoverInOperational={vi.fn()}
       />,
     );
@@ -180,6 +181,7 @@ describe("Operational date navigation UI and integration", () => {
     expect(html).toMatch(/aria-pressed="true"[^>]*>Day<\/button>/);
     expect(html).toContain("Munich movement");
     expect(html).not.toContain("Berlin movement");
+    expect(html).toContain("Add Movement");
   });
 
   it("renders compact mode controls, period navigation, and custom validation", () => {

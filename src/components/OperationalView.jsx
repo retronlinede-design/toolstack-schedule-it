@@ -471,6 +471,8 @@ export default function OperationalView({
   scheduleDays = [],
   onEdit,
   onUpdateMovement,
+  onCreateMovementDraft,
+  onCreateMovement,
   onDelete,
   onReorderMovements,
   onCreateOperationalBreak,
@@ -480,12 +482,14 @@ export default function OperationalView({
   enableDayFilter = false,
   initialFilterState,
   initialEditingMovementId = null,
+  initialCreatingDraft = null,
   todayDate = localCalendarDate(),
 }) {
   const [draggedHandover, setDraggedHandover] = useState(null);
   const [handoverDragOverId, setHandoverDragOverId] = useState(null);
   const [breakContext, setBreakContext] = useState(null);
   const [editingMovementId, setEditingMovementId] = useState(initialEditingMovementId);
+  const [creatingDraft, setCreatingDraft] = useState(initialCreatingDraft);
   const [dateFilter, setDateFilter] = useState(() => ({
     ...createInitialOperationalFilter(scheduleDays, todayDate),
     ...initialFilterState,
@@ -514,8 +518,18 @@ export default function OperationalView({
   const editingMovement = entries.find((entry) => entry.id === editingMovementId);
 
   function handleEditRequest(movement) {
-    if (onUpdateMovement) setEditingMovementId(movement.id);
+    if (onUpdateMovement) {
+      setCreatingDraft(null);
+      setEditingMovementId(movement.id);
+    }
     else onEdit?.(movement);
+  }
+
+  function handleCreateRequest() {
+    if (!onCreateMovementDraft) return;
+    const scheduleDayId = resolvedDateFilter.mode === "day" ? resolvedDateFilter.dayId : "";
+    setEditingMovementId(null);
+    setCreatingDraft(onCreateMovementDraft(scheduleDayId));
   }
 
   function isHandoverDrag(event) {
@@ -573,6 +587,24 @@ export default function OperationalView({
     <div className="space-y-6">
       {enableDayFilter ? (
         <OperationalDateNavigation orderedDays={orderedDays} filter={resolvedDateFilter} onChange={setDateFilter} todayDate={todayDate} />
+      ) : null}
+      {enableDayFilter && onCreateMovementDraft && onCreateMovement ? (
+        <div className="no-print flex flex-wrap items-center justify-between gap-2 rounded-xl border border-neutral-200 bg-white p-2">
+          <p className="min-w-0 text-xs font-medium text-neutral-600">
+            {resolvedDateFilter.mode === "day" && resolvedDateFilter.dayId
+              ? `New movements will start on ${operationalDayLabel(orderedDays.find((day) => day.id === resolvedDateFilter.dayId))}.`
+              : "Choose the target schedule day in the movement editor."}
+          </p>
+          <button
+            type="button"
+            onClick={handleCreateRequest}
+            disabled={orderedDays.length === 0}
+            className="ts-button ts-button--primary min-h-11 shrink-0"
+            aria-label={resolvedDateFilter.mode === "day" && resolvedDateFilter.dayId ? `Add movement to ${operationalDayLabel(orderedDays.find((day) => day.id === resolvedDateFilter.dayId))}` : "Add movement"}
+          >
+            <Plus className="h-4 w-4" /> Add Movement
+          </button>
+        </div>
       ) : null}
       {enableDayFilter && displayedDayGroups.length === 0 ? (
         <div className="py-12 text-center text-neutral-400 border-2 border-dashed rounded-3xl italic">
@@ -683,6 +715,20 @@ export default function OperationalView({
           vehicles={vehicles}
           onSave={onUpdateMovement}
           onClose={() => setEditingMovementId(null)}
+        />
+      ) : null}
+      {creatingDraft && onCreateMovement ? (
+        <MovementEditorDialog
+          key={creatingDraft.id}
+          mode="create"
+          initialDraft={creatingDraft}
+          day={orderedDays.find((day) => day.id === creatingDraft.scheduleDayId)}
+          profile={profile}
+          scheduleDays={orderedDays}
+          drivers={drivers}
+          vehicles={vehicles}
+          onSave={onCreateMovement}
+          onClose={() => setCreatingDraft(null)}
         />
       ) : null}
     </div>

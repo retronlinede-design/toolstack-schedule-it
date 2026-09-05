@@ -52,6 +52,7 @@ describe("tool presentation modes", () => {
     expect(html).not.toContain("Selected Day Vehicle Handover / Car Location");
     expect(html).not.toContain("Mission routes, contacts, addresses, phone numbers");
     expect(html).toContain("Movement Editor");
+    expect(html).toContain("Add Movement");
   });
 
   it("renders existing Important Information CRUD only in its tool workspace", () => {
