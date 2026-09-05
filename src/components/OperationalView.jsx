@@ -1,4 +1,4 @@
-import { GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
 import { Fragment, useState } from "react";
 import { sortMovementsByDateAndTime } from "../utils/calculations";
 import { selectMovementsForView } from "../domain/audiences";
@@ -6,9 +6,61 @@ import { formatLongDate } from "../utils/time";
 import { operationalTimelineViewModel } from "../domain/pickupPresentation";
 import { breakInsertionContext } from "../domain/operationalBreaks";
 import OperationalBreakDialog from "./OperationalBreakDialog";
+import {
+  ALL_OPERATIONAL_DAYS,
+  adjacentOperationalDayId,
+  chronologicalScheduleDays,
+  filterOperationalDayGroups,
+  operationalDayLabel,
+  resolveOperationalDayId,
+} from "./operationalDayFilter";
 
 const EMPTY = "-";
 const HANDOVER_DND_TYPE = "application/x-scheduleit-handover";
+
+export function OperationalDayFilter({ orderedDays, selectedDayId, onChange }) {
+  const selectedIndex = orderedDays.findIndex((day) => day.id === selectedDayId);
+  const hasSelectedDay = selectedIndex >= 0;
+
+  return (
+    <div className="no-print flex w-full items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 p-2 sm:w-auto" aria-label="Operational day filter">
+      <button
+        type="button"
+        onClick={() => onChange(adjacentOperationalDayId(selectedDayId, orderedDays, -1))}
+        disabled={!hasSelectedDay || selectedIndex === 0}
+        className="ts-button ts-button--secondary ts-icon-button min-h-10 h-10 w-10 min-w-10 p-0"
+        aria-label="Previous Day"
+        title="Previous Day"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </button>
+      <label className="min-w-0 flex-1 sm:min-w-64">
+        <span className="sr-only">Operational day</span>
+        <select
+          value={selectedDayId}
+          onChange={(event) => onChange(event.target.value)}
+          className="ts-control min-h-10 h-10 truncate py-1.5"
+          aria-label="Operational day"
+        >
+          <option value={ALL_OPERATIONAL_DAYS}>All Days</option>
+          {orderedDays.map((day) => (
+            <option key={day.id} value={day.id}>{operationalDayLabel(day)}</option>
+          ))}
+        </select>
+      </label>
+      <button
+        type="button"
+        onClick={() => onChange(adjacentOperationalDayId(selectedDayId, orderedDays, 1))}
+        disabled={!hasSelectedDay || selectedIndex === orderedDays.length - 1}
+        className="ts-button ts-button--secondary ts-icon-button min-h-10 h-10 w-10 min-w-10 p-0"
+        aria-label="Next Day"
+        title="Next Day"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
 
 function buildLookup(items) {
   return new Map(items.map((item) => [item.id, item]));
@@ -363,16 +415,28 @@ export default function OperationalView({
   groupByDriver = true,
   selectedDriverId = "",
   onMoveVehicleHandoverInOperational,
+  enableDayFilter = false,
+  initialDayId = ALL_OPERATIONAL_DAYS,
 }) {
   const [draggedHandover, setDraggedHandover] = useState(null);
   const [handoverDragOverId, setHandoverDragOverId] = useState(null);
   const [breakContext, setBreakContext] = useState(null);
+  const [selectedDayId, setSelectedDayId] = useState(initialDayId);
+  const [availableDayIds, setAvailableDayIds] = useState(null);
   const driversById = buildLookup(drivers);
   const vehiclesById = buildLookup(vehicles);
   const entries = sortMovementsByDateAndTime(
     selectMovementsForView(Object.values(entriesByMonth).flat(), selectedDriverId ? "driver" : "operational", { selectedDriverId }),
   );
   const dayGroups = ensureHandoverDayGroups(groupEntries(entries, driversById, vehiclesById, groupByDriver), vehicleHandoverNotes, scheduleDays, selectedDriverId);
+  const orderedDays = chronologicalScheduleDays(scheduleDays);
+  const nextAvailableDayIds = orderedDays.map((day) => day.id).join("\u001f");
+  const resolvedSelectedDayId = resolveOperationalDayId(selectedDayId, orderedDays);
+  if (enableDayFilter && availableDayIds !== nextAvailableDayIds) {
+    setAvailableDayIds(nextAvailableDayIds);
+    if (selectedDayId !== resolvedSelectedDayId) setSelectedDayId(resolvedSelectedDayId);
+  }
+  const displayedDayGroups = enableDayFilter ? filterOperationalDayGroups(dayGroups, resolvedSelectedDayId) : dayGroups;
   const visibleHandoverNotes = vehicleHandoverNotes.filter(
     (note) => !selectedDriverId || handoverVisibleToDriver(note, selectedDriverId),
   );
@@ -422,7 +486,7 @@ export default function OperationalView({
     handleHandoverTargetDragOver(event, `handover-${note.id}`);
   }
 
-  if (entries.length === 0 && visibleHandoverNotes.length === 0) {
+  if (!enableDayFilter && entries.length === 0 && visibleHandoverNotes.length === 0) {
     return (
       <div className="py-12 text-center text-neutral-400 border-2 border-dashed rounded-3xl italic">
         No operational-visible movements yet.
@@ -432,7 +496,17 @@ export default function OperationalView({
 
   return (
     <div className="space-y-6">
-      {dayGroups.map((dayGroup) => (
+      {enableDayFilter ? (
+        <div className="flex justify-start sm:justify-end">
+          <OperationalDayFilter orderedDays={orderedDays} selectedDayId={resolvedSelectedDayId} onChange={setSelectedDayId} />
+        </div>
+      ) : null}
+      {enableDayFilter && displayedDayGroups.length === 0 ? (
+        <div className="py-12 text-center text-neutral-400 border-2 border-dashed rounded-3xl italic">
+          {resolvedSelectedDayId ? "No operational-visible movements for the selected day." : "No operational-visible movements yet."}
+        </div>
+      ) : null}
+      {displayedDayGroups.map((dayGroup) => (
         <section
           key={dayGroup.key}
           onDragOver={(event) => handleHandoverTargetDragOver(event, `day-${dayGroup.day?.id || dayGroup.key}`)}

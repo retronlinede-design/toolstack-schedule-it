@@ -77,6 +77,7 @@ export default function PreviewTabs({
             onReorderMovements={onReorderMovements}
             onCreateOperationalBreak={onCreateOperationalBreak}
             onMoveVehicleHandoverInOperational={onMoveVehicleHandoverInOperational}
+            enableDayFilter
           />
         ) : null}
         {activeTab === "driver" ? (
