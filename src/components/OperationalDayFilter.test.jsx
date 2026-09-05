@@ -3,138 +3,250 @@ import { describe, expect, it, vi } from "vitest";
 import { getExportDocument } from "../utils/exportHtml";
 import { validState } from "../import/testFixtures";
 import DriverView from "./DriverView";
-import OperationalView, { OperationalDayFilter } from "./OperationalView";
+import OperationalView, { OperationalDateNavigation } from "./OperationalView";
+import PreviewTabs from "./PreviewTabs";
 import {
-  ALL_OPERATIONAL_DAYS,
-  adjacentOperationalDayId,
+  changeOperationalFilterMode,
   chronologicalScheduleDays,
+  createInitialOperationalFilter,
   filterOperationalDayGroups,
+  matchingOperationalDayIds,
+  navigateOperationalFilter,
   operationalDayLabel,
-  resolveOperationalDayId,
+  operationalFilterRange,
+  operationalPeriodLabel,
+  reconcileOperationalFilter,
+  selectInitialOperationalDayId,
 } from "./operationalDayFilter";
+
+const TODAY = "2026-09-05";
 
 function fixture() {
   const state = validState();
   state.scheduleDays = [
-    { id: "later", date: "2026-09-08", title: "Berlin" },
-    { id: "first", date: "2026-09-07", title: "Munich" },
+    { id: "october", date: "2026-10-02", title: "Hamburg" },
+    { id: "next-week", date: "2026-09-14", title: "Cologne" },
+    { id: "sunday", date: "2026-09-13", title: "Stuttgart" },
+    { id: "tuesday", date: "2026-09-08", title: "Berlin" },
+    { id: "monday", date: "2026-09-07", title: "Munich" },
   ];
-  state.movements = [
-    { ...state.movements[0], id: "movement-first", scheduleDayId: "first", engagementDetails: "Munich movement" },
-    { ...state.movements[0], id: "movement-later", scheduleDayId: "later", engagementDetails: "Berlin movement" },
-  ];
-  state.vehicleHandoverNotes = [
-    { ...state.vehicleHandoverNotes[0], id: "handover-first", scheduleDayId: "first", notes: "Munich handover" },
-    { ...state.vehicleHandoverNotes[0], id: "handover-later", scheduleDayId: "later", notes: "Berlin handover" },
-  ];
+  state.movements = state.scheduleDays.map((day, index) => ({
+    ...state.movements[0],
+    id: `movement-${day.id}`,
+    scheduleDayId: day.id,
+    sortOrder: (index + 1) * 10,
+    engagementDetails: `${day.title} movement`,
+  }));
+  state.movements[1] = { ...state.movements[1], driverId: "driver-rory", vehicleId: "vehicle-bmw" };
+  state.vehicleHandoverNotes = state.scheduleDays.map((day, index) => ({
+    ...state.vehicleHandoverNotes[0],
+    id: `handover-${day.id}`,
+    scheduleDayId: day.id,
+    notes: `${day.title} handover`,
+    sortOrder: (index + 1) * 10,
+  }));
   return state;
 }
 
-describe("Operational day filter", () => {
+function entriesByMonth(state) {
+  return {
+    Schedule: state.movements.map((movement) => ({
+      ...movement,
+      day: state.scheduleDays.find((day) => day.id === movement.scheduleDayId),
+    })),
+  };
+}
+
+function baseFilter(overrides = {}) {
+  return {
+    mode: "day",
+    dayId: "monday",
+    anchorDate: "2026-09-07",
+    customFrom: "2026-09-07",
+    customTo: "2026-09-07",
+    ...overrides,
+  };
+}
+
+function viewProps(state) {
+  return {
+    entriesByMonth: entriesByMonth(state),
+    vehicleHandoverNotes: state.vehicleHandoverNotes,
+    drivers: state.drivers,
+    vehicles: state.vehicles,
+    scheduleDays: state.scheduleDays,
+    onEdit: vi.fn(),
+    onDelete: vi.fn(),
+  };
+}
+
+describe("Operational date navigation model", () => {
   it("orders and labels schedule days chronologically", () => {
     const ordered = chronologicalScheduleDays(fixture().scheduleDays);
-    expect(ordered.map((day) => day.id)).toEqual(["first", "later"]);
+    expect(ordered.map((day) => day.id)).toEqual(["monday", "tuesday", "sunday", "next-week", "october"]);
     expect(operationalDayLabel(ordered[0])).toBe("Mon 7 Sep 2026 — Munich");
   });
 
-  it("renders All Days by default and disables Previous and Next", () => {
+  it("defaults to Day and selects today when present", () => {
     const state = fixture();
-    const ordered = chronologicalScheduleDays(state.scheduleDays);
-    const html = renderToStaticMarkup(<OperationalDayFilter orderedDays={ordered} selectedDayId={ALL_OPERATIONAL_DAYS} onChange={vi.fn()} />);
-    const operationalHtml = renderToStaticMarkup(
-      <OperationalView
-        entriesByMonth={{ September: state.movements.map((movement) => ({ ...movement, day: state.scheduleDays.find((day) => day.id === movement.scheduleDayId) })) }}
-        vehicleHandoverNotes={state.vehicleHandoverNotes}
-        drivers={state.drivers}
-        vehicles={state.vehicles}
-        scheduleDays={state.scheduleDays}
-        onEdit={vi.fn()}
-        onDelete={vi.fn()}
-        enableDayFilter
+    state.scheduleDays.push({ id: "today", date: TODAY, title: "Today" });
+    expect(createInitialOperationalFilter(state.scheduleDays, TODAY)).toMatchObject({ mode: "day", dayId: "today", anchorDate: TODAY });
+  });
+
+  it("selects the nearest future day when today is absent", () => {
+    expect(selectInitialOperationalDayId(fixture().scheduleDays, TODAY)).toBe("monday");
+  });
+
+  it("selects the latest day when no future day exists and handles no days", () => {
+    const days = [{ id: "old", date: "2026-01-01" }, { id: "latest", date: "2026-02-01" }];
+    expect(selectInitialOperationalDayId(days, TODAY)).toBe("latest");
+    expect(selectInitialOperationalDayId([], TODAY)).toBe("");
+  });
+
+  it("filters Day and navigates only through available chronological schedule days", () => {
+    const days = fixture().scheduleDays;
+    expect([...matchingOperationalDayIds(days, baseFilter())]).toEqual(["monday"]);
+    expect(navigateOperationalFilter(baseFilter(), days, 1)).toMatchObject({ dayId: "tuesday", anchorDate: "2026-09-08" });
+    expect(navigateOperationalFilter(baseFilter({ dayId: "tuesday", anchorDate: "2026-09-08" }), days, -1)).toMatchObject({ dayId: "monday" });
+  });
+
+  it("filters a Monday-Sunday week and moves by one calendar week", () => {
+    const days = fixture().scheduleDays;
+    const week = baseFilter({ mode: "week" });
+    expect(operationalFilterRange(week)).toEqual({ valid: true, startDate: "2026-09-07", endDate: "2026-09-13" });
+    expect([...matchingOperationalDayIds(days, week)]).toEqual(["sunday", "tuesday", "monday"]);
+    expect(operationalPeriodLabel(week, days)).toBe("7–13 Sep 2026");
+    expect(navigateOperationalFilter(week, days, 1).anchorDate).toBe("2026-09-14");
+    expect(navigateOperationalFilter(week, days, -1).anchorDate).toBe("2026-08-31");
+  });
+
+  it("filters a calendar month and moves by one calendar month", () => {
+    const days = fixture().scheduleDays;
+    const month = baseFilter({ mode: "month" });
+    expect(operationalFilterRange(month)).toEqual({ valid: true, startDate: "2026-09-01", endDate: "2026-09-30" });
+    expect([...matchingOperationalDayIds(days, month)]).toEqual(["next-week", "sunday", "tuesday", "monday"]);
+    expect(operationalPeriodLabel(month, days)).toBe("September 2026");
+    expect(navigateOperationalFilter(month, days, 1).anchorDate).toBe("2026-10-01");
+    expect(navigateOperationalFilter(month, days, -1).anchorDate).toBe("2026-08-01");
+  });
+
+  it("uses an inclusive custom range", () => {
+    const days = fixture().scheduleDays;
+    const custom = baseFilter({ mode: "custom", customFrom: "2026-09-08", customTo: "2026-09-14" });
+    expect([...matchingOperationalDayIds(days, custom)]).toEqual(["next-week", "sunday", "tuesday"]);
+  });
+
+  it("rejects an inverted or incomplete custom range without matching data", () => {
+    const days = fixture().scheduleDays;
+    const inverted = baseFilter({ mode: "custom", customFrom: "2026-09-14", customTo: "2026-09-08" });
+    expect(operationalFilterRange(inverted)).toMatchObject({ valid: false, error: "From date must not be after To date." });
+    expect([...matchingOperationalDayIds(days, inverted)]).toEqual([]);
+    expect(operationalFilterRange({ ...inverted, customFrom: "" })).toMatchObject({ valid: false });
+  });
+
+  it("shows all days in All mode and does not mutate schedule or group data when modes change", () => {
+    const state = fixture();
+    const snapshot = structuredClone(state);
+    const groups = chronologicalScheduleDays(state.scheduleDays).map((day) => ({ key: day.id, day }));
+    const all = changeOperationalFilterMode(baseFilter(), "all", state.scheduleDays, TODAY);
+    expect(filterOperationalDayGroups(groups, state.scheduleDays, all)).toEqual(groups);
+    expect(navigateOperationalFilter(all, state.scheduleDays, 1)).toBe(all);
+    expect(state).toEqual(snapshot);
+  });
+
+  it("reselects by today's rule when the active Day disappears but leaves range modes stable", () => {
+    const days = fixture().scheduleDays.filter((day) => day.id !== "monday");
+    expect(reconcileOperationalFilter(baseFilter(), days, TODAY)).toMatchObject({ mode: "day", dayId: "tuesday", anchorDate: "2026-09-08" });
+    const week = baseFilter({ mode: "week" });
+    expect(reconcileOperationalFilter(week, days, TODAY)).toBe(week);
+  });
+});
+
+describe("Operational date navigation UI and integration", () => {
+  it("makes Operational the default live tab with Day as the default filter", () => {
+    const state = fixture();
+    const html = renderToStaticMarkup(
+      <PreviewTabs
+        entriesByMonth={entriesByMonth(state)} profile={state.profile} movements={state.movements}
+        vehicleHandoverNotes={state.vehicleHandoverNotes} importantInfoItems={state.importantInfoItems}
+        drivers={state.drivers} vehicles={state.vehicles} scheduleDays={state.scheduleDays}
+        workingTimePolicy={state.workingTimePolicy} onWorkingTimePolicyChange={vi.fn()}
+        selectedDriverId={state.drivers[0].id} onSelectedDriverChange={vi.fn()}
+        onEdit={vi.fn()} onDelete={vi.fn()} onReorderMovements={vi.fn()}
+        onCreateOperationalBreak={vi.fn()} onMoveVehicleHandoverInOperational={vi.fn()}
       />,
     );
-    expect(html).toContain("All Days");
-    expect(html).toContain("Mon 7 Sep 2026 — Munich");
-    expect(html.match(/disabled=""/g)).toHaveLength(2);
-    expect(operationalHtml).toContain("Munich movement");
-    expect(operationalHtml).toContain("Berlin movement");
-    expect(operationalHtml).toContain("Munich handover");
-    expect(operationalHtml).toContain("Berlin handover");
+    expect(html).toContain('aria-label="Operational date navigation"');
+    expect(html).toMatch(/aria-pressed="true"[^>]*>Day<\/button>/);
+    expect((html.match(/ movement/g) || []).length).toBe(1);
   });
 
-  it("filters movements, handovers, and driver groups to one day without changing source data", () => {
-    const groups = [
-      { key: "first", day: { id: "first" }, driverGroups: [{ key: "driver-one" }], handovers: ["Munich handover"] },
-      { key: "later", day: { id: "later" }, driverGroups: [{ key: "driver-two" }], handovers: ["Berlin handover"] },
-    ];
-    const snapshot = structuredClone(groups);
-    expect(filterOperationalDayGroups(groups, ALL_OPERATIONAL_DAYS)).toEqual(groups);
-    expect(filterOperationalDayGroups(groups, "first")).toEqual([groups[0]]);
-    expect(filterOperationalDayGroups(groups, "first")[0].handovers).toEqual(["Munich handover"]);
-    expect(groups).toEqual(snapshot);
+  it("renders compact mode controls, period navigation, and custom validation", () => {
+    const days = chronologicalScheduleDays(fixture().scheduleDays);
+    const dayHtml = renderToStaticMarkup(<OperationalDateNavigation orderedDays={days} filter={baseFilter()} onChange={vi.fn()} todayDate={TODAY} />);
+    ["Day", "Week", "Month", "Custom", "All", "Previous day", "Next day", "Mon 7 Sep 2026 — Munich"].forEach((text) => expect(dayHtml).toContain(text));
+    const invalidHtml = renderToStaticMarkup(<OperationalDateNavigation orderedDays={days} filter={baseFilter({ mode: "custom", customFrom: "2026-09-14", customTo: "2026-09-08" })} onChange={vi.fn()} todayDate={TODAY} />);
+    expect(invalidHtml).toContain("From date must not be after To date.");
+    expect(invalidHtml).toContain('role="alert"');
   });
 
-  it("moves between chronological days and disables the boundary direction", () => {
-    const ordered = chronologicalScheduleDays(fixture().scheduleDays);
-    expect(adjacentOperationalDayId("first", ordered, 1)).toBe("later");
-    expect(adjacentOperationalDayId("later", ordered, -1)).toBe("first");
+  it("disables Day navigation at available-day boundaries and handles no schedule days", () => {
+    const days = chronologicalScheduleDays(fixture().scheduleDays);
+    const firstHtml = renderToStaticMarkup(<OperationalDateNavigation orderedDays={days} filter={baseFilter()} onChange={vi.fn()} todayDate={TODAY} />);
+    const lastHtml = renderToStaticMarkup(<OperationalDateNavigation orderedDays={days} filter={baseFilter({ dayId: "october", anchorDate: "2026-10-02" })} onChange={vi.fn()} todayDate={TODAY} />);
+    expect(firstHtml).toMatch(/<button[^>]+disabled=""[^>]+aria-label="Previous day"/);
+    expect(lastHtml).toMatch(/<button[^>]+disabled=""[^>]+aria-label="Next day"/);
 
-    const firstHtml = renderToStaticMarkup(<OperationalDayFilter orderedDays={ordered} selectedDayId="first" onChange={vi.fn()} />);
-    const lastHtml = renderToStaticMarkup(<OperationalDayFilter orderedDays={ordered} selectedDayId="later" onChange={vi.fn()} />);
-    expect(firstHtml.match(/disabled=""/g)).toHaveLength(1);
-    expect(firstHtml).toMatch(/<button[^>]+disabled=""[^>]+aria-label="Previous Day"/);
-    expect(lastHtml).toMatch(/<button[^>]+disabled=""[^>]+aria-label="Next Day"/);
+    const emptyState = validState();
+    emptyState.scheduleDays = [];
+    emptyState.movements = [];
+    emptyState.vehicleHandoverNotes = [];
+    const emptyHtml = renderToStaticMarkup(<OperationalView {...viewProps(emptyState)} enableDayFilter todayDate={TODAY} />);
+    expect(emptyHtml).toContain("No schedule days");
+    expect(emptyHtml).toContain("No schedule days are available yet.");
   });
 
-  it("falls back to All Days when the selected day disappears", () => {
-    const ordered = chronologicalScheduleDays(fixture().scheduleDays);
-    expect(resolveOperationalDayId("first", ordered)).toBe("first");
-    expect(resolveOperationalDayId("first", ordered.filter((day) => day.id !== "first"))).toBe(ALL_OPERATIONAL_DAYS);
-  });
-
-  it("shows only the selected day's movements, handovers, driver groups, and Add Break controls", () => {
+  it("keeps complete selected-day content, grouping, handovers, Add Break, and existing actions", () => {
     const state = fixture();
     const scheduleSnapshot = structuredClone(state);
-    const entriesByMonth = {
-      September: state.movements.map((movement) => ({ ...movement, day: state.scheduleDays.find((day) => day.id === movement.scheduleDayId) })),
-    };
     const html = renderToStaticMarkup(
       <OperationalView
-        entriesByMonth={entriesByMonth}
-        vehicleHandoverNotes={state.vehicleHandoverNotes}
-        drivers={state.drivers}
-        vehicles={state.vehicles}
-        scheduleDays={state.scheduleDays}
-        onEdit={vi.fn()}
-        onDelete={vi.fn()}
-        onCreateOperationalBreak={vi.fn()}
-        enableDayFilter
-        initialDayId="first"
+        {...viewProps(state)} onCreateOperationalBreak={vi.fn()} onReorderMovements={vi.fn()}
+        onMoveVehicleHandoverInOperational={vi.fn()} enableDayFilter todayDate={TODAY}
+        initialFilterState={baseFilter({ dayId: "next-week", anchorDate: "2026-09-14" })}
       />,
     );
-    expect(html).toContain("Munich movement");
-    expect(html).toContain("Munich handover");
-    expect(html).toContain("Greg / Vito");
+    expect(html).toContain("Cologne movement");
+    expect(html).toContain("Cologne handover");
+    expect(html).toContain("Rory / BMW");
     expect(html).toContain("Add Break");
-    expect(html).not.toContain("Berlin movement");
-    expect(html).not.toContain("Berlin handover");
+    expect(html).toContain('title="Edit"');
+    expect(html).toContain('title="Delete"');
+    expect(html).toContain("Drag to reorder within this driver group");
+    expect(html).not.toContain("Munich movement");
     expect(state).toEqual(scheduleSnapshot);
   });
 
-  it("leaves Driver rendering and standalone Operational export unfiltered", () => {
+  it("filters handovers with Week and preserves chronological day sections", () => {
     const state = fixture();
-    const entriesByMonth = {
-      September: state.movements.map((movement) => ({ ...movement, day: state.scheduleDays.find((day) => day.id === movement.scheduleDayId) })),
-    };
-    const driverHtml = renderToStaticMarkup(
-      <DriverView entriesByMonth={entriesByMonth} vehicleHandoverNotes={state.vehicleHandoverNotes} drivers={state.drivers} vehicles={state.vehicles} scheduleDays={state.scheduleDays} selectedDriverId={state.movements[0].driverId} onSelectedDriverChange={vi.fn()} onEdit={vi.fn()} onDelete={vi.fn()} />,
-    );
-    const exportHtml = getExportDocument(state, "operational").fullHtml;
-    expect(driverHtml).not.toContain("Operational day filter");
+    const html = renderToStaticMarkup(<OperationalView {...viewProps(state)} enableDayFilter todayDate={TODAY} initialFilterState={baseFilter({ mode: "week" })} />);
+    expect(html).toContain("Munich handover");
+    expect(html).toContain("Berlin handover");
+    expect(html).toContain("Stuttgart handover");
+    expect(html).not.toContain("Cologne handover");
+    expect(html.indexOf("Munich movement")).toBeLessThan(html.indexOf("Berlin movement"));
+    expect(html.indexOf("Berlin movement")).toBeLessThan(html.indexOf("Stuttgart movement"));
+  });
+
+  it("leaves Driver and standalone Operational export/print unfiltered", () => {
+    const state = fixture();
+    const driverHtml = renderToStaticMarkup(<DriverView {...viewProps(state)} selectedDriverId={state.drivers[0].id} onSelectedDriverChange={vi.fn()} />);
+    const output = getExportDocument(state, "operational");
+    expect(driverHtml).not.toContain("Operational date navigation");
     expect(driverHtml).toContain("Munich movement");
     expect(driverHtml).toContain("Berlin movement");
-    expect(exportHtml).toContain("Munich movement");
-    expect(exportHtml).toContain("Berlin movement");
-    expect(exportHtml).not.toContain("Operational day filter");
+    state.scheduleDays.forEach((day) => expect(output.fullHtml).toContain(`${day.title} movement`));
+    expect(output.fullHtml).not.toContain("Operational date navigation");
+    expect(output.styles).toMatch(/\.operational-day-section:not\(\.first-day-section\)[\s\S]*?break-before:\s*page;[\s\S]*?page-break-before:\s*always;/);
   });
 });

@@ -7,57 +7,116 @@ import { operationalTimelineViewModel } from "../domain/pickupPresentation";
 import { breakInsertionContext } from "../domain/operationalBreaks";
 import OperationalBreakDialog from "./OperationalBreakDialog";
 import {
-  ALL_OPERATIONAL_DAYS,
-  adjacentOperationalDayId,
+  OPERATIONAL_FILTER_MODES,
+  changeOperationalFilterMode,
   chronologicalScheduleDays,
+  chronologicalOperationalDayGroups,
+  createInitialOperationalFilter,
   filterOperationalDayGroups,
+  localCalendarDate,
+  navigateOperationalFilter,
   operationalDayLabel,
-  resolveOperationalDayId,
+  operationalFilterRange,
+  operationalPeriodLabel,
+  reconcileOperationalFilter,
 } from "./operationalDayFilter";
 
 const EMPTY = "-";
 const HANDOVER_DND_TYPE = "application/x-scheduleit-handover";
 
-export function OperationalDayFilter({ orderedDays, selectedDayId, onChange }) {
-  const selectedIndex = orderedDays.findIndex((day) => day.id === selectedDayId);
-  const hasSelectedDay = selectedIndex >= 0;
+export function OperationalDateNavigation({ orderedDays, filter, onChange, todayDate }) {
+  const selectedIndex = orderedDays.findIndex((day) => day.id === filter.dayId);
+  const range = operationalFilterRange(filter);
+  const showPeriodNavigation = filter.mode === "day" || filter.mode === "week" || filter.mode === "month";
+
+  function changeMode(mode) {
+    onChange((current) => changeOperationalFilterMode(current, mode, orderedDays, todayDate));
+  }
+
+  function navigate(offset) {
+    onChange((current) => navigateOperationalFilter(current, orderedDays, offset));
+  }
 
   return (
-    <div className="no-print flex w-full items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 p-2 sm:w-auto" aria-label="Operational day filter">
-      <button
-        type="button"
-        onClick={() => onChange(adjacentOperationalDayId(selectedDayId, orderedDays, -1))}
-        disabled={!hasSelectedDay || selectedIndex === 0}
-        className="ts-button ts-button--secondary ts-icon-button min-h-10 h-10 w-10 min-w-10 p-0"
-        aria-label="Previous Day"
-        title="Previous Day"
-      >
-        <ChevronLeft className="h-4 w-4" />
-      </button>
-      <label className="min-w-0 flex-1 sm:min-w-64">
-        <span className="sr-only">Operational day</span>
-        <select
-          value={selectedDayId}
-          onChange={(event) => onChange(event.target.value)}
-          className="ts-control min-h-10 h-10 truncate py-1.5"
-          aria-label="Operational day"
-        >
-          <option value={ALL_OPERATIONAL_DAYS}>All Days</option>
-          {orderedDays.map((day) => (
-            <option key={day.id} value={day.id}>{operationalDayLabel(day)}</option>
-          ))}
-        </select>
-      </label>
-      <button
-        type="button"
-        onClick={() => onChange(adjacentOperationalDayId(selectedDayId, orderedDays, 1))}
-        disabled={!hasSelectedDay || selectedIndex === orderedDays.length - 1}
-        className="ts-button ts-button--secondary ts-icon-button min-h-10 h-10 w-10 min-w-10 p-0"
-        aria-label="Next Day"
-        title="Next Day"
-      >
-        <ChevronRight className="h-4 w-4" />
-      </button>
+    <div className="no-print w-full space-y-2 rounded-xl border border-neutral-200 bg-neutral-50 p-2" aria-label="Operational date navigation">
+      <div className="flex flex-wrap gap-1" role="group" aria-label="Operational date filter mode">
+        {OPERATIONAL_FILTER_MODES.map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            onClick={() => changeMode(mode)}
+            aria-pressed={filter.mode === mode}
+            className={`min-h-9 flex-1 rounded-lg border px-2 py-1.5 text-xs font-bold capitalize sm:flex-none sm:px-3 ${
+              filter.mode === mode ? "border-[var(--ts-accent)] bg-[var(--ts-accent)] text-neutral-900" : "border-neutral-200 bg-white text-neutral-600"
+            }`}
+          >
+            {mode[0].toUpperCase() + mode.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {showPeriodNavigation ? (
+        <div className="flex min-w-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            disabled={filter.mode === "day" && selectedIndex <= 0}
+            className="ts-button ts-button--secondary ts-icon-button min-h-10 h-10 w-10 min-w-10 p-0"
+            aria-label={`Previous ${filter.mode}`}
+            title={`Previous ${filter.mode}`}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          {filter.mode === "day" ? (
+            <label className="min-w-0 flex-1">
+              <span className="sr-only">Operational day</span>
+              <select
+                value={filter.dayId}
+                onChange={(event) => {
+                  const day = orderedDays.find((item) => item.id === event.target.value);
+                  onChange((current) => ({ ...current, dayId: event.target.value, anchorDate: day?.date || current.anchorDate }));
+                }}
+                className="ts-control min-h-10 h-10 truncate py-1.5 text-center font-semibold"
+                aria-label="Operational day"
+                disabled={orderedDays.length === 0}
+              >
+                {orderedDays.length === 0 ? <option value="">No schedule days</option> : null}
+                {orderedDays.map((day) => <option key={day.id} value={day.id}>{operationalDayLabel(day)}</option>)}
+              </select>
+            </label>
+          ) : (
+            <div className="min-w-0 flex-1 truncate px-2 text-center text-sm font-bold text-neutral-900" aria-live="polite">
+              {operationalPeriodLabel(filter, orderedDays)}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => navigate(1)}
+            disabled={filter.mode === "day" && (selectedIndex < 0 || selectedIndex === orderedDays.length - 1)}
+            className="ts-button ts-button--secondary ts-icon-button min-h-10 h-10 w-10 min-w-10 p-0"
+            aria-label={`Next ${filter.mode}`}
+            title={`Next ${filter.mode}`}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      ) : null}
+
+      {filter.mode === "custom" ? (
+        <div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="text-xs font-semibold text-neutral-700">From
+              <input type="date" value={filter.customFrom} onChange={(event) => onChange((current) => ({ ...current, customFrom: event.target.value }))} className="ts-control mt-1 min-h-10 h-10 py-1.5" aria-invalid={!range.valid} />
+            </label>
+            <label className="text-xs font-semibold text-neutral-700">To
+              <input type="date" value={filter.customTo} onChange={(event) => onChange((current) => ({ ...current, customTo: event.target.value }))} className="ts-control mt-1 min-h-10 h-10 py-1.5" aria-invalid={!range.valid} />
+            </label>
+          </div>
+          {!range.valid ? <p className="mt-2 text-xs font-semibold text-red-700" role="alert">{range.error}</p> : null}
+        </div>
+      ) : null}
+
+      {filter.mode === "all" ? <p className="px-1 text-sm font-semibold text-neutral-700">All schedule days</p> : null}
     </div>
   );
 }
@@ -416,13 +475,17 @@ export default function OperationalView({
   selectedDriverId = "",
   onMoveVehicleHandoverInOperational,
   enableDayFilter = false,
-  initialDayId = ALL_OPERATIONAL_DAYS,
+  initialFilterState,
+  todayDate = localCalendarDate(),
 }) {
   const [draggedHandover, setDraggedHandover] = useState(null);
   const [handoverDragOverId, setHandoverDragOverId] = useState(null);
   const [breakContext, setBreakContext] = useState(null);
-  const [selectedDayId, setSelectedDayId] = useState(initialDayId);
-  const [availableDayIds, setAvailableDayIds] = useState(null);
+  const [dateFilter, setDateFilter] = useState(() => ({
+    ...createInitialOperationalFilter(scheduleDays, todayDate),
+    ...initialFilterState,
+  }));
+  const [availableDaysSignature, setAvailableDaysSignature] = useState(null);
   const driversById = buildLookup(drivers);
   const vehiclesById = buildLookup(vehicles);
   const entries = sortMovementsByDateAndTime(
@@ -430,13 +493,14 @@ export default function OperationalView({
   );
   const dayGroups = ensureHandoverDayGroups(groupEntries(entries, driversById, vehiclesById, groupByDriver), vehicleHandoverNotes, scheduleDays, selectedDriverId);
   const orderedDays = chronologicalScheduleDays(scheduleDays);
-  const nextAvailableDayIds = orderedDays.map((day) => day.id).join("\u001f");
-  const resolvedSelectedDayId = resolveOperationalDayId(selectedDayId, orderedDays);
-  if (enableDayFilter && availableDayIds !== nextAvailableDayIds) {
-    setAvailableDayIds(nextAvailableDayIds);
-    if (selectedDayId !== resolvedSelectedDayId) setSelectedDayId(resolvedSelectedDayId);
+  const orderedDayGroups = enableDayFilter ? chronologicalOperationalDayGroups(dayGroups) : dayGroups;
+  const nextAvailableDaysSignature = orderedDays.map((day) => `${day.id}:${day.date || ""}`).join("\u001f");
+  const resolvedDateFilter = reconcileOperationalFilter(dateFilter, orderedDays, todayDate);
+  if (enableDayFilter && availableDaysSignature !== nextAvailableDaysSignature) {
+    setAvailableDaysSignature(nextAvailableDaysSignature);
+    if (dateFilter !== resolvedDateFilter) setDateFilter(resolvedDateFilter);
   }
-  const displayedDayGroups = enableDayFilter ? filterOperationalDayGroups(dayGroups, resolvedSelectedDayId) : dayGroups;
+  const displayedDayGroups = enableDayFilter ? filterOperationalDayGroups(orderedDayGroups, orderedDays, resolvedDateFilter) : orderedDayGroups;
   const visibleHandoverNotes = vehicleHandoverNotes.filter(
     (note) => !selectedDriverId || handoverVisibleToDriver(note, selectedDriverId),
   );
@@ -497,13 +561,11 @@ export default function OperationalView({
   return (
     <div className="space-y-6">
       {enableDayFilter ? (
-        <div className="flex justify-start sm:justify-end">
-          <OperationalDayFilter orderedDays={orderedDays} selectedDayId={resolvedSelectedDayId} onChange={setSelectedDayId} />
-        </div>
+        <OperationalDateNavigation orderedDays={orderedDays} filter={resolvedDateFilter} onChange={setDateFilter} todayDate={todayDate} />
       ) : null}
       {enableDayFilter && displayedDayGroups.length === 0 ? (
         <div className="py-12 text-center text-neutral-400 border-2 border-dashed rounded-3xl italic">
-          {resolvedSelectedDayId ? "No operational-visible movements for the selected day." : "No operational-visible movements yet."}
+          {orderedDays.length ? "No operational-visible movements for this period." : "No schedule days are available yet."}
         </div>
       ) : null}
       {displayedDayGroups.map((dayGroup) => (

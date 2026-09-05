@@ -44,7 +44,7 @@ export default function PreviewTabs({
   onCreateOperationalBreak,
   onMoveVehicleHandoverInOperational,
 }) {
-  const [activeTab, setActiveTab] = useState("executive");
+  const [activeTab, setActiveTab] = useState("operational");
 
   return (
     <div className="mt-8 no-print">
